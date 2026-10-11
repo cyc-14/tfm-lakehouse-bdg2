@@ -1,0 +1,25 @@
+# Entorno virtual
+.venv/
+
+# Credenciales
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Visual Studio Code
+.vscode/
+
+# Datos y resultados del Lakehouse
+data/
+lakehouse/
+spark-warehouse/
+metastore_db/
+derby.log
+*.log
+
+# Archivos temporales
+.ipynb_checkpoints/
