@@ -1,0 +1,11 @@
+# Verified Python 3.11 environment; original Spark/Delta versions retained.
+delta-spark==3.3.3
+importlib-metadata==9.0.1
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+py4j==0.10.9.7
+pygments==2.21.0
+pyspark==3.5.7
+pytest==8.4.2
+zipp==4.1.1

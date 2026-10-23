@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tfm-lakehouse"
+version = "0.1.0"
+description = "Prototipo local Spark/Delta para el TFM energético multisede"
+requires-python = ">=3.11,<3.12"
+dependencies = ["pyspark==3.5.7", "delta-spark==3.3.3"]
+
+[project.optional-dependencies]
+dev = ["pytest==8.4.2"]
+
+[project.scripts]
+tfm-lakehouse = "tfm_lakehouse.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+  "environment: escritura y lectura real de Spark/Delta",
+  "integration: ingesta con Spark/Delta y fixtures sintéticos",
+  "unit: validaciones sin JVM",
+  "real_data: validación explícita de fuentes BDG2 locales",
+  "performance: mediciones de rendimiento (no implementadas)",
+]

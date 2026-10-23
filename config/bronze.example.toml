@@ -1,0 +1,17 @@
+# Real data is not included. Paths are relative to this file.
+[paths]
+raw_root = "../data/raw/bdg2"
+lakehouse_root = "../data/lakehouse"
+
+[dataset]
+kind = "real"
+# Record the version/revision and provenance of the files actually ingested.
+reference = "BDG2 v1.0; https://doi.org/10.5281/zenodo.3887306"
+
+[sources]
+electricity = "data/meters/raw/electricity.csv"
+metadata = "data/metadata/metadata.csv"
+
+[spark]
+master = "local[2]"
+# ivy_dir = "../.cache/ivy" # Optional; defaults to ~/.ivy2

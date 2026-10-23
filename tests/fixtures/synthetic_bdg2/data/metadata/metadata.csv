@@ -1,0 +1,3 @@
+building_id,site_id,primaryspaceusage,sub_primaryspaceusage,sqm,timezone,note
+SYNTHETIC_lodging_A,SYNTHETIC_SITE_A,Lodging/residential,Residence Hall,00100.00,Europe/London,"  synthetic, not BDG2  "
+SYNTHETIC_lodging_B,SYNTHETIC_SITE_B,Lodging/residential,Dormitory,,US/Eastern,"synthetic ""quoted"" text"

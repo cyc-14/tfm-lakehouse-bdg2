@@ -1,7 +1,7 @@
-# Entorno virtual
+# Virtual environment
 .venv/
 
-# Credenciales
+# Credentials
 .env
 .env.*
 
@@ -13,13 +13,22 @@ __pycache__/
 # Visual Studio Code
 .vscode/
 
-# Datos y resultados del Lakehouse
-data/
+# Lakehouse data and generated outputs
+# Anchor runtime data to the root so synthetic test fixtures remain versionable.
+/data/
 lakehouse/
 spark-warehouse/
 metastore_db/
 derby.log
 *.log
 
-# Archivos temporales
+# Temporary files
 .ipynb_checkpoints/
+
+# Build artifacts, caches, and local reports
+*.egg-info/
+build/
+dist/
+.cache/
+.coverage
+htmlcov/

@@ -1,0 +1,15 @@
+# Software testing only. No observations come from BDG2.
+[paths]
+raw_root = "../tests/fixtures/synthetic_bdg2"
+lakehouse_root = "../data/lakehouse"
+
+[dataset]
+kind = "synthetic"
+reference = "synthetic-software-fixtures-v1; tests/fixtures/README.md"
+
+[sources]
+electricity = "data/meters/raw/electricity.csv"
+metadata = "data/metadata/metadata.csv"
+
+[spark]
+master = "local[2]"
