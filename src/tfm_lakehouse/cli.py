@@ -7,6 +7,7 @@ from pathlib import Path
 from tfm_lakehouse.config import load_config
 from tfm_lakehouse.environment import verify_delta
 from tfm_lakehouse.ingestion.bronze import run_bronze
+from tfm_lakehouse.ingestion.snapshot import read_bronze_snapshot
 from tfm_lakehouse.spark import spark_session
 
 
@@ -34,14 +35,22 @@ def main() -> int:
                 if args.command == "ingest-bronze":
                     report = run_bronze(spark, config)
                 else:
-                    report = {"data_kind": config.data_kind, "tables": []}
-                    for name in ("electricity", "metadata"):
-                        path = config.namespace / "bronze" / name
-                        df = spark.read.format("delta").load(str(path))
+                    selection, frames = read_bronze_snapshot(spark, config)
+                    report = {
+                        "data_kind": config.data_kind, "run_id": selection["run_id"],
+                        "report_path": selection["report_path"],
+                        "latest_attempt": selection["latest_attempt"],
+                        "using_previous_successful_run": selection["using_previous_successful_run"],
+                        "tables": [],
+                    }
+                    for item in selection["tables"]:
+                        name = item["name"]
+                        frame = frames[name]
                         report["tables"].append({
-                            "name": name, "path": str(path), "rows": df.count(),
-                            "schema": df.schema.jsonValue(),
-                            "sample": [row.asDict() for row in df.limit(5).collect()],
+                            "name": name, "path": str(config.table_path(name)),
+                            "delta_version": item["delta_version"], "rows": item["output_rows"],
+                            "schema": frame.schema.jsonValue(),
+                            "sample": [row.asDict() for row in frame.limit(5).collect()],
                         })
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0

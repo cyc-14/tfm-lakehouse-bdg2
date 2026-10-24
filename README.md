@@ -8,10 +8,12 @@ BDG2 no representa una cadena hotelera y sus edificios no se reclasifican como h
 
 ## Estado
 
-Hito 1 verificado mediante escritura y lectura real de Delta. Hito 2 implementado
-y probado con fixtures **exclusivamente sintéticos**: electricidad en formato ancho
-y metadatos. No hay datos originales BDG2 locales ni resultados experimentales reales.
-Silver, Gold, meteorología, visualización y rendimiento siguen pendientes.
+Hito 1 verificado mediante escritura y lectura real de Delta. Hito 2 implementa
+Bronze para electricidad en formato ancho, metadatos y meteorología opcional.
+Las pruebas de software usan fixtures **exclusivamente sintéticos**; los originales
+BDG2 y sus salidas se conservan localmente, fuera de Git.
+Silver, Gold, integración analítica, visualización y evaluación de rendimiento
+siguen pendientes. Una carga Bronze no demuestra calidad ni resultados energéticos.
 
 ## Entorno verificado
 
@@ -46,17 +48,31 @@ para driver y workers sin modificar la configuración global del sistema.
 .venv/bin/python -m tfm_lakehouse inspect-bronze --config config/bronze.synthetic.toml
 ```
 
-Cada carga conserva **4 filas de electricidad y 2 de metadatos**, incluidos los
-duplicados presentes en el fixture. La segunda sustituye el snapshot completo;
-no añade otras cuatro o dos filas. Salidas: `data/lakehouse/synthetic/bronze/`.
+Cada carga conserva **4 filas de electricidad, 2 de metadatos y 3 de meteorología**,
+incluidos los duplicados presentes en los fixtures. La segunda sustituye el snapshot
+completo de cada fuente. Salidas: `data/lakehouse/synthetic/bronze/`.
 Estos conteos corresponden a pruebas de software con datos inventados.
+
+Cada ejecución satisfactoria publica las versiones Delta exactas de sus tablas.
+`inspect-bronze` consulta ese conjunto completo; si una recarga falla, recupera
+la ejecución compatible anterior e indica esta circunstancia. Las escrituras
+Delta siguen siendo transaccionales por tabla, no por el conjunto.
 
 ## Incorporar BDG2
 
 Los datos originales no se incluyen ni se descargan automáticamente. Consultar la
 [guía técnica](docs/hitos-1-2.md#incorporación-de-bdg2) y adaptar
 [config/bronze.example.toml](config/bronze.example.toml) a la procedencia real.
-La configuración espera la disposición original bajo `data/raw/bdg2/data/`.
+La configuración espera electricidad, metadatos y meteorología en su disposición
+original bajo `data/raw/bdg2/data/`. Para usar solo las dos primeras fuentes, omitir
+`sources.weather` en el TOML.
+
+Desde **PowerShell**, ejecutar cada comando en una sola línea:
+
+```powershell
+wsl -d Ubuntu --cd /home/yanez/tfm-lakehouse -- .venv/bin/python -m tfm_lakehouse ingest-bronze --config config/bronze.example.toml
+wsl -d Ubuntu --cd /home/yanez/tfm-lakehouse -- .venv/bin/python -m tfm_lakehouse inspect-bronze --config config/bronze.example.toml
+```
 
 Fuentes: [repositorio oficial](https://github.com/buds-lab/building-data-genome-project-2),
 [publicación v1.0 en Zenodo](https://zenodo.org/records/3887306) y
@@ -65,5 +81,4 @@ Fuentes: [repositorio oficial](https://github.com/buds-lab/building-data-genome-
 ## Documentación
 
 - [Arquitectura, contratos, configuración y comandos](docs/hitos-1-2.md).
-- [Evidencias técnicas y limitaciones](docs/evidencias-hitos-1-2.md).
 - [Fixtures sintéticos](tests/fixtures/README.md).

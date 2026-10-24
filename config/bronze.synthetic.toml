@@ -10,6 +10,7 @@ reference = "synthetic-software-fixtures-v1; tests/fixtures/README.md"
 [sources]
 electricity = "data/meters/raw/electricity.csv"
 metadata = "data/metadata/metadata.csv"
+weather = "data/weather/weather.csv"
 
 [spark]
 master = "local[2]"

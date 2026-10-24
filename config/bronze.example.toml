@@ -1,4 +1,4 @@
-# Real data is not included. Paths are relative to this file.
+# Real data is not included in Git. Paths are relative to this file.
 [paths]
 raw_root = "../data/raw/bdg2"
 lakehouse_root = "../data/lakehouse"
@@ -11,6 +11,7 @@ reference = "BDG2 v1.0; https://doi.org/10.5281/zenodo.3887306"
 [sources]
 electricity = "data/meters/raw/electricity.csv"
 metadata = "data/metadata/metadata.csv"
+weather = "data/weather/weather.csv" # Optional; omit this entry to ingest only two sources.
 
 [spark]
 master = "local[2]"

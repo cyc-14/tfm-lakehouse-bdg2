@@ -16,6 +16,7 @@ def test_available_real_sources_are_readable(request):
     assert config.data_kind == "real"
     # Delay JVM startup until real inputs have been explicitly configured.
     spark = request.getfixturevalue("spark")
-    for name, path in (("electricity", config.electricity), ("metadata", config.metadata)):
-        frame = read_source(spark, inspect_source(path, name))
-        assert frame.limit(1).count() == 1
+    for name, path in config.sources.items():
+        info = inspect_source(path, name)
+        frame = read_source(spark, info)
+        assert frame.count() == info.rows > 0
