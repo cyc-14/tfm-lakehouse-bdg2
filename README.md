@@ -61,7 +61,7 @@ Delta siguen siendo transaccionales por tabla, no por el conjunto.
 ## Incorporar BDG2
 
 Los datos originales no se incluyen ni se descargan automáticamente. Consultar la
-[guía técnica](docs/hitos-1-2.md#incorporación-de-bdg2) y adaptar
+[guía técnica](docs/hitos-1-2.md) y adaptar
 [config/bronze.example.toml](config/bronze.example.toml) a la procedencia real.
 La configuración espera electricidad, metadatos y meteorología en su disposición
 original bajo `data/raw/bdg2/data/`. Para usar solo las dos primeras fuentes, omitir
@@ -81,4 +81,6 @@ Fuentes: [repositorio oficial](https://github.com/buds-lab/building-data-genome-
 ## Documentación
 
 - [Arquitectura, contratos, configuración y comandos](docs/hitos-1-2.md).
+- [Plan de hitos técnicos y *milestones* de GitHub](docs/milestones.md).
+- [Definiciones preparadas para los 12 *milestones*](docs/github-milestones.json).
 - [Fixtures sintéticos](tests/fixtures/README.md).

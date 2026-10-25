@@ -1,0 +1,62 @@
+[
+  {
+    "title": "H01 - Entorno local Spark y Delta",
+    "state": "open",
+    "description": "Objetivo: reproducir el entorno local Python/Spark/Delta y verificar escritura y lectura efectiva de Delta. Guía: docs/hitos-1-2.md. Revisar las evidencias existentes antes de cerrar el hito. Objetivos del TFM: OE2 y OE3."
+  },
+  {
+    "title": "H02 - Ingesta Bronze y trazabilidad",
+    "state": "open",
+    "description": "Objetivo: verificar conservación de fuentes, snapshots completos, trazabilidad SHA-256 e inspección de versiones publicadas, con pruebas sintéticas. Guía: docs/hitos-1-2.md. No implica calidad analítica ni atomicidad entre tablas. Objetivos: OE2, OE3 y OE6."
+  },
+  {
+    "title": "H03 - Caracterización de las fuentes BDG2",
+    "state": "open",
+    "description": "Objetivo: documentar procedencia, variantes, rutas, SHA-256, estructuras, recuentos, periodos, cobertura e incidencias de los CSV reales sin modificar los originales. Guía: docs/hitos-3.md. Cierre: inventario privado reproducible y discrepancias revisadas. Objetivo: OE1."
+  },
+  {
+    "title": "H04 - Selección del caso y contratos analíticos",
+    "state": "open",
+    "description": "Objetivo: aprobar el caso hotelero ficticio, edificios y periodos, contratos Silver, unidades, reglas temporales y criterios de calidad. Guía: docs/hitos-4.md. Cierre: aprobación conjunta antes de implementar Silver. Objetivos: OE1, OE2 y OE4."
+  },
+  {
+    "title": "H05 - Silver de electricidad y calidad",
+    "state": "open",
+    "description": "Objetivo: transformar una publicación Bronze coherente a electricidad Silver en formato largo, con trazabilidad e indicadores de calidad. Guía: docs/hitos-5.md. Cierre: conciliación, contrato de esquema, pruebas de extremos y recuperación. Objetivos: OE3 y OE4."
+  },
+  {
+    "title": "H06 - Integración de metadatos y meteorología",
+    "state": "open",
+    "description": "Objetivo: enriquecer Silver con metadatos y, cuando sea justificable, meteorología alineada temporalmente. Guía: docs/hitos-6.md. Cierre: cardinalidad controlada, reglas temporales y cobertura de uniones; puede aprobarse un resultado sin meteorología. Objetivos: OE3 y OE4."
+  },
+  {
+    "title": "H07 - Indicadores Gold y comparativas",
+    "state": "open",
+    "description": "Objetivo: generar agregaciones por periodo, perfiles, cobertura e indicadores por superficie cuando sean válidos. Guía: docs/hitos-7.md. Cierre: fórmulas, unidades, denominadores y conciliación comprobados. Objetivos: OE3 y OE5."
+  },
+  {
+    "title": "H08 - Consultas y visualización analítica",
+    "state": "open",
+    "description": "Objetivo: responder preguntas multisede mediante consultas locales de solo lectura y visualizaciones reproducibles. Guía: docs/hitos-8.md. Cierre: tareas, unidades, procedencia, cobertura y limitaciones verificadas. Objetivos: OE5 y OE7."
+  },
+  {
+    "title": "H09 - Integridad y recuperación integral",
+    "state": "open",
+    "description": "Objetivo: verificar publicación coherente entre capas, reejecución y recuperación ante fallos. Guía: docs/hitos-9.md. Cierre: matriz de fallos ejecutada y evidencias vinculadas a versiones; sin atribuir atomicidad entre tablas. Objetivos: OE3 y OE6."
+  },
+  {
+    "title": "H10 - Evaluación técnica controlada",
+    "state": "open",
+    "description": "Objetivo: medir de forma repetible el comportamiento del procesamiento local y su sensibilidad al volumen. Guía: docs/hitos-10.md. Cierre: protocolo aprobado, ensayos medidos, condiciones de entorno y limitaciones. Objetivo: OE6."
+  },
+  {
+    "title": "H11 - Validación funcional y analítica",
+    "state": "open",
+    "description": "Objetivo: contrastar independientemente indicadores, decisiones de calidad y tareas analíticas representativas. Guía: docs/hitos-11.md. Cierre: métodos, hallazgos observados y límites del escenario ficticio documentados. Objetivos: OE4, OE5 y OE7."
+  },
+  {
+    "title": "H12 - Reproducibilidad y cierre del TFM",
+    "state": "open",
+    "description": "Objetivo: conciliar OE1–OE7, código, evidencias, instrucciones de reproducción y afirmaciones de la memoria. Guía: docs/hitos-12.md. Cierre: documentación revisada, procedencia de resultados y limitaciones explícitas. No presupone fechas ni aprobaciones académicas."
+  }
+]
