@@ -65,8 +65,10 @@ La instalación se realiza dentro de Ubuntu/WSL, no con Python de Windows.
 Java 17 debe estar disponible mediante PATH o JAVA_HOME. No se modifica el Java
 global ni se actualizan Python, Spark o Delta.
 
+Sustituir la ruta de ejemplo por la ubicación del repositorio dentro de Ubuntu/WSL.
+
 ```bash
-cd /home/yanez/tfm-lakehouse
+cd "/ruta/al/repositorio/tfm-lakehouse"
 export PATH="$HOME/.local/bin:$PATH"
 # Si no existe el entorno:
 uv venv --python 3.11.17
@@ -305,11 +307,14 @@ carga de dos. La prueba real_data valida y cuenta por completo las fuentes confi
 usando su master y caché Ivy. No sustituye la ejecución de ingesta ni demuestra
 validez analítica o rendimiento.
 
-Desde PowerShell, sin continuaciones de línea de Bash:
+Desde PowerShell, sustituir la ruta de ejemplo por la ubicación del repositorio
+dentro de Ubuntu/WSL y ejecutar cada comando `wsl` en una sola línea, sin
+continuaciones de línea de Bash:
 
 ```powershell
-wsl -d Ubuntu --cd /home/yanez/tfm-lakehouse -- .venv/bin/python -m tfm_lakehouse ingest-bronze --config config/bronze.example.toml
-wsl -d Ubuntu --cd /home/yanez/tfm-lakehouse -- .venv/bin/python -m tfm_lakehouse inspect-bronze --config config/bronze.example.toml
+$RepositoryWslPath = '/ruta/al/repositorio/tfm-lakehouse'
+wsl -d Ubuntu --cd $RepositoryWslPath -- .venv/bin/python -m tfm_lakehouse ingest-bronze --config config/bronze.example.toml
+wsl -d Ubuntu --cd $RepositoryWslPath -- .venv/bin/python -m tfm_lakehouse inspect-bronze --config config/bronze.example.toml
 ```
 
 ## Pruebas y criterios de aceptación

@@ -67,11 +67,13 @@ La configuración espera electricidad, metadatos y meteorología en su disposici
 original bajo `data/raw/bdg2/data/`. Para usar solo las dos primeras fuentes, omitir
 `sources.weather` en el TOML.
 
-Desde **PowerShell**, ejecutar cada comando en una sola línea:
+Desde **PowerShell**, sustituir la ruta de ejemplo por la ubicación del repositorio
+dentro de Ubuntu/WSL y ejecutar cada comando `wsl` en una sola línea:
 
 ```powershell
-wsl -d Ubuntu --cd /home/yanez/tfm-lakehouse -- .venv/bin/python -m tfm_lakehouse ingest-bronze --config config/bronze.example.toml
-wsl -d Ubuntu --cd /home/yanez/tfm-lakehouse -- .venv/bin/python -m tfm_lakehouse inspect-bronze --config config/bronze.example.toml
+$RepositoryWslPath = '/ruta/al/repositorio/tfm-lakehouse'
+wsl -d Ubuntu --cd $RepositoryWslPath -- .venv/bin/python -m tfm_lakehouse ingest-bronze --config config/bronze.example.toml
+wsl -d Ubuntu --cd $RepositoryWslPath -- .venv/bin/python -m tfm_lakehouse inspect-bronze --config config/bronze.example.toml
 ```
 
 Fuentes: [repositorio oficial](https://github.com/buds-lab/building-data-genome-project-2),
