@@ -32,13 +32,19 @@ uv venv --python 3.11.17
 uv pip install --python .venv/bin/python -r requirements.lock -e .
 uv pip check --python .venv/bin/python
 
-.venv/bin/python -m tfm_lakehouse check-environment --report data/checks/environment.json
+.venv/bin/python -m tfm_lakehouse check-environment --report data/checks/environment/check-001.json
 .venv/bin/python -m pytest -q
 ```
 
 La primera sesión Spark descarga los JAR de Delta desde Maven; se necesita Java 17
 y acceso de red o la caché Ivy preparada. La configuración usa el mismo intérprete
 para driver y workers sin modificar la configuración global del sistema.
+
+`--report` solo admite un JSON nuevo directamente en `data/checks/environment/`,
+desde la raíz del proyecto. Se rechazan archivos existentes y enlaces; para repetir
+la comprobación, elegir otro nombre. El antiguo `data/checks/environment.json` y
+las evidencias previas se conservan intactos: no se trasladan ni se sobrescriben.
+Sin `--report`, la comprobación mantiene su salida por consola.
 
 ## Demostración sintética de Bronze
 

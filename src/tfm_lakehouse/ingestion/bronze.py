@@ -1,5 +1,6 @@
 """Full-source reloads with versioned publication and recoverable failure reports."""
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 import logging
@@ -24,35 +25,108 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+@dataclass
+class _Failures:
+    """Keep the first diagnostic cause and the first control-flow cancellation."""
+
+    primary: BaseException | None = None
+    cancellation: BaseException | None = None
+    cancellation_phase: str | None = None
+
+    def record(self, error: BaseException, phase: str) -> None:
+        if self.primary is None:
+            self.primary = error
+        elif error is not self.primary and error is not self.cancellation:
+            self.primary.add_note(f"Incidencia secundaria en {phase}: {error}")
+        if not isinstance(error, Exception) and self.cancellation is None:
+            self.cancellation = error
+            self.cancellation_phase = phase
+
+    def propagate(self) -> None:
+        error = self.cancellation if self.cancellation is not None else self.primary
+        if error is not None:
+            if error is not self.primary:
+                raise error from self.primary
+            raise error
+
+
 @contextmanager
 def _namespace_lock(namespace: Path):
     # The prototype runs in WSL/Linux; this lock coordinates this pipeline's local writers.
     import fcntl
 
-    with (namespace / "_ingestion.lock").open("a") as handle:
+    handle = (namespace / "_ingestion.lock").open("a")
+    failures = _Failures()
+    locked = False
+    try:
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             raise IngestionError("Ya hay otra ingesta ejecutándose en este namespace.") from exc
+        locked = True
+        yield
+    except BaseException as exc:
+        failures.record(exc, "namespace")
+    finally:
+        if locked:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+            except BaseException as exc:
+                failures.record(exc, "unlock_namespace")
         try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+            handle.close()
+        except BaseException as exc:
+            failures.record(exc, "close_namespace_lock")
+    failures.propagate()
 
 
-def _write_report(path: Path, report: dict) -> None:
+def _write_report(path: Path, report: dict, *, failures: _Failures | None = None) -> None:
     temporary = path.with_suffix(".tmp")
+    local = _Failures()
+    handle = None
+    created = False
     try:
-        with temporary.open("x", encoding="utf-8") as handle:
+        handle = temporary.open("x", encoding="utf-8")
+        created = True
+        try:
             json.dump(report, handle, ensure_ascii=False, indent=2)
             handle.write("\n")
-        temporary.replace(path)
-    finally:
-        if temporary.exists():
+        except BaseException as exc:
+            local.record(exc, "serialize_report")
+        finally:
             try:
-                temporary.unlink()
-            except OSError:
-                LOGGER.warning("No se pudo retirar el informe temporal %s", temporary)
+                handle.close()
+            except BaseException as exc:
+                local.record(exc, "close_report")
+        if local.primary is None:
+            # This replacement is the publication boundary, not the caller's return.
+            temporary.replace(path)
+    except BaseException as exc:
+        local.record(exc, "publish_report")
+    finally:
+        if created:
+            try:
+                temporary.unlink(missing_ok=True)
+            except BaseException as exc:
+                local.record(exc, "remove_report_temporary")
+    if failures is not None:
+        if local.primary is not None:
+            failures.record(local.primary, "publication")
+        if local.cancellation is not None and local.cancellation is not local.primary:
+            failures.record(local.cancellation, "publication")
+    local.propagate()
+
+
+def _finish_report(report: dict, failures: _Failures, completed: bool) -> None:
+    report["finished_at_utc"] = _now()
+    report["status"] = "passed" if completed and failures.primary is None else "failed"
+    if failures.primary is not None:
+        report.update(error_type=type(failures.primary).__name__, error=str(failures.primary))
+    if failures.cancellation is not None:
+        report["interruption"] = {
+            "error_type": type(failures.cancellation).__name__,
+            "error": str(failures.cancellation), "phase": failures.cancellation_phase,
+        }
 
 
 def run_bronze(spark: SparkSession, config: BronzeConfig) -> dict:
@@ -76,7 +150,8 @@ def _run_locked(spark: SparkSession, config: BronzeConfig, reports: Path) -> dic
         "cleanup_errors": [],
     }
     prepared = []
-    failure = None
+    failures = _Failures()
+    completed = False
     pruning = None
     try:
         # Column pruning can hide malformed CSV fields during count(), even with FAILFAST.
@@ -145,43 +220,59 @@ def _run_locked(spark: SparkSession, config: BronzeConfig, reports: Path) -> dic
             )
             LOGGER.info("%s: entrada=%d salida=%d versión=%d tabla=%s",
                         name, item["input_rows"], count, version, target)
-    except Exception as exc:
-        failure = exc
+        completed = (len(report["tables"]) == len(config.sources)
+                     and all(item["status"] == "verified" for item in report["tables"]))
+        if not completed:
+            raise IngestionError("No se completaron todas las verificaciones Bronze.")
+    except BaseException as exc:
+        failures.record(exc, "work")
         LOGGER.exception("Ingesta fallida; informe %s", report_path)
     finally:
         # Cleanup is best-effort; it must not hide the original error or prevent reporting.
         for name, _, frame in prepared:
             try:
                 frame.unpersist()
-            except Exception as exc:
+            except BaseException as exc:
                 report["cleanup_errors"].append(
                     {"operation": f"unpersist:{name}", "error_type": type(exc).__name__,
                      "error": str(exc)}
                 )
-                if failure is None:
-                    failure = exc
+                failures.record(exc, f"unpersist:{name}")
         if pruning is not None:
             try:
                 spark.conf.set("spark.sql.csv.parser.columnPruning.enabled", pruning)
-            except Exception as exc:
+            except BaseException as exc:
                 report["cleanup_errors"].append(
                     {"operation": "restore_csv_pruning", "error_type": type(exc).__name__,
                      "error": str(exc)}
                 )
-                if failure is None:
-                    failure = exc
-        report["finished_at_utc"] = _now()
-        report["status"] = "failed" if failure is not None else "passed"
-        if failure is not None:
-            report.update(error_type=type(failure).__name__, error=str(failure))
+                failures.record(exc, "restore_csv_pruning")
+        _finish_report(report, failures, completed)
         try:
-            _write_report(report_path, report)
-        except Exception as exc:
-            if failure is None:
-                failure = exc
-            else:
-                failure.add_note(f"No se pudo guardar el informe: {exc}")
+            _write_report(report_path, report, failures=failures)
+        except BaseException as exc:
+            failures.record(exc, "publication")
+            # The final name may already contain a complete publication. Never demote it.
+            # If no final name exists, make one bounded attempt to record the failure.
+            try:
+                report_path.lstat()
+                absent = False
+            except FileNotFoundError:
+                absent = True
+            except BaseException as inspection_error:
+                failures.record(inspection_error, "inspect_publication")
+                absent = False
+            if absent:
+                _finish_report(report, failures, False)
+                try:
+                    _write_report(report_path, report, failures=failures)
+                except BaseException as secondary:
+                    failures.record(secondary, "publication_retry")
             LOGGER.exception("No se pudo publicar el informe %s", report_path)
-    if failure is not None:
-        raise IngestionError(f"Ingesta fallida: {failure}. Informe previsto: {report_path}") from failure
+    if failures.cancellation is not None:
+        failures.propagate()
+    if failures.primary is not None:
+        raise IngestionError(
+            f"Ingesta fallida: {failures.primary}. Informe previsto: {report_path}"
+        ) from failures.primary
     return report

@@ -5,13 +5,15 @@ import logging
 from pathlib import Path
 
 from tfm_lakehouse.config import load_config
-from tfm_lakehouse.environment import verify_delta
+from tfm_lakehouse.environment import (
+    validate_environment_report_target, verify_delta, write_environment_report,
+)
 from tfm_lakehouse.ingestion.bronze import run_bronze
 from tfm_lakehouse.ingestion.snapshot import read_bronze_snapshot
 from tfm_lakehouse.spark import spark_session
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="TFM Lakehouse local, hitos 1 y 2")
     commands = parser.add_subparsers(dest="command", required=True)
     check = commands.add_parser("check-environment")
@@ -21,14 +23,16 @@ def main() -> int:
         command = commands.add_parser(name)
         command.add_argument("--config", type=Path, required=True)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         if args.command == "check-environment":
+            project_root = Path.cwd()
+            target = (validate_environment_report_target(args.report, project_root=project_root)
+                      if args.report else None)
             with spark_session(ivy_dir=args.ivy_dir) as spark:
                 report = verify_delta(spark)
-            if args.report:
-                args.report.parent.mkdir(parents=True, exist_ok=True)
-                args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+            if target is not None:
+                write_environment_report(target, report, project_root=project_root)
         else:
             config = load_config(args.config)
             with spark_session(master=config.master, ivy_dir=config.ivy_dir) as spark:

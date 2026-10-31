@@ -87,7 +87,8 @@ en pyproject. No se necesita pip dentro de .venv: uv puede instalar directamente
 
 La [matriz oficial de Delta](https://docs.delta.io/releases/) contempla Delta 3.3.x
 con Spark 3.5.x. El comando check-environment permite registrar la comprobación
-local en data/checks/environment.json; estos resultados generados no se versionan.
+local en `data/checks/environment/<nombre-nuevo>.json`; estos resultados generados
+no se versionan.
 
 ## Spark y Maven
 
@@ -116,14 +117,54 @@ Un entorno aislado necesita preparar esa caché previamente; instalar delta-spar
 en Python por sí solo no proporciona los JAR de ejecución.
 
 ```bash
-.venv/bin/python -m tfm_lakehouse check-environment --report data/checks/environment.json
-# Alternativa equivalente ejecutada durante el desarrollo:
-.venv/bin/python scripts/check_environment.py --report data/checks/environment.json
+.venv/bin/python -m tfm_lakehouse check-environment --report data/checks/environment/check-001.json
+# Alternativa equivalente:
+.venv/bin/python scripts/check_environment.py --report data/checks/environment/check-002.json
 ```
 
 El criterio de aceptación incluye: tres filas conocidas, esquema y valores exactos
 (con cero y null), archivos Parquet y registro JSON en _delta_log. La tabla vive
 en un directorio temporal y se elimina al terminar. No es un benchmark.
+
+### Protección del informe de entorno
+
+Ambas interfaces comparten la misma validación y publicación. Si se solicita
+`--report`, el directorio de invocación debe ser la raíz del proyecto, identificada
+por `pyproject.toml` y el paquete `src/tfm_lakehouse`. Se admite únicamente un
+archivo `.json` nuevo, hijo directo de `data/checks/environment/`; las rutas
+relativas y absolutas equivalentes son válidas. Se rechazan `..`, destinos
+existentes —incluidos enlaces duros—, enlaces simbólicos y colgantes, componentes
+antecesores enlazados y destinos fuera de esa ubicación. La validación y las
+capacidades necesarias se comprueban antes de iniciar Spark, sin crear archivos.
+Sin `--report`, no se exige la raíz del proyecto y se conserva la salida por consola.
+
+La nueva ubicación es un cambio deliberado de compatibilidad y queda reservada
+exclusivamente para informes de entorno. El antiguo `data/checks/environment.json`
+y cualquier evidencia histórica permanecen intactos; no se migran ni se eliminan.
+La comprobación de entorno no recibe un TOML ni descubre raíces externas
+arbitrarias: no debe configurarse esta ubicación reservada como origen de datos
+o almacenamiento de tablas.
+
+Tras completar la comprobación y cerrar Spark, el publicador vuelve a validar
+el destino. Recorre los directorios mediante descriptores con `O_NOFOLLOW` y
+crea únicamente los directorios reservados que falten. Serializa el JSON completo
+antes de escribirlo en un temporal exclusivo y publica el nombre final con
+`os.link`, que rechaza un destino creado entretanto. No utiliza `replace` como
+alternativa a esa exclusión. Los archivos nuevos tienen permisos `0600` y los
+directorios nuevos `0700`; los permisos existentes no se alteran.
+
+Un fallo anterior a la publicación no deja un JSON final parcial. Se intenta
+retirar exclusivamente el temporal propio; un fallo de limpieza puede dejar
+ese temporal o directorios vacíos y se comunica sin borrar archivos ajenos.
+Si falla la limpieza después de publicar, el JSON íntegro se conserva aunque
+el comando comunique el fallo. Las primitivas requeridas son de Linux/WSL;
+un filesystem que no permita el enlace exclusivo hace fallar la publicación.
+
+Estas protecciones reducen carreras de enlaces y sobrescrituras accidentales.
+No impiden que otro proceso con permisos renombre directorios abiertos o manipule
+deliberadamente el temporal. Tampoco garantizan durabilidad frente a un apagado:
+la publicación visible completa no equivale a sincronización persistente del
+filesystem. La ubicación y protección de la caché Ivy son un contrato distinto.
 
 ## Configuración Bronze
 
@@ -236,6 +277,38 @@ El JSON se publica mediante sustitución atómica. Cada commit guarda el identif
 de ejecución en userMetadata; se identifica ese commit, no una versión posterior de
 otro escritor. Los errores de limpieza no ocultan la causa principal y se intenta
 guardar el informe aunque falle la liberación de cachés o la restauración de Spark.
+
+La finalización satisfactoria se comprueba expresamente: deben haberse verificado
+todas las tablas configuradas y terminado correctamente la liberación de cachés
+y la restauración interna de Spark. La mera ausencia de una excepción ordinaria
+capturada no basta. Una cancelación anterior a la publicación se registra como
+`status=failed`, manteniendo `report_contract_version=1`, los estados parciales
+observados y la primera causa diagnóstica. El campo opcional `interruption`
+identifica tipo, mensaje y fase de la primera cancelación; los errores posteriores
+se conservan como incidencias de limpieza o notas, sin sustituir la causa original.
+
+Los errores ordinarios mantienen `IngestionError` y su causa. `KeyboardInterrupt`
+y `SystemExit` se propagan como la misma excepción —conservando el código de
+salida— después de los intentos de finalización. Si una cancelación ocurre durante
+la limpieza de un error ordinario, se propaga la cancelación y se conserva aquel
+error como causa y diagnóstico. Se protegen también los finalizadores del temporal
+y del bloqueo. No se inventan versiones Delta ni se simula una reversión cuando
+una escritura se interrumpe.
+
+La sustitución atómica del temporal por el manifiesto final es la frontera de
+publicación. Una cancelación anterior no puede publicar una ejecución incompleta
+como `passed`; si falta el manifiesto final, se admite un único intento adicional
+de registrar el fallo. Solo una ausencia confirmada permite ese intento: un error
+al inspeccionar el destino no se interpreta como ausencia. Si el manifiesto ya
+se publicó íntegramente, una cancelación posterior no lo degrada ni lo invalida
+retrospectivamente. Por ello, el llamador puede recibir una cancelación después
+de una publicación válida. `passed` acredita el snapshot y su limpieza interna,
+no el cierre posterior de la sesión externa o la salida completa de la CLI.
+
+Ante fallos que impidan publicar, terminación forzosa, caída del proceso o
+interrupciones repetidas, no se garantiza generar un informe ni completar la
+limpieza. El lector continúa rechazando publicaciones incompletas y utilizando
+la publicación anterior compatible cuando un intento posterior consta como fallido.
 
 `inspect-bronze` selecciona la publicación satisfactoria más reciente compatible
 con kind, referencia y conjunto de fuentes. Lee cada tabla mediante versionAsOf,

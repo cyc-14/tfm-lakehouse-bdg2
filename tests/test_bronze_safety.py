@@ -3,6 +3,7 @@ from dataclasses import replace
 import json
 from pathlib import Path
 import shutil
+from types import SimpleNamespace
 
 import pytest
 from pyspark.sql import DataFrame, functions as F
@@ -112,7 +113,8 @@ def _manifest(config):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("invalid", ["missing", "legacy", "json", "duplicate", "outside", "boolean", "negative"])
+@pytest.mark.parametrize("invalid", ["missing", "legacy", "json", "duplicate", "outside",
+                                    "boolean", "negative", "incomplete"])
 def test_invalid_publication_never_falls_back_to_current_tables(config, invalid):
     reports = config.namespace / "_runs"
     reports.mkdir(parents=True)
@@ -127,6 +129,8 @@ def test_invalid_publication_never_falls_back_to_current_tables(config, invalid)
         report["tables"][0]["delta_version"] = True
     elif invalid == "negative":
         report["tables"][0]["delta_version"] = -1
+    elif invalid == "incomplete":
+        report["tables"] = []
     if invalid != "missing":
         (reports / "report.json").write_text("{" if invalid == "json" else json.dumps(report))
     with pytest.raises(SnapshotError):
@@ -263,7 +267,7 @@ def test_cleanup_failure_keeps_report_and_primary_cause(spark, config, monkeypat
 def test_report_failure_does_not_replace_original_failure(spark, config, monkeypatch):
     monkeypatch.setattr(DataFrameWriter, "save", _fail_metadata(DataFrameWriter.save))
 
-    def cannot_report(path, report):
+    def cannot_report(path, report, **kwargs):
         raise OSError("synthetic report failure")
 
     monkeypatch.setattr(bronze, "_write_report", cannot_report)
@@ -312,4 +316,412 @@ def test_recreated_table_cannot_impersonate_a_published_snapshot(spark, config):
     assert recreated.schema.jsonValue() == published["output_schema"]
     assert recreated.count() == published["output_rows"]
     with pytest.raises(SnapshotError, match="no pertenece a la ejecución publicada"):
+        read_bronze_snapshot(spark, config)
+
+
+def fake_ingestion(config, monkeypatch, controls=None):
+    """Exercise orchestration without starting Spark or creating Delta tables."""
+    controls = {} if controls is None else controls
+    events = []
+
+    class Schema(list):
+        def jsonValue(self):
+            return {"type": "struct", "fields": []}
+
+    class Frame:
+        schema = Schema()
+
+        def __init__(self, info):
+            self.info = info
+
+        def persist(self, level):
+            return self
+
+        def count(self):
+            return self.info.rows
+
+        def withColumn(self, name, value):
+            return self
+
+        @property
+        def write(self):
+            return self
+
+        def format(self, value):
+            return self
+
+        def mode(self, value):
+            assert value == "overwrite"
+            return self
+
+        def option(self, name, value):
+            return self
+
+        def save(self, target):
+            events.append(f"save:{Path(target).name}")
+            if Path(target).name == "metadata" and controls.get("work_error") is not None:
+                raise controls["work_error"]
+
+        def unpersist(self):
+            events.append(f"unpersist:{self.info.path.name}")
+            if self.info.path == config.electricity and controls.get("cleanup_error") is not None:
+                raise controls["cleanup_error"]
+
+    frames = {}
+
+    def read(spark, info):
+        frame = Frame(info)
+        frames[info.path] = frame
+        return frame
+
+    class Reader:
+        def format(self, value):
+            return self
+
+        def option(self, name, value):
+            assert name == "versionAsOf"
+            assert value == 0
+            return self
+
+        def load(self, path):
+            return frames[config.sources[Path(path).name]]
+
+    class Conf:
+        def get(self, key):
+            if controls.get("before_error") is not None:
+                raise controls["before_error"]
+            return "true"
+
+        def set(self, key, value):
+            events.append(f"pruning:{value}")
+            if value == "true" and controls.get("restore_error") is not None:
+                raise controls["restore_error"]
+
+    class History:
+        def history(self):
+            return self
+
+        def where(self, value):
+            return self
+
+        def select(self, value):
+            return self
+
+        def limit(self, value):
+            return self
+
+        def collect(self):
+            return [{"version": 0}]
+
+    monkeypatch.setattr(bronze, "read_source", read)
+    monkeypatch.setattr(bronze, "F", SimpleNamespace(lit=lambda value: value, col=lambda name: name))
+    monkeypatch.setattr(bronze, "DeltaTable", SimpleNamespace(
+        isDeltaTable=lambda *args: False, forPath=lambda *args: History()))
+    directory = config.namespace / "_runs"
+    directory.mkdir(parents=True)
+    return SimpleNamespace(conf=Conf(), read=Reader()), directory, events
+
+
+def saved_report(directory):
+    return json.loads(next(directory.glob("*.json")).read_text())
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("cancel", [KeyboardInterrupt, SystemExit])
+def test_cancellation_before_preparation_is_failed_and_propagated(config, monkeypatch, cancel):
+    interruption = cancel(23)
+    spark, directory, events = fake_ingestion(config, monkeypatch, {"before_error": interruption})
+    with pytest.raises(cancel) as caught:
+        bronze._run_locked(spark, config, directory)
+    assert caught.value is interruption
+    if cancel is SystemExit:
+        assert caught.value.code == 23
+    report = saved_report(directory)
+    assert report["status"] == "failed"
+    assert report["tables"] == []
+    assert report["error_type"] == cancel.__name__
+    assert report["interruption"]["phase"] == "work"
+    assert events == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("primary_kind", ["ordinary", "cancellation", "none"])
+def test_cleanup_cancellation_preserves_primary_cause(config, monkeypatch, primary_kind):
+    primary = {"ordinary": OSError("synthetic primary failure"),
+               "cancellation": KeyboardInterrupt("synthetic primary cancellation"),
+               "none": None}[primary_kind]
+    secondary = SystemExit(31)
+    spark, directory, events = fake_ingestion(config, monkeypatch, {
+        "work_error": primary, "cleanup_error": secondary,
+    })
+    expected = primary if primary_kind == "cancellation" else secondary
+    with pytest.raises(type(expected)) as caught:
+        bronze._run_locked(spark, config, directory)
+    assert caught.value is expected
+    if primary_kind == "ordinary":
+        assert caught.value.__cause__ is primary
+    report = saved_report(directory)
+    assert report["status"] == "failed"
+    assert report["error_type"] == type(primary if primary is not None else secondary).__name__
+    assert report["cleanup_errors"][0]["error_type"] == "SystemExit"
+    assert "unpersist:metadata.csv" in events
+    assert events[-1] == "pruning:true"
+
+
+@pytest.mark.unit
+def test_restore_cancellation_prevents_passed_publication(config, monkeypatch):
+    interruption = KeyboardInterrupt("synthetic restore cancellation")
+    spark, directory, events = fake_ingestion(config, monkeypatch, {"restore_error": interruption})
+    with pytest.raises(KeyboardInterrupt) as caught:
+        bronze._run_locked(spark, config, directory)
+    assert caught.value is interruption
+    report = saved_report(directory)
+    assert report["status"] == "failed"
+    assert all(item["status"] == "verified" for item in report["tables"])
+    assert report["interruption"]["phase"] == "restore_csv_pruning"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("stage", ["serialize", "close", "before_replace", "after_replace"])
+@pytest.mark.parametrize("cancel", [KeyboardInterrupt, SystemExit])
+def test_bronze_publication_cancellation_boundary(config, monkeypatch, stage, cancel):
+    interruption = cancel(41)
+    spark, directory, events = fake_ingestion(config, monkeypatch)
+    original_dump, original_open, original_replace = json.dump, Path.open, Path.replace
+    triggered = False
+
+    def dump(payload, handle, **kwargs):
+        nonlocal triggered
+        if stage == "serialize" and not triggered:
+            triggered = True
+            handle.write("{")
+            raise interruption
+        return original_dump(payload, handle, **kwargs)
+
+    def open_report(path, *args, **kwargs):
+        handle = original_open(path, *args, **kwargs)
+        if stage != "close" or path.suffix != ".tmp":
+            return handle
+        class Writer:
+            def write(self, value):
+                return handle.write(value)
+
+            def close(self):
+                nonlocal triggered
+                handle.close()
+                if not triggered:
+                    triggered = True
+                    raise interruption
+        return Writer()
+
+    def replace(path, target):
+        nonlocal triggered
+        if stage == "before_replace" and not triggered:
+            triggered = True
+            raise interruption
+        result = original_replace(path, target)
+        if stage == "after_replace" and not triggered:
+            triggered = True
+            raise interruption
+        return result
+
+    monkeypatch.setattr(json, "dump", dump)
+    monkeypatch.setattr(Path, "open", open_report)
+    monkeypatch.setattr(Path, "replace", replace)
+    with pytest.raises(cancel) as caught:
+        bronze._run_locked(spark, config, directory)
+    assert caught.value is interruption
+    if cancel is SystemExit:
+        assert caught.value.code == 41
+    report = saved_report(directory)
+    assert report["status"] == ("passed" if stage == "after_replace" else "failed")
+    assert len(report["tables"]) == 2
+    assert all(item["status"] == "verified" for item in report["tables"])
+    assert not list(directory.glob("*.tmp"))
+
+
+@pytest.mark.unit
+def test_bronze_report_finalizer_preserves_first_cancellation(tmp_path, monkeypatch):
+    target = tmp_path / "report.json"
+    first = KeyboardInterrupt("synthetic serialization cancellation")
+    second = SystemExit(7)
+    original_open = Path.open
+
+    def open_report(path, *args, **kwargs):
+        handle = original_open(path, *args, **kwargs)
+        class Writer:
+            def write(self, payload):
+                handle.write(payload)
+
+            def close(self):
+                handle.close()
+                raise second
+        return Writer()
+
+    def fail(payload, handle, **kwargs):
+        handle.write("{")
+        raise first
+
+    monkeypatch.setattr(Path, "open", open_report)
+    monkeypatch.setattr(json, "dump", fail)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        bronze._write_report(target, {"status": "failed"})
+    assert caught.value is first
+    assert not target.exists()
+    assert not target.with_suffix(".tmp").exists()
+    assert any("close_report" in note for note in first.__notes__)
+
+
+@pytest.mark.unit
+def test_publication_error_then_cleanup_cancel_retains_diagnostic(config, monkeypatch):
+    spark, directory, events = fake_ingestion(config, monkeypatch)
+    primary = OSError("synthetic serialization failure")
+    interruption = KeyboardInterrupt("synthetic report close cancellation")
+    original_open, original_dump = Path.open, json.dump
+    write_failed = close_failed = False
+
+    def dump(payload, handle, **kwargs):
+        nonlocal write_failed
+        if not write_failed:
+            write_failed = True
+            handle.write("{")
+            raise primary
+        return original_dump(payload, handle, **kwargs)
+
+    def open_report(path, *args, **kwargs):
+        handle = original_open(path, *args, **kwargs)
+        if path.suffix != ".tmp":
+            return handle
+        class Writer:
+            def write(self, payload):
+                return handle.write(payload)
+
+            def close(self):
+                nonlocal close_failed
+                handle.close()
+                if not close_failed:
+                    close_failed = True
+                    raise interruption
+        return Writer()
+
+    monkeypatch.setattr(json, "dump", dump)
+    monkeypatch.setattr(Path, "open", open_report)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        bronze._run_locked(spark, config, directory)
+    assert caught.value is interruption
+    assert caught.value.__cause__ is primary
+    report = saved_report(directory)
+    assert report["status"] == "failed"
+    assert report["error_type"] == "OSError"
+    assert report["error"] == str(primary)
+    assert report["interruption"]["error_type"] == "KeyboardInterrupt"
+
+
+@pytest.mark.unit
+def test_failed_publication_inspection_never_demotes_published_snapshot(config, monkeypatch):
+    spark, directory, events = fake_ingestion(config, monkeypatch)
+    interruption = KeyboardInterrupt("synthetic cancellation after replacement")
+    original_replace, original_lstat = Path.replace, Path.lstat
+
+    def replace(path, target):
+        result = original_replace(path, target)
+        raise interruption
+
+    def lstat(path):
+        if path.parent == directory and path.suffix == ".json":
+            raise OSError("synthetic transient inspection failure")
+        return original_lstat(path)
+
+    monkeypatch.setattr(Path, "replace", replace)
+    monkeypatch.setattr(Path, "lstat", lstat)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        bronze._run_locked(spark, config, directory)
+    assert caught.value is interruption
+    assert saved_report(directory)["status"] == "passed"
+
+
+@pytest.mark.unit
+def test_publication_failure_keeps_cause_and_retry_is_bounded(config, monkeypatch):
+    spark, directory, events = fake_ingestion(config, monkeypatch)
+    first = OSError("synthetic first publication failure")
+    calls = []
+
+    def fail(path, report, **kwargs):
+        calls.append(report["status"])
+        raise first if len(calls) == 1 else RuntimeError("synthetic retry failure")
+
+    monkeypatch.setattr(bronze, "_write_report", fail)
+    with pytest.raises(IngestionError) as caught:
+        bronze._run_locked(spark, config, directory)
+    assert caught.value.__cause__ is first
+    assert calls == ["passed", "failed"]
+    assert not list(directory.glob("*.json"))
+
+
+@pytest.mark.unit
+def test_namespace_cleanup_does_not_replace_cancellation(config, monkeypatch):
+    import fcntl
+    config.namespace.mkdir(parents=True)
+    interruption = KeyboardInterrupt("synthetic work cancellation")
+    original = fcntl.flock
+
+    def flock(handle, operation):
+        if operation == fcntl.LOCK_UN:
+            raise OSError("synthetic unlock failure")
+        return original(handle, operation)
+
+    monkeypatch.setattr(fcntl, "flock", flock)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        with bronze._namespace_lock(config.namespace):
+            raise interruption
+    assert caught.value is interruption
+    assert any("unlock_namespace" in note for note in interruption.__notes__)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("cancel", [KeyboardInterrupt, SystemExit])
+def test_interrupted_reload_recovers_previous_publication(spark, config, monkeypatch, cancel):
+    first = run_bronze(spark, config)
+    before = {path: path.read_bytes() for path in config.sources.values()}
+    interruption = cancel(53)
+    original = DataFrameWriter.save
+
+    def interrupt_metadata(self, path=None, *args, **kwargs):
+        if path and str(path).endswith("/bronze/metadata"):
+            raise interruption
+        return original(self, path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(DataFrameWriter, "save", interrupt_metadata)
+        with pytest.raises(cancel) as caught:
+            run_bronze(spark, config)
+    assert caught.value is interruption
+    attempts = [json.loads(path.read_text()) for path in (config.namespace / "_runs").glob("*.json")]
+    failed = next(report for report in attempts if report["run_id"] != first["run_id"])
+    assert failed["status"] == "failed"
+    assert failed["tables"][0]["status"] == "verified"
+    assert failed["tables"][1]["status"] == "validated"
+    assert "delta_version" not in failed["tables"][1]
+    selected, frames = read_bronze_snapshot(spark, config)
+    assert selected["run_id"] == first["run_id"]
+    assert selected["using_previous_successful_run"] is True
+    assert selected["latest_attempt"]["status"] == "failed"
+    assert frames["electricity"].count() == 4
+    assert before == {path: path.read_bytes() for path in before}
+
+
+@pytest.mark.integration
+def test_interrupted_first_ingestion_has_no_published_snapshot(spark, config, monkeypatch):
+    original = DataFrameWriter.save
+
+    def interrupt_metadata(self, path=None, *args, **kwargs):
+        if path and str(path).endswith("/bronze/metadata"):
+            raise KeyboardInterrupt("synthetic cancellation after electricity")
+        return original(self, path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(DataFrameWriter, "save", interrupt_metadata)
+        with pytest.raises(KeyboardInterrupt):
+            run_bronze(spark, config)
+    with pytest.raises(SnapshotError, match="completa compatible"):
         read_bronze_snapshot(spark, config)
