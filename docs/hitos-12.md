@@ -40,8 +40,9 @@ incluidos los fallos encontrados y las limitaciones pendientes.
       las condiciones de uso de datos reales se explican por separado.
 - [ ] Toda cifra, medición de rendimiento y figura deriva de un método
       y una ejecución identificables.
-- [ ] La documentación pública del repositorio está en español y el código,
-      identificadores, pruebas y comentarios técnicos necesarios en inglés.
+- [ ] Se respeta la convención lingüística: Markdown en inglés por defecto;
+      guías y seguimiento de hitos en `docs/`, README raíz y memoria en español.
+      Código, identificadores, pruebas, docstrings y comentarios técnicos en inglés.
 - [ ] Ambos autores revisan la coherencia técnica y académica y registran
       las limitaciones y líneas de trabajo futuro.
 

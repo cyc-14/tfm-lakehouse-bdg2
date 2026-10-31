@@ -346,21 +346,56 @@ def test_output_symlink_alias_is_rejected(tmp_path):
         weather.validate_output(settings, settings.output_root / "synthetic" / "run")
 
 
-def test_real_output_git_ignore_guard_uses_only_synthetic_files(tmp_path):
-    import subprocess
+def test_real_output_git_ignore_guard_uses_only_synthetic_files(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
     settings = make_fixture(tmp_path)
     repository = tmp_path / "repository"
     repository.mkdir()
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
+    sentinel = repository / "sentinel.txt"
+    sentinel.write_bytes(b"synthetic sentinel\x00\r\n")
     settings = replace(settings, kind="real", output_root=repository / "checks",
                        expected_hashes={n: weather.shared.sha256(getattr(settings, n))
                                         for n in ("metadata", "electricity", "weather")})
     output = settings.output_root / "real" / "run"
-    with pytest.raises(weather.WeatherError, match="ignored by Git"):
-        weather.validate_output(settings, output)
-    (repository / ".gitignore").write_text("/checks/\n")
-    assert weather.validate_output(settings, output) == output
-    assert not output.exists()
+    assert settings.config_path.parent != repository
+    expected = [
+        ["git", "rev-parse", "--show-toplevel"],
+        ["git", "check-ignore", "-q", "--", "checks/real/run"],
+    ]
+    calls = []
+    response = 1
+
+    def git_run(command, **options):
+        assert len(calls) < len(expected), "Unexpected extra Git call"
+        assert command == expected[len(calls)]
+        assert options["cwd"] == repository
+        assert options["capture_output"] is True
+        optional_locks = options["env"].get("GIT_OPTIONAL_LOCKS")
+        assert optional_locks == "0"
+        if not calls:
+            assert set(options) == {"cwd", "capture_output", "env", "text"}
+            assert options["text"] is True
+            result = SimpleNamespace(returncode=0, stdout=f"{repository}\n")
+        else:
+            assert set(options) == {"cwd", "capture_output", "env"}
+            result = SimpleNamespace(returncode=response)
+        calls.append(command)
+        return result
+
+    monkeypatch.setattr(weather.shared, "subprocess", SimpleNamespace(run=git_run))
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    for response in (1, 0, 128):
+        calls.clear()
+        if response == 0:
+            assert weather.validate_output(settings, output) == output
+        else:
+            with pytest.raises(weather.WeatherError, match="ignored by Git"):
+                weather.validate_output(settings, output)
+        assert calls == expected
+        assert not output.exists()
+        assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
+    assert not (repository / ".git").exists()
 
 
 def test_deterministic_metrics_and_complete_exclusive_publication(tmp_path):

@@ -12,6 +12,11 @@ Hito 1 verificado mediante escritura y lectura real de Delta. Hito 2 implementa
 Bronze para electricidad en formato ancho, metadatos y meteorología opcional.
 Las pruebas de software usan fixtures **exclusivamente sintéticos**; los originales
 BDG2 y sus salidas se conservan localmente, fuera de Git.
+H03.1 documenta la procedencia de fuentes; H03.2 y H03.3 disponen de herramientas,
+pruebas y ejecuciones reales históricas contrastadas. H03.2 v2 está probado con
+sintéticos, sin nueva ejecución BDG2. El cierre académico global de H03 sigue
+pendiente. El [registro de hitos](docs/milestones.md) mantiene el estado principal
+y separa las revisiones técnicas de las decisiones académicas.
 Silver, Gold, integración analítica, visualización y evaluación de rendimiento
 siguen pendientes. Una carga Bronze no demuestra calidad ni resultados energéticos.
 
@@ -33,12 +38,15 @@ uv pip install --python .venv/bin/python -r requirements.lock -e .
 uv pip check --python .venv/bin/python
 
 .venv/bin/python -m tfm_lakehouse check-environment --report data/checks/environment/check-001.json
-.venv/bin/python -m pytest -q
+env -u TFM_REAL_CONFIG .venv/bin/python -m pytest -q -m "not real_data and not performance"
 ```
 
 La primera sesión Spark descarga los JAR de Delta desde Maven; se necesita Java 17
 y acceso de red o la caché Ivy preparada. La configuración usa el mismo intérprete
 para driver y workers sin modificar la configuración global del sistema.
+La suite sintética incluye los dos casos Git corregidos en AUD-06; no inicializa
+repositorios. Para comprobar Spark/Delta sin descargas ni cambios en la caché
+histórica, utilizar el [perfil temporal con JAR locales](docs/hitos-1-2.md).
 
 `--report` solo admite un JSON nuevo directamente en `data/checks/environment/`,
 desde la raíz del proyecto. Se rechazan archivos existentes y enlaces; para repetir
@@ -90,5 +98,7 @@ Fuentes: [repositorio oficial](https://github.com/buds-lab/building-data-genome-
 
 - [Arquitectura, contratos, configuración y comandos](docs/hitos-1-2.md).
 - [Plan de hitos técnicos y *milestones* de GitHub](docs/milestones.md).
+- [Caracterización eléctrica y metadatos H03.2](docs/h03-2-characterization.md).
+- [Meteorología y diagnóstico temporal H03.3](docs/h03-3-weather-timezones.md).
 - [Definiciones preparadas para los 12 *milestones*](docs/github-milestones.json).
 - [Fixtures sintéticos](tests/fixtures/README.md).

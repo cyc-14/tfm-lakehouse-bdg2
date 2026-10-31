@@ -2,17 +2,19 @@
 
 ## Finalidad y situación de partida
 
-Este documento establece la **planificación técnica propuesta** para el TFM y
-relaciona los objetivos específicos OE1–OE7 con entregables verificables. No
-constituye un informe de resultados ni sustituye el calendario de entregas
-académicas acordado por el equipo.
+Este documento es la **referencia principal del estado de los hitos H01–H12** y
+relaciona los objetivos específicos OE1–OE7 con entregables verificables. Las
+guías específicas mantienen los contratos y procedimientos; el README resume el
+estado y enlaza aquí. Los expedientes privados identifican cada ejecución y no
+se publican. Este registro no sustituye la aceptación académica ni el calendario
+de entregas acordado por el equipo.
 
-La situación inicial se describe en el [`README.md`](../README.md) y en la
+**Antecedente de planificación:** la situación inicial se describía en el [`README.md`](../README.md) y en la
 [`guía de los hitos 1 y 2`](hitos-1-2.md): entorno local Spark/Delta verificado
 y capa Bronze implementada con pruebas de software sobre datos sintéticos. Los
-hitos posteriores están **planificados**, pero todavía no se consideran
-implementados, probados ni aprobados. La caracterización preliminar de BDG2
-incluida en la memoria deberá contrastarse con los CSV originales locales.
+hitos posteriores se propusieron como planificados. Esa situación se conserva
+como antecedente, no como descripción actual de H03. El contraste con la
+caracterización preliminar de la memoria continúa pendiente.
 
 ## Catálogo de hitos
 
@@ -20,20 +22,56 @@ Los títulos de la segunda columna son los propuestos para los *milestones* de
 GitHub. Su creación o cierre en GitHub no acredita por sí sola la finalización
 técnica de un hito.
 
-| ID | Título del milestone en GitHub | Resultado esperado | Objetivos del TFM | Dependencia | Situación |
-| --- | --- | --- | --- | --- | --- |
-| H01 | `H01 - Entorno local Spark y Delta` | Entorno reproducible y comprobación efectiva de escritura y lectura Delta | OE2, OE3 | Ninguna | Implementado; verificación documentada |
-| H02 | `H02 - Ingesta Bronze y trazabilidad` | Conservación de fuentes, snapshots Delta e inspección de versiones publicadas | OE2, OE3, OE6 | H01 | Implementado; pruebas sintéticas |
-| H03 | `H03 - Caracterización de las fuentes BDG2` | Procedencia, estructura, cobertura e incidencias verificadas sobre fuentes locales | OE1 | H02 para comparar con Bronze | Planificado |
-| H04 | `H04 - Selección del caso y contratos analíticos` | Selección justificada y contratos de Silver, calidad e integración aprobados | OE1, OE2, OE4 | H03 | Planificado |
-| H05 | `H05 - Silver de electricidad y calidad` | Electricidad en formato largo, trazable y con indicadores de calidad | OE3, OE4 | H04 | Planificado |
-| H06 | `H06 - Integración de metadatos y meteorología` | Enriquecimiento contextual validado y asociación meteorológica justificada, si procede | OE3, OE4 | H05 | Planificado |
-| H07 | `H07 - Indicadores Gold y comparativas` | Agregaciones por periodo, cobertura e indicadores normalizados válidos | OE3, OE5 | H06 o decisión sin meteorología | Planificado |
-| H08 | `H08 - Consultas y visualización analítica` | Consultas y visualizaciones locales para tareas de análisis definidas | OE5, OE7 | H07 | Planificado |
-| H09 | `H09 - Integridad y recuperación integral` | Consistencia entre capas, reejecución y recuperación ante fallos | OE3, OE6 | H05–H08 | Planificado |
-| H10 | `H10 - Evaluación técnica controlada` | Medidas reproducibles de rendimiento y comportamiento ante distintos volúmenes | OE6 | H09 | Planificado |
-| H11 | `H11 - Validación funcional y analítica` | Indicadores contrastados y evaluación de tareas representativas | OE4, OE5, OE7 | H08–H10 | Planificado |
-| H12 | `H12 - Reproducibilidad y cierre del TFM` | Documentación, evidencias, limitaciones y revisión final coherentes | OE1–OE7 | H11 | Planificado |
+| ID | Título del milestone en GitHub | Resultado esperado | Objetivos del TFM | Dependencia |
+| --- | --- | --- | --- | --- |
+| H01 | `H01 - Entorno local Spark y Delta` | Entorno reproducible y comprobación efectiva de escritura y lectura Delta | OE2, OE3 | Ninguna |
+| H02 | `H02 - Ingesta Bronze y trazabilidad` | Conservación de fuentes, snapshots Delta e inspección de versiones publicadas | OE2, OE3, OE6 | H01 |
+| H03 | `H03 - Caracterización de las fuentes BDG2` | Procedencia, estructura, cobertura e incidencias verificadas sobre fuentes locales | OE1 | H02 para comparar con Bronze |
+| H04 | `H04 - Selección del caso y contratos analíticos` | Selección justificada y contratos de Silver, calidad e integración aprobados | OE1, OE2, OE4 | H03 |
+| H05 | `H05 - Silver de electricidad y calidad` | Electricidad en formato largo, trazable y con indicadores de calidad | OE3, OE4 | H04 |
+| H06 | `H06 - Integración de metadatos y meteorología` | Enriquecimiento contextual validado y asociación meteorológica justificada, si procede | OE3, OE4 | H05 |
+| H07 | `H07 - Indicadores Gold y comparativas` | Agregaciones por periodo, cobertura e indicadores normalizados válidos | OE3, OE5 | H06 o decisión sin meteorología |
+| H08 | `H08 - Consultas y visualización analítica` | Consultas y visualizaciones locales para tareas de análisis definidas | OE5, OE7 | H07 |
+| H09 | `H09 - Integridad y recuperación integral` | Consistencia entre capas, reejecución y recuperación ante fallos | OE3, OE6 | H05–H08 |
+| H10 | `H10 - Evaluación técnica controlada` | Medidas reproducibles de rendimiento y comportamiento ante distintos volúmenes | OE6 | H09 |
+| H11 | `H11 - Validación funcional y analítica` | Indicadores contrastados y evaluación de tareas representativas | OE4, OE5, OE7 | H08–H10 |
+| H12 | `H12 - Reproducibilidad y cierre del TFM` | Documentación, evidencias, limitaciones y revisión final coherentes | OE1–OE7 | H11 |
+
+## Estado actual y nivel de evidencia — 31/10/2026
+
+Implementación, pruebas, ejecución real, auditoría y aceptación académica son
+dimensiones distintas. Una aceptación técnica no acredita la aprobación global
+del hito ni una nueva ejecución de una revisión posterior del código.
+
+| Hito | Diseño e implementación | Pruebas y contraste técnico | BDG2 real | Decisiones y aceptación académica |
+| --- | --- | --- | --- | --- |
+| H01 | Implementado | Persistencia Delta con registros sintéticos; auditorías de entorno, Spark e Ivy | No es una validación BDG2 | No acredita resultados analíticos ni aceptación académica global |
+| H02 | Bronze implementado | Regresiones sintéticas; correcciones AUD-01/AUD-02/AUD-05/AUD-08 | Expediente histórico `data/checks/bronze-hardening/`; sin reingesta en estas correcciones | No acredita calidad energética ni aceptación académica global |
+| H03 | Subentregables técnicos disponibles | Evidencia desglosada a continuación | Ejecuciones históricas identificadas | **Cierre académico global pendiente** |
+| H03.1 | Verificación de procedencia, variantes y SHA-256 documentada | Huellas contrastadas, recogidas en configuraciones y expedientes H03 | Identidad de los originales recibidos; sin inventar una ejecución independiente adicional | Aceptación global de fuentes y contraste con la memoria pendientes |
+| H03.2 histórico v1 | Caracterización eléctrica y de metadatos implementada | Pruebas y contraste independiente; cierre técnico con observaciones aceptado el 30/10/2026 | `2026-10-30-h03-2`, contrato `h03.2-v1` | Selección final, exclusiones y comparabilidad pendientes |
+| H03.2 v2 actual | AUD-03/AUD-04 implementados: vinculación de procedencia y publicación exclusiva | Validado mediante pruebas sintéticas y regresiones | **No ejecutado nuevamente sobre BDG2 real** | No atribuir al expediente v1 las garantías automáticas v2 |
+| H03.3 | Meteorología y diagnóstico temporal implementados | Pruebas sintéticas y auditoría independiente con observaciones aceptada | `2026-10-30-h03-3`, contrato histórico `h03.3-v1` | Política temporal, integración y selección definitiva pendientes |
+| H04 | Diseñado en su guía; no iniciado | Pendiente | No ejecutado | Selección del caso y contratos por aprobar |
+| H05 | Planificado; no implementado | Pendiente | No ejecutado | Depende de H04 |
+| H06 | Planificado; no implementado | Pendiente | No ejecutado | Integración temporal por justificar |
+| H07 | Planificado; no implementado | Pendiente | No ejecutado | Fórmulas y comparabilidad por aprobar |
+| H08 | Planificado; no implementado | Pendiente | No ejecutado | Tareas analíticas por definir |
+| H09 | Planificado; no iniciado | Pendiente | No ejecutado | Recuperación entre capas por diseñar |
+| H10 | Planificado; sin benchmark validado | Pendiente | No ejecutado | Protocolo de evaluación por aprobar |
+| H11 | Planificado; no iniciado | Pendiente | No ejecutado | Validación funcional y analítica pendiente |
+| H12 | Planificado; no iniciado | Pendiente | No ejecutado | Cierre del TFM pendiente |
+
+La [guía H03.2](h03-2-characterization.md) y la
+[guía H03.3](h03-3-weather-timezones.md) describen métodos y límites. Sus
+`execution.json` privados identifican fecha, revisión y hashes originales;
+no se regeneran para actualizar este registro. Los cambios de comentarios,
+pruebas o contratos posteriores no se consideran nuevas ejecuciones reales.
+
+La evolución conserva el plan inicial, las ejecuciones del 30/10/2026 y las
+correcciones posteriores como hechos distintos. El resultado histórico de
+AUD-05/AUD-08 —449 pruebas superadas y tres excluidas— se conserva en la
+[guía H01–H02](hitos-1-2.md); no es un resultado atribuido a AUD-06/AUD-07.
 
 Los estados reflejan la evidencia disponible en el repositorio, **no** el
 estado de GitHub. El cierre de H01 y H02 deberá revisarse antes de darlos por
@@ -92,8 +130,10 @@ automáticas a cuentas de GitHub.
 
 1. Alcance, dependencias, responsables, contratos y criterios de aceptación
    aprobados antes de implementar cambios sustanciales.
-2. Documentación pública en **español de España**; código, identificadores,
-   pruebas, docstrings y comentarios técnicos necesarios en **inglés**.
+2. Markdown en inglés por defecto; guías y seguimiento de hitos en `docs/`,
+   README raíz y prosa académica en español. Código, identificadores, pruebas,
+   docstrings y comentarios técnicos necesarios en inglés. Esta convención no
+   exige traducciones indiscriminadas.
 3. CSV originales BDG2 inalterados y excluidos de Git; entradas y salidas
    separadas. Las pruebas sintéticas no acreditan conclusiones energéticas.
 4. Pruebas pertinentes realmente ejecutadas, con comando, revisión de código,
@@ -105,12 +145,14 @@ automáticas a cuentas de GitHub.
    de comparabilidad documentados cuando correspondan.
 7. Revisión cruzada de decisiones analíticas y afirmaciones de la memoria.
    Los cambios de archivos deben acompañarse de una propuesta de mensaje
-   siguiendo Conventional Commits; no se realizan commits ni publicaciones
-   remotas sin petición expresa.
+   siguiendo Conventional Commits. Codex solo consulta Git: nunca modifica
+   índice, ramas, historial, referencias o remoto. El autor realiza personalmente
+   el versionado y la publicación fuera de Codex.
 
 ## Uso de milestones e issues en GitHub
 
-Crear un *milestone* por resultado técnico aceptado y dividir su trabajo en
+Las recomendaciones de esta sección se dirigen a los autores, no autorizan
+operaciones de escritura o publicación por Codex. Crear un *milestone* por resultado técnico aceptado y dividir su trabajo en
 *issues* pequeños y verificables. Los títulos recomendados figuran en la tabla
 anterior y las tareas sugeridas, en cada guía de hito.
 
@@ -137,9 +179,11 @@ o issues creados en GitHub**.
 
 ## Siguiente actividad recomendada
 
-**`[H03] Verificar rutas, variantes y huellas de los CSV originales BDG2`**.
+**`[H03] Contrastar las evidencias técnicas con la memoria y resolver las decisiones abiertas`**.
 
-Comenzar mediante un diagnóstico de solo lectura. Confirmar la procedencia y
-el contenido de los archivos locales antes de aprobar selecciones de edificios,
-reglas analíticas o desarrollo Silver. Los criterios se detallan en
+La primera verificación de rutas y huellas era la recomendación del plan inicial
+y ya tiene evidencia. No se propone repetirla como si estuviera sin iniciar.
+Quedan por aceptar globalmente las fuentes, justificar la selección y las
+exclusiones y acordar la política temporal antes de avanzar a H04. Esta
+actualización documental no autoriza esa actividad. Los criterios se detallan en
 [`hitos-3.md`](hitos-3.md).

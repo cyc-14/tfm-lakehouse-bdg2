@@ -272,8 +272,14 @@ Los namespaces `real/` y `synthetic/` mantienen separadas las salidas; dataset.k
 declaración del operador y no certifica por sí misma que un archivo sea BDG2.
 
 Variables de entorno: JAVA_HOME/PATH para Java/uv; PYSPARK_PYTHON se establece
-temporalmente por la aplicación. `TFM_REAL_CONFIG` solo habilita la prueba
-opcional real. No se carga .env, no se requieren credenciales.
+temporalmente por la aplicación. `TFM_REAL_CONFIG` habilita la prueba opcional
+real y también configura `master`, Ivy y raíces protegidas de la fixture Spark
+compartida por las integraciones. Excluir `real_data` no anula ese segundo
+efecto. La suite sintética rutinaria debe ejecutarse con la variable ausente:
+una configuración real puede cambiar sus opciones de arranque y acceder a
+fuentes reales si además se selecciona la prueba correspondiente. No se cambia
+la fixture ni se considera la variable una autorización. No se carga .env ni
+se requieren credenciales.
 
 ## Contrato de entrada y conservación
 
@@ -475,20 +481,24 @@ wsl -d Ubuntu --cd $RepositoryWslPath -- .venv/bin/python -m tfm_lakehouse inspe
 ## Pruebas y criterios de aceptación
 
 ```bash
-.venv/bin/python -m pytest -m unit -q
-.venv/bin/python -m pytest -m environment -q
-.venv/bin/python -m pytest -m integration -q
-.venv/bin/python -m pytest -q --junitxml=data/checks/pytest.xml
+env -u TFM_REAL_CONFIG .venv/bin/python -B -m pytest -m unit -q
+env -u TFM_REAL_CONFIG .venv/bin/python -B -m pytest -m environment -q
+env -u TFM_REAL_CONFIG .venv/bin/python -B -m pytest -m integration -q
+env -u TFM_REAL_CONFIG .venv/bin/python -B -m pytest -m "not real_data and not performance" -q
 ```
 
 unit no inicia una JVM. environment prueba persistencia Delta efectiva. integration
 usa exclusivamente copias/archivos sintéticos en directorios temporales independientes.
-real_data se omite expresamente si TFM_REAL_CONFIG no está definido.
+real_data requiere autorización; su exclusión explícita evita habilitarla por
+accidente aunque una variable estuviera definida. Si no se define, esa prueba
+también dispone de su propia omisión preventiva.
 El marcador performance está reservado; no hay benchmarks implementados.
 
+### Antecedente: regresiones AUD-05/AUD-08
+
 Para las regresiones AUD-05/AUD-08 del 31/10/2026 se excluyeron expresamente
-`real_data`, `performance` y estas dos pruebas, que ejecutan `git init` y no
-pueden lanzarse desde Codex bajo la política vigente:
+`real_data`, `performance` y estas dos pruebas, que entonces ejecutaban `git init`
+y no podían lanzarse desde Codex bajo la política vigente:
 
 - `tests/test_characterization.py::test_real_output_ignore_is_checked_from_destination_not_external_config`.
 - `tests/test_weather_characterization.py::test_real_output_git_ignore_guard_uses_only_synthetic_files`.
@@ -501,7 +511,92 @@ dobles. Se sustituyó únicamente el helper de resolución por `spark.jars` con
 copias de los tres JAR ya disponibles y `spark.jars.packages=""`. El gestor,
 sus bloqueos y el default Ivy se ejecutaron realmente. Los homes de Java y
 Python coincidieron y se verificó la ruta efectiva transmitida a Spark.
-No se ha revalidado la resolución Maven ni ejecutado BDG2 real en este incremento.
+No se revalidó la resolución Maven ni se ejecutó BDG2 real en aquel incremento.
+Las cifras anteriores son históricas y no se atribuyen a AUD-06/AUD-07.
+
+### Perfil actual y consultas Git de solo lectura (AUD-06/AUD-07)
+
+Los dos casos anteriores ahora utilizan dobles estrictos de Git: verifican
+comando, argumentos, directorio, entorno y la secuencia rechazo/aceptación/error
+sobre el mismo destino, sin repositorios nuevos. No deben excluirse. Una prueba
+complementaria consulta el checkout existente: `check-ignore --no-index` verifica
+las reglas y `ls-files` comprueba por separado que los datos privados no estén
+versionados. Los controles de fixtures y código detectan exclusiones excesivas.
+Los hashes requeridos por las fixtures H03.3 siguen siendo exclusivamente
+sintéticos. Si falta Git, esa comprobación adicional declara su omisión; los
+dos casos con dobles siguen ejecutándose.
+
+La verificación AUD-06/AUD-07 del 31/10/2026, sobre la base `19cab0a` con los
+cambios autorizados en pruebas y documentación, obtuvo los resultados siguientes.
+No modifica las cifras históricas anteriores ni acredita una ejecución BDG2.
+
+| Selección ejecutada | Superadas | Fallidas | Excluidas por selección |
+| --- | --- | --- | --- |
+| Dos casos corregidos y política Git del checkout | 3 | 0 | 0 |
+| H03.2 + H03.3 completos | 163 | 0 | 0 |
+| Selección completa `unit` | 426 | 0 | 27, fuera del marcador seleccionado |
+| Suite general con el perfil temporal siguiente | 452 | 0 | 1, `real_data` |
+
+No hay pruebas `performance` implementadas. Las dos pruebas corregidas se
+ejecutaron sin exclusiones específicas; la suite general tardó 48,12 segundos,
+sin considerarlo un benchmark. Las comprobaciones independientes fueron de solo
+lectura; la revisión de tests añadió 20 sondeos de los dobles en memoria.
+
+### Perfil temporal sin resolución Maven
+
+Desde la raíz del repositorio en WSL, con Java y los tres JAR ya disponibles,
+el siguiente procedimiento ejecuta la suite sintética sin descargar dependencias
+ni escribir en la caché Ivy histórica. Si falta un JAR, termina antes de pytest;
+no intenta instalarlo. El cambio del helper existe solo en ese proceso Python,
+no en el código de producción. Las copias de JAR y tablas viven en un directorio
+temporal; el gestor Spark real conserva sus validaciones y bloqueos. La prueba
+unitaria del helper original comprueba por separado la coordenada Delta fijada.
+Este perfil verifica ejecución con JAR locales, no resolución Maven.
+
+```bash
+env -u TFM_REAL_CONFIG .venv/bin/python -B - <<'PY'
+import hashlib
+import os
+from pathlib import Path
+import shutil
+from tempfile import TemporaryDirectory
+
+import pytest
+from tfm_lakehouse import spark as manager
+
+os.environ["GIT_OPTIONAL_LOCKS"] = "0"
+os.environ["SPARK_LOCAL_IP"] = "127.0.0.1"
+names = (
+    "io.delta_delta-spark_2.12-3.3.3.jar",
+    "io.delta_delta-storage-3.3.3.jar",
+    "org.antlr_antlr4-runtime-4.9.3.jar",
+)
+cache = Path.home() / ".ivy2" / "jars"
+for name in names:
+    source = cache / name
+    if source.is_symlink() or not source.is_file():
+        raise RuntimeError(f"Required local JAR unavailable: {name}")
+
+with TemporaryDirectory(prefix="tfm-synthetic-tests-") as temporary:
+    root = Path(temporary)
+    copies = []
+    for name in names:
+        source, target = cache / name, root / name
+        shutil.copyfile(source, target)
+        assert hashlib.sha256(source.read_bytes()).digest() == hashlib.sha256(target.read_bytes()).digest()
+        copies.append(str(target))
+
+    def local_jars(builder):
+        return builder.config("spark.jars", ",".join(copies)).config("spark.jars.packages", "")
+
+    manager.configure_spark_with_delta_pip = local_jars
+    status = pytest.main([
+        "-q", "-m", "not real_data and not performance",
+        "--basetemp", str(root / "pytest"),
+    ])
+    raise SystemExit(status)
+PY
+```
 
 Se comprueban: fuente válida/inexistente, cabeceras, cero bytes, solo cabecera,
 conservación exacta de valores/columnas (incluidos duplicados), linaje, persistencia,
@@ -518,7 +613,10 @@ No se modifican datos reales para probar errores.
 y logs se excluyen de Git. Los fixtures pequeños identificados como sintéticos y las
 pruebas y documentación sí se versionan. Los informes JSON/XML y logs de ejecución
 se guardan localmente bajo data/checks o data/lakehouse/<kind>/_runs y están ignorados.
-No se han creado commits, pushes ni cambios de autoría.
+Codex no crea commits, no modifica el índice, ramas, historial, referencias o
+remoto y no publica cambios. El autor realiza esas operaciones fuera de Codex.
+La afirmación anterior de que no se habían creado commits describía únicamente
+la intervención de Codex correspondiente, no el historial general del proyecto.
 
 Pendientes: selección conjunta de edificios, interpretación y validación analítica
 de los originales BDG2, metadatos/unidades/zonas verificadas por fuente, Silver y su

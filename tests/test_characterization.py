@@ -294,18 +294,108 @@ group = "synthetic"
     assert parsed.config_sha256 == sha256(settings.config_path)
 
 
-def test_real_output_ignore_is_checked_from_destination_not_external_config(tmp_path):
-    import subprocess
+def test_real_output_ignore_is_checked_from_destination_not_external_config(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
     settings = make_fixture(tmp_path, ["1"])
     repository = tmp_path / "different-repository"
     repository.mkdir()
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
+    sentinel = repository / "sentinel.txt"
+    sentinel.write_bytes(b"synthetic sentinel\x00\r\n")
     settings = replace(settings, kind="real", output_root=repository / "checks")
     output = settings.output_root / "real" / "run"
-    with pytest.raises(CharacterizationError, match="ignored by Git"):
-        validate_output(settings, output)
-    (repository / ".gitignore").write_text("/checks/\n")
-    assert validate_output(settings, output) == output
+    assert settings.config_path.parent != repository
+    expected = [
+        ["git", "rev-parse", "--show-toplevel"],
+        ["git", "check-ignore", "-q", "--", "checks/real/run"],
+    ]
+    calls = []
+    response = 1
+
+    def git_run(command, **options):
+        assert len(calls) < len(expected), "Unexpected extra Git call"
+        assert command == expected[len(calls)]
+        assert options["cwd"] == repository
+        assert options["capture_output"] is True
+        optional_locks = options["env"].get("GIT_OPTIONAL_LOCKS")
+        assert optional_locks == "0"
+        if not calls:
+            assert set(options) == {"cwd", "capture_output", "env", "text"}
+            assert options["text"] is True
+            result = SimpleNamespace(returncode=0, stdout=f"{repository}\n")
+        else:
+            assert set(options) == {"cwd", "capture_output", "env"}
+            result = SimpleNamespace(returncode=response)
+        calls.append(command)
+        return result
+
+    # Replace only this module's subprocess reference, never the stdlib globally.
+    monkeypatch.setattr(characterization, "subprocess", SimpleNamespace(run=git_run))
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    for response in (1, 0, 128):
+        calls.clear()
+        if response == 0:
+            assert validate_output(settings, output) == output
+        else:
+            with pytest.raises(CharacterizationError, match="ignored by Git"):
+                validate_output(settings, output)
+        assert calls == expected
+        assert not output.exists()
+        assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
+    assert not (repository / ".git").exists()
+
+
+def test_checkout_excludes_private_data_without_hiding_synthetic_fixtures():
+    import subprocess
+
+    if shutil.which("git") is None:
+        pytest.skip("Read-only repository policy check requires Git")
+    project = Path(__file__).resolve().parents[1]
+
+    def query_git(*arguments):
+        assert arguments[0] in {"rev-parse", "check-ignore", "ls-files"}
+        return subprocess.run(
+            ["git", "--no-optional-locks", *arguments], cwd=project,
+            capture_output=True, text=True,
+            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
+        )
+
+    root = query_git("rev-parse", "--show-toplevel")
+    assert root.returncode == 0, "Repository policy check requires an existing checkout"
+    assert Path(root.stdout.strip()).resolve() == project
+    protected = [
+        "data/raw/bdg2/data/metadata/metadata.csv",
+        "data/raw/bdg2/data/meters/raw/electricity.csv",
+        "data/raw/bdg2/data/weather/weather.csv",
+        "data/checks/h03_2/real/SYNTHETIC_POLICY_PROBE/SUCCESS.json",
+        "data/checks/h03_3/real/SYNTHETIC_POLICY_PROBE/SUCCESS.json",
+        "data/lakehouse/real/SYNTHETIC_POLICY_PROBE/table",
+    ]
+    controls = [
+        "tests/fixtures/synthetic_bdg2/data/metadata/metadata.csv",
+        "tests/fixtures/synthetic_bdg2/data/meters/raw/electricity.csv",
+        "tests/fixtures/synthetic_bdg2/data/weather/weather.csv",
+        "tests/fixtures/README.md", "src/tfm_lakehouse/characterization.py", "README.md",
+    ]
+    before = {project / name: (project / name).read_bytes()
+              for name in (".gitignore", *controls)}
+    existed = {name: (project / name).exists() for name in protected}
+    for name in protected:
+        result = query_git("check-ignore", "--no-index", "-v", "--", name)
+        assert result.returncode == 0
+        rule, matched = result.stdout.rstrip("\n").split("\t")
+        source, _, pattern = rule.rsplit(":", 2)
+        assert source == ".gitignore" and pattern == "/data/"
+        assert matched == name
+    tracked = query_git("ls-files", "--", "data/raw", "data/checks", "data/lakehouse")
+    assert tracked.returncode == 0 and tracked.stdout == ""
+    for name in controls:
+        result = query_git("check-ignore", "--no-index", "-q", "--", name)
+        assert result.returncode == 1, f"Legitimate project file excluded: {name}"
+    tracked = query_git("ls-files", "--", *controls)
+    assert tracked.returncode == 0 and set(tracked.stdout.splitlines()) == set(controls)
+    assert {p: p.read_bytes() for p in before} == before
+    assert {name: (project / name).exists() for name in protected} == existed
 
 
 def test_invalid_utf8_body_is_rejected(tmp_path):

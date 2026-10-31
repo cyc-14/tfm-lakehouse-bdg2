@@ -7,6 +7,12 @@ Implementa el diseño aprobado de H03.2. Su existencia no acredita por sí sola 
 ejecución real ni el cierre del hito: los resultados de cada ejecución se guardan
 en un directorio privado, con sus hashes y comandos.
 
+El [registro principal](milestones.md) separa el estado técnico del académico.
+La ejecución real del 30/10/2026 corresponde a `h03.2-v1` y fue contrastada
+independientemente. AUD-03/AUD-04 incorporan posteriormente el contrato v2,
+validado mediante pruebas sintéticas, **sin nueva ejecución sobre BDG2 real**.
+El cierre académico global de H03 continúa pendiente.
+
 No modifica fuentes, Bronze ni tablas Delta. No limpia, imputa, convierte a UTC
 ni selecciona definitivamente edificios. Meteorología queda fuera de este hito.
 Los grupos A y B reproducen la solicitud de los autores: inicialmente
@@ -15,7 +21,8 @@ consultado la memoria y no certifica documentalmente esa clasificación.
 
 ## Ejecución
 
-Desde la raíz del proyecto en Ubuntu/WSL:
+Desde la raíz del proyecto en Ubuntu/WSL. La siguiente plantilla requiere
+aprobación expresa para una nueva ejecución real y un destino nuevo:
 
 ~~~bash
 .venv/bin/python -m tfm_lakehouse.characterization \
@@ -304,23 +311,26 @@ huellas registradas. Las observaciones se documentan aquí:
 
 Siguen pendientes el contraste con el apartado 2.2.6, la trazabilidad de la
 selección histórica, la justificación del umbral del 8 %, la interpretación de
-las señales y la comparabilidad energética. Este cierre no autoriza avanzar
-automáticamente a H03.3.
+las señales y la comparabilidad energética. La prohibición de avanzar
+automáticamente a H03.3 era una condición de aquel cierre; H03.3 se autorizó
+posteriormente y dispone de su propia guía. Ningún cierre técnico concede una
+autorización automática para H04 u otros hitos.
 
 ## Pruebas sintéticas
 
 ~~~bash
-.venv/bin/python -m pytest tests/test_characterization.py -q
-.venv/bin/python -m pytest -m unit -q
+env -u TFM_REAL_CONFIG .venv/bin/python -B -m pytest tests/test_characterization.py -q
+env -u TFM_REAL_CONFIG .venv/bin/python -B -m pytest -m unit -q
 ~~~
 
-Desde Codex se excluyen las dos pruebas que inicializan repositorios Git, incluso
-temporales. Las focales permitidas se seleccionan así:
+Antes de AUD-06 se excluían dos pruebas porque inicializaban repositorios Git,
+incluso temporales. Esa exclusión es un antecedente: los casos corregidos usan
+dobles estrictos y se ejecutan completos. Una comprobación complementaria del
+checkout consulta Git real solo en lectura. Las focales se seleccionan así:
 
 ~~~bash
-.venv/bin/python -B -m pytest -q -p no:cacheprovider \
-  tests/test_characterization.py tests/test_weather_characterization.py \
-  -k 'not test_real_output_ignore_is_checked_from_destination_not_external_config and not test_real_output_git_ignore_guard_uses_only_synthetic_files'
+env -u TFM_REAL_CONFIG .venv/bin/python -B -m pytest -q \
+  tests/test_characterization.py tests/test_weather_characterization.py
 ~~~
 
 Las regresiones nuevas cubren los 21 campos, configuración A/B, mutabilidad,

@@ -13,11 +13,11 @@ Durante la implementación se utilizaron pruebas sintéticas; la ejecución real
 posterior y su auditoría constituyen evidencias distintas. Los informes reales
 permanecen fuera de Git.
 
-Estas correcciones preparan el cierre técnico de H03.3 y su versionado. Este
-entregable no cierra académicamente H03: el contraste con la memoria, la
-aceptación global de las fuentes y la actualización de la planificación general
-se tramitan por separado. La integración temporal, Silver y la selección
-definitiva de edificios continúan pendientes.
+La revisión documental posterior a la ejecución preparó el entregable que ya
+está versionado. El [registro principal](milestones.md) mantiene el estado actual.
+Este entregable no cierra académicamente H03: el contraste con la memoria y la
+aceptación global de las fuentes siguen pendientes. La integración temporal,
+Silver y la selección definitiva de edificios continúan pendientes.
 
 No modifica H03.2, Bronze ni los originales. No integra mediciones eléctricas y
 meteorológicas, elimina repeticiones, selecciona edificios, convierte series a
@@ -180,8 +180,8 @@ Un fallo conserva el directorio parcial sin
 ### Revisión documental posterior a la ejecución real
 
 El expediente `2026-10-30-h03-3` conserva sin cambios sus informes, resultados y
-huellas de la ejecución del 30/10/2026. Las correcciones posteriores solo
-actualizan documentación, comentarios y docstrings; no cambian parámetros, fórmulas,
+huellas de la ejecución del 30/10/2026. La revisión documental inicial posterior solo
+actualizó documentación, comentarios y docstrings; no cambió parámetros, fórmulas,
 interfaces ni contratos de entrada y salida.
 
 Las traducciones del módulo y los comentarios del TOML cambian sus huellas de
@@ -191,14 +191,23 @@ las de esta revisión. La equivalencia se comprueba comparando el AST de ambos
 archivos Python sin docstrings y el contenido TOML interpretado, además de las
 pruebas de regresión. No se ha repetido la ejecución real para estas correcciones.
 
+Las correcciones AUD-03/AUD-04 posteriores de los helpers H03.2 conservan sus
+contratos compartidos; la procedencia v2 no se atribuye retrospectivamente a este
+expediente. Las revisiones de pruebas y documentación AUD-06/AUD-07 tampoco son
+una nueva ejecución meteorológica real.
+
 ## Pruebas y reproducción controlada
 
 Pruebas exclusivamente sintéticas, sin JVM:
 
 ~~~bash
-.venv/bin/python -m pytest tests/test_weather_characterization.py -q
-.venv/bin/python -m pytest tests/test_characterization.py -q
+env -u TFM_REAL_CONFIG .venv/bin/python -B -m pytest tests/test_weather_characterization.py -q
+env -u TFM_REAL_CONFIG .venv/bin/python -B -m pytest tests/test_characterization.py -q
 ~~~
+
+AUD-06 sustituye la preparación de repositorios por dobles estrictos en los dos
+casos de exclusión; ya no deben omitirse. Se mantienen los hashes sintéticos y
+la validación de destinos, con una comprobación complementaria de Git en lectura.
 
 La ejecución real está documentada en el expediente privado citado; su contraste
 independiente se recoge en la revisión técnica. El comando siguiente es una
