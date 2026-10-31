@@ -248,6 +248,179 @@ deliberadamente el temporal. Tampoco garantizan durabilidad frente a un apagado:
 la publicación visible completa no equivale a sincronización persistente del
 filesystem. La ubicación y protección de la caché Ivy son un contrato distinto.
 
+## AUD-09: riesgo residual de dependencias JVM
+
+**Estado provisional:** `AUD-09 — Evaluado; tratamiento propuesto; aceptación del riesgo residual pendiente.`
+
+Registro documental del 31/10/2026, sobre la revisión base
+`50455ce02d3c7a8c26232a965a302bc4679f240b`. La autorización para documentarlo
+no acepta el riesgo ni cierra AUD-09. Los autores deben decidir expresamente.
+El [registro principal de hitos](milestones.md) remite a esta justificación.
+
+### Evidencia reutilizada y alcance
+
+La auditoría estática anterior inventarió 255 archivos JAR: 252 distribuidos con
+PySpark y tres de Delta/ANTLR en Ivy. Se reutiliza ese inventario y se contrastan
+los tres artefactos afectados, sus metadatos internos y hashes, sin repetir el
+inventario completo. La integridad de los 255 JAR se verifica mediante hashes;
+esto no implica una nueva auditoría de todas sus dependencias.
+
+El entorno observado es Python 3.11.17, PySpark 3.5.7, Delta 3.3.3 y Java
+17.0.20.1. Los pines de `requirements.lock` y `pyproject.toml` fijan las
+dependencias Python directas; no constituyen un bloqueo criptográfico completo
+de todos los JAR transitivos. Los hashes son evidencia puntual, no un control
+automático de seguridad de cada arranque ni una firma del proveedor.
+
+Los tres archivos siguientes están bajo
+`.venv/lib/python3.11/site-packages/pyspark/jars/`:
+
+| ID | Artefacto y versión del componente | Evidencia local de presencia |
+| --- | --- | --- |
+| C1 | `commons-compress-1.23.0.jar`: Commons Compress 1.23.0 | `META-INF/maven/org.apache.commons/commons-compress/pom.properties`, manifiesto y clases DUMP/Pack200 |
+| C2 | `hadoop-client-runtime-3.3.4.jar`: Commons Compress 1.21 reubicado | Su propio `pom.properties` de Commons Compress y clases bajo `org/apache/hadoop/shaded/org/apache/commons/compress/` |
+| Z1 | `zookeeper-3.6.3.jar`: ZooKeeper 3.6.3 | `META-INF/maven/org.apache.zookeeper/zookeeper/pom.properties`, manifiesto y clases de servidor/quorum/observadores |
+
+SHA-256 contrastados con el inventario anterior:
+
+```text
+C1  c267f17160e9ef662b4d78b7f29dca7c82b15c5cff2cb6a9865ef4ab3dd5b787
+C2  9377a68071137ae5f5c8cdc2ed20d6f904a1df4d06df26b47ed8872a1b0d8d47
+Z1  ac44de96d37a80d463c1e01aaa2ea86b19490fa17a37438d14491456c0e4a911
+```
+
+El lanzador ofrece esos JAR en el classpath estándar. Esto no prueba que se
+cargaran las clases afectadas ni que se ejecutara una función vulnerable. No se
+inició una JVM ni se midió dinámicamente `CodeSource`. Las 452 pruebas funcionales
+de AUD-06/AUD-07 son un antecedente separado, no una prueba de seguridad ni una
+nueva ejecución atribuida a esta revisión documental.
+
+### Matriz de vulnerabilidades y condiciones
+
+| CVE | Rango afectado y copias locales | Función, entrada y consecuencia | Primera corrección publicada |
+| --- | --- | --- | --- |
+| CVE-2024-25710 | 1.3–1.25.0; C1 y C2 | Lector DUMP con entrada corrupta: bucle y denegación de servicio | 1.26.0 |
+| CVE-2024-26308 | ≥1.21 y <1.26.0; C1 y C2 | Desempaquetado Pack200 malformado: agotamiento de memoria | 1.26.0 |
+| CVE-2023-44981 | Anteriores a 3.7.0; 3.7.0–3.7.1; 3.8.0–3.8.2; 3.9.0; Z1 | Quorum accesible con `quorum.auth.enableSasl=true` e identidad sin parte de instancia: bypass de autorización y acceso de lectura/escritura al árbol | 3.7.2, 3.8.3 o 3.9.1 |
+| CVE-2023-42503, comprobación complementaria | ≥1.22 y <1.24.0; C1 afectado, C2 fuera del rango | Lectura TAR con tiempos PAX malformados: consumo excesivo de CPU | 1.24.0 |
+| CVE-2024-23944, comprobación complementaria | 3.6.0–3.7.2; 3.8.0–3.8.3; 3.9.0–3.9.1; Z1 | Servidor y observador persistente sobre padre accesible: notificaciones sin ACL suficiente revelan rutas descendientes, no contenido | 3.8.4 o 3.9.2 |
+
+Fuentes oficiales consultadas el 31/10/2026:
+[Apache Commons Compress](https://commons.apache.org/proper/commons-compress/security.html),
+[ZooKeeper: CVE-2023-44981](https://zookeeper.apache.org/security/#cve-2023-44981) y
+[ZooKeeper: CVE-2024-23944](https://zookeeper.apache.org/security/#cve-2024-23944).
+Las versiones de la última columna identifican la primera corrección de cada
+aviso, no una combinación de actualización recomendada ni una garantía global.
+
+### Alcanzabilidad, incertidumbres y riesgo residual
+
+La presencia de código afectado está confirmada. La auditoría estática no
+identificó una cadena desde el flujo CSV/Delta implementado hasta las funciones
+vulnerables. No se intentó explotación y no se afirma imposibilidad absoluta.
+
+- **C1/C2, DUMP y Pack200:** el proyecto selecciona lectores CSV explícitos y no
+  llama a esos parsers. Java 17 no elimina el código Pack200 propio de Commons
+  Compress. La restricción propuesta es no introducir ese procesamiento.
+- **C1, TAR:** Spark y Hive sí disponen de utilidades TAR; el flujo del proyecto
+  no solicita extracción mediante ellas. Su disponibilidad impide describirlo
+  como un formato técnicamente bloqueado. La restricción propuesta es no leer
+  TAR no confiable con funciones afectadas. C2 no se clasifica como afectado por
+  este aviso concreto; sigue afectado por los dos anteriores.
+- **Z1, quorum:** no hay configuración del proyecto que inicie servidores o
+  habilite autenticación SASL entre peers. Esto no equivale a recomendar quitar
+  autenticación de un despliegue existente.
+- **Z1, observadores persistentes:** no se encontró uso de `addWatch` ni un
+  servicio ZooKeeper en el flujo. Esta condición no depende de SASL de quorum;
+  introducir un cliente o servidor, incluso externo al proyecto, exige revisar
+  también este aviso.
+
+Para todas las filas, el riesgo residual consiste en conservar código vulnerable
+disponible y en que un cambio de entradas, configuración o funcionalidad active
+una ruta hoy no identificada. Los controles y compromisos de los apartados
+siguientes se aplican a las cinco filas, con las restricciones de formato y
+servicio indicadas arriba. No se asigna una probabilidad numérica.
+
+El análisis de referencias y configuración no es un grafo exhaustivo frente a
+reflexión, plugins o modificaciones del lanzador. No se autenticaron firmas
+externas de los artefactos ni se auditó toda la red del host. La ausencia de una
+JVM relevante en la instantánea previa no acredita ausencia permanente de
+servicios. Estas limitaciones se mantienen; los dos avisos complementarios no
+identifican por sí solos una nueva ruta explotable en el perfil actual.
+
+### Controles existentes y compromisos operativos propuestos
+
+**Comprobado en la implementación:** el gestor exige master local; configura
+Delta y desactiva la UI. Bronze valida el contenido CSV y usa `.csv()` con
+comprobación posterior de la fuente local exacta. Se aplican las protecciones
+de rutas y arranque Ivy ya documentadas. H03.2/H03.3 utilizan lectores Python
+sin JVM. Ninguno de estos controles corrige los bytes vulnerables.
+
+**Condiciones de la propuesta, no una lista técnicamente impuesta por el código:**
+
+1. Mantener ejecución local controlada y procesamiento por lotes; no exponer
+   servicios deliberadamente a redes externas.
+2. Usar lectura CSV explícita y fuentes verificadas para la tarea autorizada.
+   Un SHA-256 coincidente identifica bytes; no demuestra inocuidad del contenido.
+3. No añadir extracción DUMP o Pack200 ni lectura TAR no confiable mediante
+   funciones afectadas. El proyecto no implementa una prohibición universal de
+   formatos o de opciones adicionales de Spark.
+4. No introducir servidores ZooKeeper gestionados por el proyecto ni servicios
+   HA basados en quorum; revisar cualquier nueva conexión de coordinación.
+5. Mantener los pines y artefactos inventariados; controlar acceso a entradas,
+   configuraciones y classpath. Ese control de acceso es una obligación de los
+   operadores, no una ACL nueva aplicada por este incremento.
+
+`local[2]` y la UI desactivada no garantizan aislamiento de red. Las restricciones
+anteriores tampoco autorizan automáticamente descargas, ejecuciones reales o
+modificaciones de dependencias.
+
+### Disparadores de reevaluación previa
+
+Reevaluar aplicabilidad y compatibilidad **antes** de cualquiera de estos cambios:
+
+- Actualizar Java, Python, Spark, Delta o Hadoop.
+- Modificar el classpath, sus JAR, dependencias o plugins.
+- Incorporar formatos comprimidos adicionales o extracción de archivos.
+- Procesar entradas de fuentes no confiables o cambiar la verificación de fuentes.
+- Pasar de ejecución local a distribuida.
+- Introducir ZooKeeper, HA u otros mecanismos de coordinación, propios o externos.
+- Exponer servicios a redes externas.
+- Conocer un nuevo aviso que afecte al flujo utilizado o cambiar el modelo de amenazas.
+
+Si se identifica una ruta relevante o una incertidumbre material, suspender la
+propuesta de cierre y delimitar una evaluación específica. No actualizar JAR
+aislados: sustituir C1 no elimina C2. Una corrección requiere estudiar también
+Hadoop y repetir las verificaciones pertinentes de arranque, contextos, Ivy,
+Delta, publicación Bronze, recuperación y reproducibilidad, con autorización.
+
+### Propuesta de decisión para los autores — pendiente
+
+**Riesgos cuya aceptación se propone:** presencia de las versiones afectadas y
+sus impactos condicionados, manteniendo exclusivamente el perfil descrito.
+La justificación es la ausencia de rutas identificadas desde ese flujo, no la
+seguridad intrínseca de las bibliotecas ni el éxito de pruebas funcionales.
+
+**Condiciones y límites:** conservar las restricciones operativas anteriores,
+revisar los disparadores antes de cambiar el sistema y registrar cualquier
+incumplimiento. La propuesta no se extiende a clústeres, servicios públicos,
+formatos adicionales o fuentes no confiables. No se propone una actualización
+inmediata de toda la plataforma basada solo en el inventario.
+
+**Responsables propuestos:** Carlos mantiene el inventario y coordina la
+reevaluación técnica; Irantzu revisa el alcance y procedencia de las fuentes.
+La aceptación exige una decisión expresa conjunta de Carlos e Irantzu.
+
+| Campo de decisión | Estado |
+| --- | --- |
+| Decisión de los autores | Pendiente |
+| Revisión y perfil expresamente aceptados | Pendiente de ratificación |
+| Fecha de aceptación | No otorgada |
+| Aprobación de Carlos e Irantzu | Pendiente |
+| Obligaciones futuras | Mantener restricciones y reevaluar antes de los disparadores, si se acepta |
+
+La autorización de este texto y su eventual versionado no sustituyen esa
+decisión. **AUD-09 permanece evaluado, con tratamiento propuesto y aceptación
+del riesgo residual pendiente; no se declara cerrado.**
+
 ## Configuración Bronze
 
 Usar `--config` explícitamente. Todas las rutas relativas se resuelven respecto

@@ -77,6 +77,18 @@ Los estados reflejan la evidencia disponible en el repositorio, **no** el
 estado de GitHub. El cierre de H01 y H02 deberá revisarse antes de darlos por
 completados en la herramienta de seguimiento.
 
+## Riesgo técnico transversal AUD-09
+
+`AUD-09 — Evaluado; tratamiento propuesto; aceptación del riesgo residual pendiente.`
+
+El [registro técnico AUD-09](hitos-1-2.md#aud-09-riesgo-residual-de-dependencias-jvm)
+documenta las versiones JVM afectadas, la comprobación estática complementaria,
+las restricciones del perfil local CSV/Delta y los disparadores de reevaluación.
+La propuesta es mantener provisionalmente ese perfil, sujeta a decisión expresa
+de Carlos e Irantzu. Este estado no equivale a cierre ni aceptación del riesgo,
+no modifica la aceptación académica de H03 y no autoriza avanzar a H04.
+Las pruebas funcionales históricas permanecen separadas de esta revisión estática.
+
 ## Secuencia principal
 
 ```mermaid
