@@ -94,7 +94,43 @@ no se versionan.
 
 `spark_session()` abre una sesión local exclusiva y la cierra al salir. Por defecto:
 `local[2]`, dos particiones de shuffle y de snapshots Delta, UI desactivada.
-Rechaza un master distribuido y una SparkSession ya existente.
+Rechaza un master distribuido y cualquier sesión o contexto Spark ya existente.
+
+### Propiedad de recursos y fallos de arranque (AUD-05)
+
+El gestor exige un contexto exclusivo: comprueba los recursos antes de construir
+el builder o modificar el entorno y repite la comprobación bajo los bloqueos
+reentrantes de PySpark 3.5.7. El orden es siempre `SparkSession.Builder._lock`
+y después `SparkContext._lock`; cada adquisición tiene un límite de diez
+segundos. Estos bloqueos se liberan antes del bloque del usuario y también
+cuando falla el arranque. No se introduce un registro global adicional.
+La protección se establece antes de adquirirlos. Se verifica la profundidad de
+recursión del hilo mediante `RLock._recursion_count()` de CPython 3.11, evitando
+perder una adquisición si se cancela antes de guardar un indicador y conservando
+las adquisiciones previas del llamador. Si esa capacidad no está disponible,
+el gestor falla antes de adquirir bloqueos o modificar el entorno.
+
+La identidad del contexto propio se conserva aunque falle la construcción
+posterior de la sesión. La limpieza solo actúa si el contexto activo sigue
+siendo ese mismo objeto. Si otro componente lo sustituye, no se detiene ni se
+borra el nuevo contexto. Tampoco se llama a `stop()` sobre una sesión devuelta
+que pertenezca a otro contexto. Una sesión global ajena no se borra como parte
+de la limpieza de un contexto propio.
+
+El entorno se restaura tanto en operación normal como ante errores, incluido
+un `PYSPARK_PYTHON` inicialmente ausente o vacío. La primera causa se conserva;
+los errores secundarios de cierre se añaden como notas. La primera cancelación
+(`KeyboardInterrupt` o `SystemExit`, conservando identidad y código) controla
+la propagación, manteniendo un error ordinario anterior como causa.
+
+Son APIs internas verificadas para la versión fijada, no un contrato general de
+PySpark entre versiones. La coordinación cubre los caminos normales de creación
+que utilizan esos bloqueos; no aísla constructores de sesiones directos,
+manipulaciones manuales de singleton ni componentes que se acoplen al contexto
+propio durante el bloque. El entorno del proceso es global. No se admite
+compartir deliberadamente este gestor con otros propietarios de Spark. Un fallo
+de `stop()`, una terminación forzosa o cancelaciones repetidas pueden impedir
+completar la limpieza; el gestor comunica el fallo sin detener recursos ajenos.
 
 Se configuran expresamente:
 
@@ -115,6 +151,52 @@ Ivy guarda sus JAR y metadatos en `~/.ivy2/`; `spark.ivy_dir` permite elegir
 otra caché. La siguiente ejecución reutilizó los tres artefactos.
 Un entorno aislado necesita preparar esa caché previamente; instalar delta-spark
 en Python por sí solo no proporciona los JAR de ejecución.
+
+### Separación de la caché Ivy (AUD-08)
+
+El validador compartido no importa PySpark, no crea directorios y no prueba
+permisos mediante escrituras. Antes del builder y del entorno, comprueba la ruta
+explícita o el default `Path.home() / ".ivy2"`, y transmite su ruta canónica a
+`spark.jars.ivy`. Es una decisión explícita: deja de delegar la selección al
+home de Java. En el entorno local habitual coincide con la caché anterior; si
+ambos homes difieren, debe indicarse una caché segura mediante `ivy_dir`.
+
+Se protegen `data/raw`, `data/lakehouse` y `data/checks` del repositorio identificado
+desde el paquete y su manifiesto, con independencia del directorio de invocación.
+Bronze añade sus raíces personalizadas. El argumento opcional y solo por nombre
+`protected_roots` de `spark_session()` permite ampliar esa protección sin
+sustituir las raíces convencionales. Fuera de un checkout identificable es
+obligatorio declarar raíces; el gestor no puede descubrir fuentes o expedientes
+externos arbitrarios y el llamador debe declararlos.
+
+Se rechazan solapamientos canónicos en ambos sentidos, componentes que sean
+archivos, enlaces colgantes, ciclos y errores de inspección. Se aceptan cachés
+externas, directorios seguros futuros y alias existentes de la raíz cuyo destino
+sea seguro. Dentro de `cache` y `jars` se rechazan enlaces, también profundos,
+para impedir escrituras indirectas hacia fuentes o expedientes. No se rechaza
+un vecino solo por compartir un prefijo textual. Las rutas TOML siguen siendo
+relativas al TOML y las de CLI/API al directorio de invocación; `../.cache/ivy`
+sigue siendo una opción válida.
+
+El perfil local rechaza overrides Ivy explícitos en argumentos del lanzador,
+opciones JVM o `spark-defaults.conf`, archivos de propiedades alternativos,
+escapes/continuaciones activos en los defaults, archivos `spark-env.sh` o
+`java-opts` personalizados
+y gateways proporcionados externamente. También rechaza `@argfiles` en opciones
+JVM, argumentos del driver o defaults, cuyo contenido no está auditado.
+No interpreta shell ni XML de Ivy.
+Opciones ordinarias ajenas a Ivy siguen admitidas. Esta comprobación presupone
+la distribución instalada y sus scripts de lanzamiento sin alteraciones; no
+certifica lanzadores externos arbitrarios.
+
+La validación es puntual: no elimina TOCTOU ni aísla el filesystem. Enlaces duros,
+bind mounts, cambios posteriores de rutas o configuración y manipulación
+deliberada por procesos con permisos quedan fuera de la garantía. Una caché
+existente se inspecciona en lectura; una resolución Maven ordinaria puede
+actualizar sus propios metadatos. Para pruebas sin descargas ni cambios en la
+caché histórica, se pueden usar copias temporales de JAR locales mediante
+`spark.jars`, sin `spark.jars.packages`. Eso verifica Spark/Delta local, pero
+no la resolución Maven habitual.
 
 ```bash
 .venv/bin/python -m tfm_lakehouse check-environment --report data/checks/environment/check-001.json
@@ -403,6 +485,23 @@ unit no inicia una JVM. environment prueba persistencia Delta efectiva. integrat
 usa exclusivamente copias/archivos sintéticos en directorios temporales independientes.
 real_data se omite expresamente si TFM_REAL_CONFIG no está definido.
 El marcador performance está reservado; no hay benchmarks implementados.
+
+Para las regresiones AUD-05/AUD-08 del 31/10/2026 se excluyeron expresamente
+`real_data`, `performance` y estas dos pruebas, que ejecutan `git init` y no
+pueden lanzarse desde Codex bajo la política vigente:
+
+- `tests/test_characterization.py::test_real_output_ignore_is_checked_from_destination_not_external_config`.
+- `tests/test_weather_characterization.py::test_real_output_git_ignore_guard_uses_only_synthetic_files`.
+
+La selección completa sin JVM obtuvo 423 pruebas superadas. La suite permitida
+con JAR locales temporales obtuvo 449 pruebas superadas y tres excluidas
+(las dos anteriores y una `real_data`). Incluye integraciones sintéticas de
+Bronze/Delta y la comprobación de entorno; las pruebas nuevas del gestor usan
+dobles. Se sustituyó únicamente el helper de resolución por `spark.jars` con
+copias de los tres JAR ya disponibles y `spark.jars.packages=""`. El gestor,
+sus bloqueos y el default Ivy se ejecutaron realmente. Los homes de Java y
+Python coincidieron y se verificó la ruta efectiva transmitida a Spark.
+No se ha revalidado la resolución Maven ni ejecutado BDG2 real en este incremento.
 
 Se comprueban: fuente válida/inexistente, cabeceras, cero bytes, solo cabecera,
 conservación exacta de valores/columnas (incluidos duplicados), linaje, persistencia,

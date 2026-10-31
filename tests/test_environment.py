@@ -359,3 +359,60 @@ def test_environment_directory_close_failure_does_not_leak_child(project, monkey
     for descriptor in opened:
         with pytest.raises(OSError):
             os.fstat(descriptor)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('interface', ['cli', 'script'])
+@pytest.mark.parametrize('destination', ['raw', 'lakehouse', 'checks'])
+def test_unsafe_ivy_is_rejected_before_spark_in_both_interfaces(
+        project, monkeypatch, interface, destination):
+    from tfm_lakehouse import config as configuration
+    from tfm_lakehouse import spark as manager
+    roots = tuple(project / 'data' / name for name in ('raw', 'lakehouse', 'checks'))
+    monkeypatch.setattr(configuration, 'project_protected_roots', lambda: roots)
+    monkeypatch.setattr(cli, 'spark_session', manager.spark_session)
+    events = []
+
+    def unexpected_start(*args, **kwargs):
+        events.append('start')
+        pytest.fail('Delta helper must not be reached')
+
+    monkeypatch.setattr(manager, 'configure_spark_with_delta_pip', unexpected_start)
+    sentinel = roots[0] / 'synthetic.csv'
+    sentinel.parent.mkdir(parents=True)
+    sentinel.write_bytes(b'synthetic sentinel\x00\r\n')
+    target = roots[['raw', 'lakehouse', 'checks'].index(destination)] / 'new/ivy'
+    before = dict(os.environ)
+    assert invoke(interface, ['--ivy-dir', target], monkeypatch) == 1
+    assert events == []
+    assert dict(os.environ) == before
+    assert sentinel.read_bytes() == b'synthetic sentinel\x00\r\n'
+    assert not target.exists()
+    assert not (roots[2] / 'environment').exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('command', ['ingest-bronze', 'inspect-bronze'])
+def test_bronze_cli_passes_custom_protected_roots(tmp_path, monkeypatch, command):
+    from tfm_lakehouse.config import BronzeConfig
+    config = BronzeConfig(
+        raw_root=tmp_path / 'custom-raw', lakehouse_root=tmp_path / 'custom-lake',
+        electricity=tmp_path / 'custom-raw/e.csv', metadata=tmp_path / 'custom-raw/m.csv',
+        data_kind='synthetic', dataset_reference='synthetic', ivy_dir=tmp_path / 'safe-ivy',
+    )
+    captured = {}
+
+    @contextmanager
+    def session(**options):
+        captured.update(options)
+        yield object()
+
+    monkeypatch.setattr(cli, 'load_config', lambda path: config)
+    monkeypatch.setattr(cli, 'spark_session', session)
+    monkeypatch.setattr(cli, 'run_bronze', lambda *args: {'status': 'synthetic'})
+    selection = dict(run_id='synthetic', report_path='synthetic', latest_attempt=None,
+                     using_previous_successful_run=False, tables=[])
+    monkeypatch.setattr(cli, 'read_bronze_snapshot', lambda *args: (selection, {}))
+    assert cli.main([command, '--config', 'synthetic.toml']) == 0
+    assert captured == {'master': 'local[2]', 'ivy_dir': config.ivy_dir,
+                        'protected_roots': (config.raw_root, config.lakehouse_root)}

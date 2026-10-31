@@ -1,11 +1,83 @@
 """TOML configuration with paths relative to the file, never the working directory."""
 from dataclasses import dataclass
+import os
 from pathlib import Path
+import stat
 import tomllib
+from typing import Iterable
 
 
 class ConfigurationError(ValueError):
     pass
+
+
+def project_protected_roots() -> tuple[Path, ...]:
+    """Discover this checkout independently of the caller's working directory."""
+    for root in Path(__file__).resolve().parents:
+        manifest = root / "pyproject.toml"
+        try:
+            with manifest.open("rb") as handle:
+                project = tomllib.load(handle)
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError) as exc:
+            raise ConfigurationError("Cannot inspect the project manifest") from exc
+        if project.get("project", {}).get("name") == "tfm-lakehouse":
+            return tuple(root / "data" / name for name in ("raw", "lakehouse", "checks"))
+    return ()
+
+
+def _canonical_directory(path: Path) -> Path:
+    # Inspect lexical ancestors first: resolve() alone hides dangling aliases.
+    absolute = path.expanduser().absolute()
+    for component in reversed((absolute, *absolute.parents)):
+        try:
+            info = component.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(info.st_mode):
+            info = component.stat()
+        if not stat.S_ISDIR(info.st_mode):
+            raise ConfigurationError("An Ivy path component is not a directory")
+    return absolute.resolve()
+
+
+def validate_ivy_directory(
+    path: Path | None, *, protected_roots: Iterable[Path] = (),
+) -> Path:
+    """Validate without writes; reject aliases within Ivy's writable subtrees."""
+    try:
+        roots = (*project_protected_roots(), *protected_roots)
+        if not roots:
+            raise ConfigurationError("Declare protected_roots outside an identifiable checkout")
+        candidate = _canonical_directory(path if path is not None else Path.home() / ".ivy2")
+        for root in roots:
+            protected = _canonical_directory(root)
+            if candidate.is_relative_to(protected) or protected.is_relative_to(candidate):
+                raise ConfigurationError("Ivy cache overlaps a protected directory")
+        pending = [candidate / "cache", candidate / "jars"]
+        while pending:
+            directory = pending.pop()
+            try:
+                info = directory.lstat()
+            except FileNotFoundError:
+                continue
+            if not stat.S_ISDIR(info.st_mode):
+                raise ConfigurationError("Ivy cache/jars must be directories without links")
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    info = entry.stat(follow_symlinks=False)
+                    if stat.S_ISLNK(info.st_mode):
+                        raise ConfigurationError("Links inside Ivy cache/jars are unsupported")
+                    if stat.S_ISDIR(info.st_mode):
+                        pending.append(Path(entry.path))
+                    elif not stat.S_ISREG(info.st_mode):
+                        raise ConfigurationError("Unsupported entry inside Ivy cache/jars")
+        return candidate
+    except (OSError, RuntimeError, ValueError) as exc:
+        if isinstance(exc, ConfigurationError):
+            raise
+        raise ConfigurationError("Cannot safely inspect the Ivy cache path") from exc
 
 
 @dataclass(frozen=True)
@@ -58,6 +130,8 @@ class BronzeConfig:
                 raise ConfigurationError("Las fuentes deben estar dentro de raw_root.")
         if len(set(resolved_sources)) != len(resolved_sources):
             raise ConfigurationError("Las fuentes deben ser archivos distintos.")
+        if self.ivy_dir is not None:
+            validate_ivy_directory(self.ivy_dir, protected_roots=(raw, output))
 
 
 def load_config(path: Path) -> BronzeConfig:
@@ -71,16 +145,19 @@ def load_config(path: Path) -> BronzeConfig:
             return (base / Path(value).expanduser()).resolve()
 
         raw = resolve(data["paths"]["raw_root"])
+        output = resolve(data["paths"]["lakehouse_root"])
         spark = data.get("spark", {})
         sources = data["sources"]
         result = BronzeConfig(
-            raw_root=raw, lakehouse_root=resolve(data["paths"]["lakehouse_root"]),
+            raw_root=raw, lakehouse_root=output,
             electricity=(raw / sources["electricity"]).resolve(),
             metadata=(raw / sources["metadata"]).resolve(),
             data_kind=data["dataset"]["kind"],
             dataset_reference=data["dataset"]["reference"],
             master=spark.get("master", "local[2]"),
-            ivy_dir=resolve(spark["ivy_dir"]) if "ivy_dir" in spark else None,
+            ivy_dir=validate_ivy_directory(
+                base / Path(spark["ivy_dir"]).expanduser(), protected_roots=(raw, output)
+            ) if "ivy_dir" in spark else None,
             weather=(raw / sources["weather"]).resolve() if "weather" in sources else None,
         )
         result.validate()

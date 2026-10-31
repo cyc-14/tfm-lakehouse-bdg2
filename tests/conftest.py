@@ -14,5 +14,6 @@ def spark():
         "tfm-lakehouse-tests",
         master=config.master if config else "local[2]",
         ivy_dir=config.ivy_dir if config else None,
+        protected_roots=(config.raw_root, config.lakehouse_root) if config else (),
     ) as session:
         yield session

@@ -35,7 +35,8 @@ def main(argv: list[str] | None = None) -> int:
                 write_environment_report(target, report, project_root=project_root)
         else:
             config = load_config(args.config)
-            with spark_session(master=config.master, ivy_dir=config.ivy_dir) as spark:
+            with spark_session(master=config.master, ivy_dir=config.ivy_dir,
+                               protected_roots=(config.raw_root, config.lakehouse_root)) as spark:
                 if args.command == "ingest-bronze":
                     report = run_bronze(spark, config)
                 else:

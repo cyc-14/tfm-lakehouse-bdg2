@@ -140,7 +140,7 @@ def test_invalid_publication_never_falls_back_to_current_tables(config, invalid)
 @pytest.mark.unit
 def test_real_fixture_uses_configured_spark_options(config, monkeypatch):
     import conftest
-    configured = replace(config, master="local[1]", ivy_dir=config.raw_root / "ivy")
+    configured = replace(config, master="local[1]", ivy_dir=config.raw_root.parent / "ivy")
     monkeypatch.setenv("TFM_REAL_CONFIG", "synthetic-config.toml")
     monkeypatch.setattr(conftest, "load_config", lambda path: configured)
     captured = {}
@@ -156,7 +156,10 @@ def test_real_fixture_uses_configured_spark_options(config, monkeypatch):
     assert next(fixture) == "synthetic-session"
     with pytest.raises(StopIteration):
         next(fixture)
-    assert captured == {"master": "local[1]", "ivy_dir": configured.ivy_dir, "closed": True}
+    assert captured == {
+        "master": "local[1]", "ivy_dir": configured.ivy_dir, "closed": True,
+        "protected_roots": (configured.raw_root, configured.lakehouse_root),
+    }
 
 
 @pytest.mark.integration
