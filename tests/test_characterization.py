@@ -1,12 +1,18 @@
 """Synthetic tests for H03.2; these fixtures are not energy-analysis evidence."""
-from dataclasses import replace
+from copy import deepcopy
+from dataclasses import fields, replace
 from datetime import datetime, timedelta
 from decimal import Decimal
 import csv
+import hashlib
 import json
+import os
 from pathlib import Path
+import shutil
 
 import pytest
+
+from tfm_lakehouse import characterization as characterization
 
 from tfm_lakehouse.characterization import (
     Candidate, CharacterizationError, Settings, analyze, load_settings,
@@ -347,4 +353,489 @@ def test_source_mutation_during_report_write_cannot_publish_success(tmp_path, mo
     with pytest.raises(CharacterizationError, match="while writing"):
         write_reports(settings, output, report)
     assert output.exists()
+    assert not (output / "SUCCESS.json").exists()
+
+
+def binding_fixture(tmp_path):
+    metadata = [[f"Site_lodging_{letter}", "Lodging/residential", "Dormitory",
+                 "Site", "Europe/London", "4000"] for letter in ("A", "B")]
+    settings = make_fixture(tmp_path, ["0", "1", "", "-2"], metadata=metadata)
+    return replace(settings, candidates=(
+        Candidate("CASE_A", "Site_lodging_A", "synthetic-first"),
+        Candidate("CASE_B", "Site_lodging_B", "synthetic-second"),
+    ))
+
+
+def canonical_digest(value):
+    content = json.dumps(value, sort_keys=True, separators=(",", ":"),
+                         ensure_ascii=False, allow_nan=False).encode("utf-8")
+    return hashlib.sha256(content).hexdigest()
+
+
+def test_analysis_binding_covers_all_fields_and_hash_scopes(tmp_path):
+    settings = replace(binding_fixture(tmp_path), min_sqm=Decimal("3000.00"),
+                       max_sqm=Decimal("7E+3"), thresholds=(Decimal("8.0"), Decimal("5")))
+    report = analyze(settings)
+    provenance = report["analysis_provenance"]
+    effective = provenance["effective_settings"]
+    assert report["schema_version"] == "h03.2-v2"
+    assert provenance["contract_version"] == "h03.2-analysis-binding-v1"
+    assert set(effective) == {item.name for item in fields(Settings)}
+    assert effective["min_sqm"] == "3000.00"
+    assert effective["max_sqm"] == "7E+3"
+    assert effective["thresholds"] == ["8.0", "5"]
+    assert effective["candidates"] == [
+        {"case_id": item.case_id, "building_id": item.building_id, "group": item.group}
+        for item in settings.candidates
+    ]
+    assert provenance["effective_settings_sha256"] == canonical_digest(effective)
+    assert provenance["configuration"]["sha256"] == sha256(settings.config_path)
+    assert effective["config_sha256"] == ""
+    assert provenance["analyzed_payload_sha256"] == canonical_digest({
+        key: value for key, value in report.items() if key != "analysis_provenance"
+    })
+    output = settings.output_root / "synthetic" / "bound"
+    write_reports(settings, output, report)
+    execution = json.loads((output / "execution.json").read_text())
+    success = json.loads((output / "SUCCESS.json").read_text())
+    full_digest = hashlib.sha256(json.dumps(report, ensure_ascii=False,
+                                            sort_keys=True, allow_nan=False).encode()).hexdigest()
+    assert success["metrics_sha256"] == execution["deterministic_metrics_sha256"] == full_digest
+    assert execution["effective_settings_sha256"] == provenance["effective_settings_sha256"]
+    assert execution["config_sha256"] == provenance["configuration"]["sha256"]
+    assert set(success) == {"metrics_sha256", "source_hashes"}
+    assert not (output / ".SUCCESS.json.tmp").exists()
+
+
+@pytest.mark.parametrize("field_name", [item.name for item in fields(Settings)])
+def test_publication_rejects_every_changed_settings_field(tmp_path, field_name):
+    settings = binding_fixture(tmp_path)
+    report = analyze(settings)
+    changes = {
+        "config_path": tmp_path / "different.toml", "raw_root": tmp_path / "other-raw",
+        "metadata": settings.raw_root / "other-metadata.csv",
+        "electricity": settings.raw_root / "other-electricity.csv",
+        "output_root": tmp_path / "other-checks", "lakehouse_root": tmp_path / "other-lake",
+        "kind": "real", "reference": "different reference", "unit": "different unit",
+        "unit_reference": "different definition", "expected_hashes": {"metadata": sha256(settings.metadata)},
+        "candidates": tuple(reversed(settings.candidates)), "config_sha256": "0" * 64,
+        "primary_usage": "different usage", "min_sqm": Decimal("3001"),
+        "max_sqm": Decimal("6999"), "thresholds": (Decimal("99"),),
+        "missing_tokens": ("",), "timestamp_format": "%Y-%m-%d",
+        "iqr_multiplier": 2.0, "max_grid_slots": 500000,
+    }
+    different = replace(settings, **{field_name: changes[field_name]})
+    output = different.output_root / different.kind / "mixed"
+    with pytest.raises(CharacterizationError):
+        write_reports(different, output, report)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("change", [
+    {"iqr_multiplier": 1.0}, {"max_grid_slots": 1000.0},
+    {"thresholds": (Decimal("5.0"),)},
+])
+def test_binding_preserves_numeric_representations(tmp_path, change):
+    settings = replace(make_fixture(tmp_path, ["0", "1"]), iqr_multiplier=1,
+                       max_grid_slots=1000, thresholds=(Decimal("5"),))
+    report = analyze(settings)
+    output = settings.output_root / "synthetic" / "changed-representation"
+    with pytest.raises(CharacterizationError, match="settings"):
+        write_reports(replace(settings, **change), output, report)
+    assert not output.exists()
+
+
+def test_expected_hashes_snapshot_is_independent(tmp_path):
+    settings = make_fixture(tmp_path, ["1"])
+    report = analyze(settings)
+    settings.expected_hashes["metadata"] = sha256(settings.metadata)
+    assert report["analysis_provenance"]["effective_settings"]["expected_hashes"] == {}
+    output = settings.output_root / "synthetic" / "changed-dictionary"
+    with pytest.raises(CharacterizationError, match="settings"):
+        write_reports(settings, output, report)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("field_name,value", [
+    ("case_id", "OTHER_CASE"), ("building_id", "Site_lodging_B"), ("group", "other-group"),
+])
+def test_candidate_identity_and_group_are_bound(tmp_path, field_name, value):
+    settings = make_fixture(tmp_path, ["1"])
+    report = analyze(settings)
+    candidate = replace(settings.candidates[0], **{field_name: value})
+    output = settings.output_root / "synthetic" / "different-candidate"
+    with pytest.raises(CharacterizationError, match="settings"):
+        write_reports(replace(settings, candidates=(candidate,)), output, report)
+    assert not output.exists()
+
+
+def test_loaded_analysis_a_cannot_publish_with_reloaded_configuration_b(tmp_path):
+    settings = make_fixture(tmp_path, ["0", "1"])
+    content = '''[paths]
+raw_root = "raw"
+output_root = "checks"
+lakehouse_root = "lakehouse"
+[dataset]
+kind = "synthetic"
+reference = "synthetic configuration fixture"
+unit = "synthetic-unit"
+unit_reference = "synthetic-definition"
+[sources]
+metadata = "metadata.csv"
+electricity = "electricity.csv"
+[analysis]
+thresholds = [5]
+[[candidates]]
+case_id = "CASE_A"
+building_id = "Site_lodging_A"
+group = "synthetic"
+'''
+    settings.config_path.write_text(content)
+    first = load_settings(settings.config_path)
+    report = analyze(first)
+    settings.config_path.write_text(content.replace("thresholds = [5]", "thresholds = [99]"))
+    second = load_settings(settings.config_path)
+    assert second.config_sha256 == sha256(second.config_path)
+    output = second.output_root / "synthetic" / "reloaded"
+    with pytest.raises(CharacterizationError, match="settings"):
+        write_reports(second, output, report)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("target", ["configuration", "settings", "source"])
+def test_changes_during_analysis_are_rejected(tmp_path, monkeypatch, target):
+    settings = make_fixture(tmp_path, ["0", "1"])
+    original = characterization.distribution_profile
+
+    def mutate(*args, **kwargs):
+        result = original(*args, **kwargs)
+        if target == "configuration":
+            settings.config_path.write_bytes(settings.config_path.read_bytes() + b"# changed\n")
+        elif target == "settings":
+            settings.expected_hashes["metadata"] = sha256(settings.metadata)
+        else:
+            settings.electricity.write_bytes(settings.electricity.read_bytes() + b"\n")
+        return result
+
+    monkeypatch.setattr(characterization, "distribution_profile", mutate)
+    with pytest.raises(CharacterizationError, match="changed"):
+        analyze(settings)
+    assert not settings.output_root.exists()
+
+
+def test_loaded_configuration_change_is_rejected_before_analysis(tmp_path):
+    settings = make_fixture(tmp_path, ["1"])
+    loaded = replace(settings, config_sha256=sha256(settings.config_path))
+    settings.config_path.write_bytes(settings.config_path.read_bytes() + b"# changed\n")
+    with pytest.raises(CharacterizationError, match="since loading"):
+        analyze(loaded)
+    assert not settings.output_root.exists()
+
+
+@pytest.mark.parametrize("target", ["configuration", "metrics", "legacy", "provenance"])
+def test_changed_or_unbound_analysis_is_not_published(tmp_path, target):
+    settings = make_fixture(tmp_path, ["0", "1"])
+    report = analyze(settings)
+    if target == "configuration":
+        settings.config_path.write_bytes(settings.config_path.read_bytes() + b"# changed\n")
+    elif target == "metrics":
+        report["buildings"][0]["statistics"]["mean"] = 12345
+    elif target == "legacy":
+        report.pop("analysis_provenance")
+        report["schema_version"] = "h03.2-v1"
+    else:
+        report["analysis_provenance"]["effective_settings"]["reference"] = "changed"
+    output = settings.output_root / "synthetic" / target
+    with pytest.raises(CharacterizationError):
+        write_reports(settings, output, report)
+    assert not output.exists()
+
+
+def test_publication_uses_independent_analytical_copy(tmp_path, monkeypatch):
+    settings = make_fixture(tmp_path, ["0", "1"])
+    report = analyze(settings)
+    expected = deepcopy(report)
+    original = characterization._write_csv
+
+    def mutate(path, rows):
+        original(path, rows)
+        report["buildings"][0]["statistics"]["mean"] = 12345
+
+    monkeypatch.setattr(characterization, "_write_csv", mutate)
+    output = settings.output_root / "synthetic" / "independent-copy"
+    write_reports(settings, output, report)
+    assert json.loads((output / "report.json").read_text())["metrics"] == expected
+    with (output / "building_quality.csv").open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert float(rows[0]["mean"]) == expected["buildings"][0]["statistics"]["mean"]
+    assert (output / "SUCCESS.json").is_file()
+
+
+@pytest.mark.parametrize("relative_config", [False, True])
+@pytest.mark.parametrize("when", ["analysis", "publication"])
+def test_relative_sources_cannot_rebind_after_working_directory_change(
+        tmp_path, monkeypatch, relative_config, when):
+    first, second = tmp_path / "first", tmp_path / "second"
+    first.mkdir()
+    settings = make_fixture(first, ["0", "1"])
+    shutil.copytree(first, second)
+    settings = replace(settings, raw_root=Path("raw"), metadata=Path("raw/metadata.csv"),
+                       electricity=Path("raw/electricity.csv"),
+                       config_path=Path("config.toml") if relative_config else settings.config_path)
+    monkeypatch.chdir(first)
+    if when == "analysis":
+        original = characterization.distribution_profile
+
+        def change_directory(*args, **kwargs):
+            result = original(*args, **kwargs)
+            monkeypatch.chdir(second)
+            return result
+
+        monkeypatch.setattr(characterization, "distribution_profile", change_directory)
+        with pytest.raises(CharacterizationError, match="changed"):
+            analyze(settings)
+        assert not settings.output_root.exists()
+    else:
+        report = analyze(settings)
+        monkeypatch.chdir(second)
+        output = settings.output_root / "synthetic" / "relocated"
+        with pytest.raises(CharacterizationError, match="changed"):
+            write_reports(settings, output, report)
+        assert not output.exists()
+
+
+@pytest.mark.parametrize("stage", ["write", "close", "link"])
+def test_success_marker_failures_never_leave_partial_final(tmp_path, monkeypatch, stage):
+    settings = make_fixture(tmp_path, ["0", "1"])
+    report = analyze(settings)
+    output = settings.output_root / "synthetic" / stage
+    original_dump, original_open = json.dump, Path.open
+
+    def dump(payload, handle, **kwargs):
+        if stage == "write" and "metrics_sha256" in payload:
+            handle.write("{")
+            raise OSError("synthetic marker write failure")
+        return original_dump(payload, handle, **kwargs)
+
+    def open_marker(path, *args, **kwargs):
+        handle = original_open(path, *args, **kwargs)
+        if stage != "close" or path.name != ".SUCCESS.json.tmp":
+            return handle
+        class Writer:
+            def write(self, payload):
+                return handle.write(payload)
+
+            def close(self):
+                handle.close()
+                raise OSError("synthetic marker close failure")
+        return Writer()
+
+    def fail_link(*args, **kwargs):
+        raise OSError("synthetic marker link failure")
+
+    monkeypatch.setattr(json, "dump", dump)
+    monkeypatch.setattr(Path, "open", open_marker)
+    if stage == "link":
+        monkeypatch.setattr(os, "link", fail_link)
+    with pytest.raises(OSError, match="synthetic marker"):
+        write_reports(settings, output, report)
+    assert (output / "report.json").is_file()
+    assert not (output / "SUCCESS.json").exists()
+    assert not (output / ".SUCCESS.json.tmp").exists()
+    with pytest.raises(CharacterizationError, match="already exists"):
+        write_reports(settings, output, report)
+
+
+@pytest.mark.parametrize("target", ["configuration", "source", "settings"])
+def test_inputs_are_rechecked_after_success_marker_close(tmp_path, monkeypatch, target):
+    settings = make_fixture(tmp_path, ["0", "1"])
+    report = analyze(settings)
+    original_open = Path.open
+
+    def open_marker(path, *args, **kwargs):
+        handle = original_open(path, *args, **kwargs)
+        if path.name != ".SUCCESS.json.tmp":
+            return handle
+        class Writer:
+            def write(self, payload):
+                return handle.write(payload)
+
+            def close(self):
+                handle.close()
+                if target == "configuration":
+                    settings.config_path.write_bytes(settings.config_path.read_bytes() + b"# changed\n")
+                elif target == "source":
+                    settings.electricity.write_bytes(settings.electricity.read_bytes() + b"\n")
+                else:
+                    settings.expected_hashes["metadata"] = sha256(settings.metadata)
+        return Writer()
+
+    monkeypatch.setattr(Path, "open", open_marker)
+    output = settings.output_root / "synthetic" / "changed-after-close"
+    with pytest.raises(CharacterizationError, match="changed"):
+        write_reports(settings, output, report)
+    assert (output / "report.json").is_file()
+    assert not (output / "SUCCESS.json").exists()
+
+
+@pytest.mark.parametrize("stage", ["close", "link"])
+def test_existing_or_concurrent_success_is_never_replaced(tmp_path, monkeypatch, stage):
+    settings = make_fixture(tmp_path, ["1"])
+    report = analyze(settings)
+    output = settings.output_root / "synthetic" / "competing-marker"
+    original_open, original_link = Path.open, os.link
+
+    def open_marker(path, *args, **kwargs):
+        handle = original_open(path, *args, **kwargs)
+        if stage != "close" or path.name != ".SUCCESS.json.tmp":
+            return handle
+        class Writer:
+            def write(self, payload):
+                return handle.write(payload)
+
+            def close(self):
+                handle.close()
+                (output / "SUCCESS.json").write_bytes(b"synthetic existing marker\n")
+        return Writer()
+
+    def concurrent_link(*args, **kwargs):
+        (output / "SUCCESS.json").write_bytes(b"synthetic existing marker\n")
+        return original_link(*args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", open_marker)
+    if stage == "link":
+        monkeypatch.setattr(os, "link", concurrent_link)
+    with pytest.raises(FileExistsError):
+        write_reports(settings, output, report)
+    assert (output / "SUCCESS.json").read_bytes() == b"synthetic existing marker\n"
+
+
+@pytest.mark.parametrize("when", ["before", "after"])
+@pytest.mark.parametrize("cancel", [KeyboardInterrupt, SystemExit])
+def test_success_publication_cancellation_boundary(tmp_path, monkeypatch, when, cancel):
+    settings = make_fixture(tmp_path, ["0", "1"])
+    report = analyze(settings)
+    output = settings.output_root / "synthetic" / "interrupted"
+    interruption = cancel(67)
+    original = os.link
+
+    def interrupt(*args, **kwargs):
+        if when == "before":
+            raise interruption
+        original(*args, **kwargs)
+        raise interruption
+
+    monkeypatch.setattr(os, "link", interrupt)
+    with pytest.raises(cancel) as caught:
+        write_reports(settings, output, report)
+    assert caught.value is interruption
+    if cancel is SystemExit:
+        assert caught.value.code == 67
+    assert (output / "SUCCESS.json").exists() is (when == "after")
+    if when == "after":
+        assert json.loads((output / "SUCCESS.json").read_text())["source_hashes"] == {
+            name: report["inventory"][name]["sha256"] for name in ("metadata", "electricity")
+        }
+    assert not (output / ".SUCCESS.json.tmp").exists()
+
+
+def test_foreign_success_temporary_is_not_removed(tmp_path, monkeypatch):
+    settings = make_fixture(tmp_path, ["1"])
+    report = analyze(settings)
+    output = settings.output_root / "synthetic" / "foreign-temporary"
+    original = characterization._write_csv
+
+    def insert(path, rows):
+        original(path, rows)
+        temporary = output / ".SUCCESS.json.tmp"
+        if not temporary.exists():
+            temporary.write_bytes(b"synthetic foreign temporary\n")
+
+    monkeypatch.setattr(characterization, "_write_csv", insert)
+    with pytest.raises(FileExistsError):
+        write_reports(settings, output, report)
+    assert (output / ".SUCCESS.json.tmp").read_bytes() == b"synthetic foreign temporary\n"
+    assert not (output / "SUCCESS.json").exists()
+
+
+def test_marker_failure_preserves_primary_and_secondary_traces(tmp_path, monkeypatch):
+    settings = make_fixture(tmp_path, ["1"])
+    report = analyze(settings)
+    output = settings.output_root / "synthetic" / "multiple-failures"
+    first = OSError("synthetic primary write failure")
+    original_dump, original_open, original_unlink = json.dump, Path.open, Path.unlink
+
+    def dump(payload, handle, **kwargs):
+        if "metrics_sha256" in payload:
+            handle.write("{")
+            raise first
+        return original_dump(payload, handle, **kwargs)
+
+    def open_marker(path, *args, **kwargs):
+        handle = original_open(path, *args, **kwargs)
+        if path.name != ".SUCCESS.json.tmp":
+            return handle
+        class Writer:
+            def write(self, payload):
+                return handle.write(payload)
+
+            def close(self):
+                handle.close()
+                raise RuntimeError("synthetic secondary close failure") from ValueError("close cause")
+        return Writer()
+
+    def unlink(path, *args, **kwargs):
+        if path.name == ".SUCCESS.json.tmp":
+            raise OSError("synthetic secondary cleanup failure")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(json, "dump", dump)
+    monkeypatch.setattr(Path, "open", open_marker)
+    monkeypatch.setattr(Path, "unlink", unlink)
+    with pytest.raises(OSError) as caught:
+        write_reports(settings, output, report)
+    assert caught.value is first
+    notes = "\n".join(first.__notes__)
+    assert "secondary close failure" in notes and "close cause" in notes
+    assert "secondary cleanup failure" in notes and "Traceback" in notes
+    assert not (output / "SUCCESS.json").exists()
+
+
+@pytest.mark.parametrize("primary_kind", ["ordinary", "cancellation"])
+def test_marker_close_cancellation_preserves_control_flow(tmp_path, monkeypatch, primary_kind):
+    settings = make_fixture(tmp_path, ["1"])
+    report = analyze(settings)
+    output = settings.output_root / "synthetic" / "cancelled-close"
+    first = (OSError("synthetic first write failure") if primary_kind == "ordinary"
+             else KeyboardInterrupt("synthetic first cancellation"))
+    secondary = SystemExit(71)
+    original_dump, original_open = json.dump, Path.open
+
+    def dump(payload, handle, **kwargs):
+        if "metrics_sha256" in payload:
+            raise first
+        return original_dump(payload, handle, **kwargs)
+
+    def open_marker(path, *args, **kwargs):
+        handle = original_open(path, *args, **kwargs)
+        if path.name != ".SUCCESS.json.tmp":
+            return handle
+        class Writer:
+            def write(self, payload):
+                return handle.write(payload)
+
+            def close(self):
+                handle.close()
+                raise secondary
+        return Writer()
+
+    monkeypatch.setattr(json, "dump", dump)
+    monkeypatch.setattr(Path, "open", open_marker)
+    expected = secondary if primary_kind == "ordinary" else first
+    with pytest.raises(type(expected)) as caught:
+        write_reports(settings, output, report)
+    assert caught.value is expected
+    if primary_kind == "ordinary":
+        assert caught.value.code == 71
+        assert caught.value.__cause__ is first
     assert not (output / "SUCCESS.json").exists()

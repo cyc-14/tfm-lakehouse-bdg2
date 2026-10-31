@@ -4,8 +4,9 @@ from __future__ import annotations
 import argparse
 import collections
 from contextlib import contextmanager
+from copy import deepcopy
 import csv
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import hashlib
@@ -17,6 +18,7 @@ import statistics
 import subprocess
 import sys
 import tomllib
+import traceback
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -54,6 +56,96 @@ class Settings:
     timestamp_format: str = "%Y-%m-%d %H:%M:%S"
     iqr_multiplier: float = 1.5
     max_grid_slots: int = 1000000
+
+
+_BINDING_CONTRACT = "h03.2-analysis-binding-v1"
+_BINDING_SERIALIZATION = "json-utf8-sorted-compact-v1"
+_SETTINGS_FIELDS = (
+    "config_path", "raw_root", "metadata", "electricity", "output_root", "lakehouse_root",
+    "kind", "reference", "unit", "unit_reference", "expected_hashes", "candidates",
+    "config_sha256", "primary_usage", "min_sqm", "max_sqm", "thresholds",
+    "missing_tokens", "timestamp_format", "iqr_multiplier", "max_grid_slots",
+)
+
+
+def _canonical_bytes(value) -> bytes:
+    """Encode binding data without rounding numbers or normalizing Decimal text."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False, allow_nan=False).encode("utf-8")
+
+
+def _binding_digest(value) -> str:
+    return hashlib.sha256(_canonical_bytes(value)).hexdigest()
+
+
+def _effective_settings(settings: Settings) -> dict:
+    """Capture every Settings field as independent, JSON-compatible binding data."""
+    if {item.name for item in fields(Settings)} != set(_SETTINGS_FIELDS):
+        raise CharacterizationError("Settings fields changed; update the binding contract")
+
+    def convert(value):
+        if isinstance(value, Path):
+            return value.as_posix()
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, dict):
+            return {key: convert(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [convert(item) for item in value]
+        if value is None or type(value) in (str, int, float, bool):
+            return value
+        raise CharacterizationError("Unsupported effective-settings value")
+
+    result = convert(asdict(settings))
+    _canonical_bytes(result)
+    return result
+
+
+def _analytic_digest(report: dict) -> str:
+    # Excluding the binding prevents the payload hash from containing itself.
+    return _binding_digest({key: value for key, value in report.items()
+                            if key != "analysis_provenance"})
+
+
+def _verify_configuration(settings: Settings, provenance: dict, phase: str) -> None:
+    snapshot = provenance["effective_settings"]
+    if (_binding_digest(snapshot) != provenance["effective_settings_sha256"]
+            or _binding_digest(_effective_settings(settings))
+            != provenance["effective_settings_sha256"]):
+        raise CharacterizationError(f"Effective settings changed {phase}")
+    configuration = provenance["configuration"]
+    if (configuration["path"] != settings.config_path.resolve().as_posix()
+            or sha256(settings.config_path) != configuration["sha256"]):
+        raise CharacterizationError(f"Configuration changed {phase}")
+    if settings.config_sha256 and settings.config_sha256 != configuration["sha256"]:
+        raise CharacterizationError("Configuration does not match its loaded SHA-256")
+
+
+def _verify_analysis_binding(settings: Settings, report: dict, phase: str) -> None:
+    """Fail closed on legacy, mixed, or accidentally modified analysis results."""
+    try:
+        provenance = report["analysis_provenance"]
+        if (report["schema_version"] != "h03.2-v2"
+                or provenance["contract_version"] != _BINDING_CONTRACT
+                or provenance["canonical_serialization"] != _BINDING_SERIALIZATION):
+            raise CharacterizationError("Unsupported analysis binding contract")
+        if _analytic_digest(report) != provenance["analyzed_payload_sha256"]:
+            raise CharacterizationError("Analytical content changed after analysis")
+        _verify_configuration(settings, provenance, phase)
+        if set(provenance["sources"]) != {"metadata", "electricity"}:
+            raise CharacterizationError("Invalid bound source roles")
+        for name in ("metadata", "electricity"):
+            source = getattr(settings, name)
+            bound = provenance["sources"][name]
+            inventory = report["inventory"][name]
+            if (bound["path"] != source.resolve().as_posix() or inventory["path"] != str(source)
+                    or bound["sha256"] != inventory["sha256"]
+                    or sha256(source) != bound["sha256"]):
+                raise CharacterizationError(f"Source changed {phase}: {name}")
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        if isinstance(exc, CharacterizationError):
+            raise
+        raise CharacterizationError("Missing or invalid analysis binding") from exc
 
 
 def sha256(path: Path) -> str:
@@ -608,10 +700,26 @@ def _metadata(settings: Settings) -> tuple[list[dict], dict]:
 
 def analyze(settings: Settings) -> dict:
     """Read immutable sources and return deterministic metrics without writing reports."""
+    original_settings = settings
+    settings = deepcopy(settings)
     validate_settings(settings)
+    effective = _effective_settings(settings)
+    configuration_hash = sha256(settings.config_path)
+    if settings.config_sha256 and settings.config_sha256 != configuration_hash:
+        raise CharacterizationError("Configuration changed since loading")
     inventory = {
         name: _inventory(getattr(settings, name), settings.expected_hashes.get(name))
         for name in ("metadata", "electricity")
+    }
+    provenance = {
+        "contract_version": _BINDING_CONTRACT,
+        "canonical_serialization": _BINDING_SERIALIZATION,
+        "effective_settings": effective,
+        "effective_settings_sha256": _binding_digest(effective),
+        "configuration": {"path": settings.config_path.resolve().as_posix(),
+                          "sha256": configuration_hash},
+        "sources": {name: {"path": getattr(settings, name).resolve().as_posix(),
+                           "sha256": item["sha256"]} for name, item in inventory.items()},
     }
     records, global_summary = _metadata(settings)
     metadata = {row["building_id"]: row for row in records}
@@ -713,6 +821,8 @@ def analyze(settings: Settings) -> dict:
             },
         })
     for name, source in inventory.items():
+        if getattr(settings, name).resolve().as_posix() != provenance["sources"][name]["path"]:
+            raise CharacterizationError(f"Source changed during characterization: {name}")
         post_hash = sha256(getattr(settings, name))
         if post_hash != source["sha256"]:
             raise CharacterizationError(f"Source changed during characterization: {name}")
@@ -729,7 +839,7 @@ def analyze(settings: Settings) -> dict:
         "interpretation": "Exploratory signals; no automatic exclusion or confirmed sensor error",
     } for b in buildings]
     report = {
-        "schema_version": "h03.2-v1", "dataset_kind": settings.kind,
+        "schema_version": "h03.2-v2", "dataset_kind": settings.kind,
         "dataset_reference": settings.reference, "measurement_unit": settings.unit,
         "unit_reference": settings.unit_reference, "inventory": inventory,
         "methodology": {
@@ -769,6 +879,9 @@ def analyze(settings: Settings) -> dict:
         ],
     }
     json.dumps(report, allow_nan=False)
+    _verify_configuration(original_settings, provenance, "during analysis")
+    provenance["analyzed_payload_sha256"] = _analytic_digest(report)
+    report["analysis_provenance"] = provenance
     return report
 
 
@@ -809,11 +922,8 @@ def _academic_summary(report: dict) -> str:
 def write_reports(settings: Settings, output: Path, report: dict,
                   argv: list[str] | None = None) -> Path:
     output = validate_output(settings, output)
-    for name in ("metadata", "electricity"):
-        if sha256(getattr(settings, name)) != report["inventory"][name]["sha256"]:
-            raise CharacterizationError(f"Source changed before report publication: {name}")
-    if settings.config_sha256 and sha256(settings.config_path) != settings.config_sha256:
-        raise CharacterizationError("Configuration changed during analysis")
+    report = deepcopy(report)
+    _verify_analysis_binding(settings, report, "before report publication")
     metrics_bytes = json.dumps(
         report, ensure_ascii=False, sort_keys=True, allow_nan=False
     ).encode("utf-8")
@@ -822,7 +932,11 @@ def write_reports(settings: Settings, output: Path, report: dict,
         "argv": list(sys.argv if argv is None else argv), "python": sys.version,
         "git_head": _git(["rev-parse", "HEAD"], settings.config_path.parent),
         "git_status_short": _git(["status", "--short"], settings.config_path.parent),
-        "tool_sha256": sha256(Path(__file__)), "config_sha256": sha256(settings.config_path),
+        "tool_sha256": sha256(Path(__file__)),
+        "config_sha256": report["analysis_provenance"]["configuration"]["sha256"],
+        "analysis_binding_contract": _BINDING_CONTRACT,
+        "effective_settings_sha256": report["analysis_provenance"]["effective_settings_sha256"],
+        "analyzed_payload_sha256": report["analysis_provenance"]["analyzed_payload_sha256"],
         "config_path": str(settings.config_path), "output_path": str(output),
         "deterministic_metrics_sha256": hashlib.sha256(metrics_bytes).hexdigest(),
     }
@@ -864,16 +978,59 @@ def write_reports(settings: Settings, output: Path, report: dict,
         handle.write("\n")
     with (output / "academic_summary.md").open("x", encoding="utf-8") as handle:
         handle.write(_academic_summary(report))
-    for name in ("metadata", "electricity"):
-        if sha256(getattr(settings, name)) != report["inventory"][name]["sha256"]:
-            raise CharacterizationError(f"Source changed while writing reports: {name}")
-    with (output / "SUCCESS.json").open("x", encoding="utf-8") as handle:
-        json.dump({
-            "metrics_sha256": execution["deterministic_metrics_sha256"],
-            "source_hashes": {name: data["sha256"] for name, data in report["inventory"].items()},
-        }, handle, sort_keys=True)
-        handle.write("\n")
+    _publish_success(settings, output, report, execution)
     return output
+
+
+def _publication_failure(primary: BaseException | None, secondary: BaseException) -> BaseException:
+    """Preserve the first cause and let the first cancellation control propagation."""
+    if primary is None:
+        return secondary
+    if isinstance(primary, Exception) and not isinstance(secondary, Exception):
+        secondary.__cause__ = primary
+        return secondary
+    primary.add_note("Secondary success-marker failure:\n"
+                     + "".join(traceback.format_exception(secondary)))
+    return primary
+
+
+def _publish_success(settings: Settings, output: Path, report: dict, execution: dict) -> None:
+    """Publish only a closed, revalidated marker, never replacing an existing name."""
+    temporary = output / ".SUCCESS.json.tmp"
+    failure = None
+    created = False
+    try:
+        handle = temporary.open("x", encoding="utf-8")
+        created = True
+        try:
+            json.dump({
+                "metrics_sha256": execution["deterministic_metrics_sha256"],
+                "source_hashes": {name: data["sha256"]
+                                  for name, data in report["inventory"].items()},
+            }, handle, sort_keys=True, allow_nan=False)
+            handle.write("\n")
+        except BaseException as exc:
+            failure = exc
+        finally:
+            try:
+                handle.close()
+            except BaseException as exc:
+                failure = _publication_failure(failure, exc)
+        if failure is None:
+            _verify_analysis_binding(settings, report, "while writing reports")
+            _reject_symlinks(output)
+            # link() is the publication boundary; a successful final name is never removed.
+            os.link(temporary, output / "SUCCESS.json", follow_symlinks=False)
+    except BaseException as exc:
+        failure = _publication_failure(failure, exc)
+    finally:
+        if created:
+            try:
+                temporary.unlink()
+            except BaseException as exc:
+                failure = _publication_failure(failure, exc)
+    if failure is not None:
+        raise failure
 
 
 def main(argv: list[str] | None = None) -> int:

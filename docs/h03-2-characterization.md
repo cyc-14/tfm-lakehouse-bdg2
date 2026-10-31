@@ -174,14 +174,114 @@ hashes de código/configuración se registran aparte. Los CSV derivados son:
 Una tabla sin filas puede no producir CSV; su sección sigue presente en JSON.
 execution.json registra la ejecución y academic_summary.md es un borrador
 para revisión. Los hashes de fuentes se verifican antes y después del análisis
-y antes de finalizar la publicación. SUCCESS.json se escribe al final:
-su ausencia indica un conjunto incompleto y nunca debe interpretarse como éxito.
+y antes de finalizar la publicación. `SUCCESS.json` se publica al final como
+JSON completo: su ausencia indica un conjunto incompleto y nunca debe
+interpretarse como éxito.
 No hay transacción conjunta de informes ni recuperación automática de un
 directorio incompleto; se conserva y se usa otro nombre para repetir.
 
 Los informes y sus valores reales permanecen fuera de Git. El comando de
 pruebas y sus resultados deben registrarse junto a la ejecución correspondiente.
 La memoria no se reescribe; el apartado 2.2.6 debe aportarse para su contraste.
+
+### Vinculación de futuras ejecuciones: versión v2
+
+La corrección de AUD-03 y AUD-04 se aplica a resultados nuevos con
+`metrics.schema_version = "h03.2-v2"`. `analyze(settings)` sigue devolviendo
+un diccionario con las claves analíticas anteriores y añade `analysis_provenance`.
+No cambian fórmulas, recuentos, porcentajes, denominadores, cobertura, percentiles,
+desviaciones, rachas, outliers, comparaciones, sensibilidad ni semántica temporal.
+Se mantiene `report.json = {execution, metrics}` y los nombres/contenido analítico
+de los CSV.
+
+El contrato `h03.2-analysis-binding-v1` captura los 21 campos actuales de `Settings`:
+seis rutas, tipo y referencia del conjunto, unidad y su referencia, hashes esperados,
+candidatos, hash de configuración cargada y ocho parámetros de análisis. Ampliar
+`Settings` exige revisar explícitamente el contrato. Los candidatos conservan
+identificador, grupo y orden; también se conserva el orden de umbrales y tokens.
+Se copian los ajustes independientemente, incluido el diccionario `expected_hashes`.
+
+`analysis_provenance` contiene la versión de contrato y serialización,
+`effective_settings`, `effective_settings_sha256`, `configuration` (ruta resuelta
+y SHA-256 real del TOML), `sources` (ruta resuelta y SHA-256 por rol) y
+`analyzed_payload_sha256`. Las rutas de la configuración efectiva conservan
+su representación recibida; las referencias resueltas de archivos permiten detectar
+que una ruta relativa cambia de archivo al cambiar el directorio de trabajo.
+
+Las cuatro huellas tienen ámbitos diferentes:
+
+| Huella | Contenido y serialización |
+| --- | --- |
+| `configuration.sha256` | Bytes exactos del archivo TOML, incluidos comentarios y espacios |
+| `effective_settings_sha256` | Todos los campos de `effective_settings`, mediante JSON canónico de vinculación |
+| `analyzed_payload_sha256` | Todo el diccionario de métricas salvo `analysis_provenance`, mediante el mismo JSON canónico |
+| `execution.deterministic_metrics_sha256` y `SUCCESS.metrics_sha256` | Todo `metrics`, incluida su procedencia; se conserva el codificador anterior de métricas |
+
+`json-utf8-sorted-compact-v1` utiliza JSON UTF-8 con `sort_keys=True`,
+`separators=(",", ":")`, `ensure_ascii=False` y `allow_nan=False`. Las rutas de
+los ajustes se representan con `Path.as_posix()`; los `Decimal`, mediante `str()`,
+sin normalizar escala o exponente. No se redondean los números finitos y solo se
+ordenan claves de mapas, no listas. La huella completa de métricas mantiene
+`json.dumps(..., ensure_ascii=False, sort_keys=True, allow_nan=False)` con sus
+separadores por defecto, que incluyen espacios: ambos codificadores no producen
+los mismos bytes. Excluir la procedencia del hash analítico evita circularidad.
+
+Al comenzar se copia la configuración efectiva y se captura el hash real del TOML;
+si existe `Settings.config_sha256`, debe coincidir con el archivo cargado.
+Al terminar se verifican fuentes, TOML y ajustes originales. Antes de crear el
+directorio de publicación se comprueban contrato, huellas y referencias de archivos,
+además de todos los ajustes recibidos por `write_reports`. JSON y CSV se generan
+desde una copia independiente validada; cambios posteriores en el diccionario
+del llamador no pueden alterar esa copia.
+
+Los ajustes construidos programáticamente siguen admitidos y requieren un archivo
+de configuración legible. Su snapshot es la configuración efectiva autoritativa;
+el hash del TOML identifica el artefacto presente sin afirmar que generó todos
+los valores de `Settings`. Esto incluye los marcadores de las fixtures sintéticas.
+La identidad de un objeto en memoria no sustituye la vinculación.
+
+### Publicación exclusiva del marcador
+
+Tras generar los informes, se abre `.SUCCESS.json.tmp` exclusivamente, se completa
+su JSON y se cierra. Después del cierre se revalidan configuración, fuentes y
+vinculación. Solo entonces `os.link(..., follow_symlinks=False)` publica
+`SUCCESS.json` en el mismo directorio, sin reemplazar un nombre existente ni usar
+una sustitución alternativa. El filesystem debe admitir la operación.
+
+El marcador conserva `metrics_sha256` y `source_hashes` y su significado. El enlace
+es la frontera de publicación: un fallo o cancelación anterior no deja un marcador
+propio incompleto; una cancelación posterior puede coexistir con un marcador
+íntegro y no lo invalida retrospectivamente. Un marcador concurrente ajeno no se
+sobrescribe ni elimina; su mera existencia no acredita que pertenezca a esta ejecución.
+
+Solo se intenta retirar el temporal creado por esta ejecución. Si ya existía,
+no se elimina. Fallos de escritura, cierre o limpieza conservan la causa original
+y la propagación de cancelaciones; las incidencias secundarias quedan encadenadas
+o anotadas. Un fallo de limpieza puede dejar el temporal propio; una publicación
+completa puede permanecer aunque el comando termine con error. Los otros informes
+parciales se conservan y una repetición requiere otro directorio, sin promoción
+automática del temporal.
+
+La garantía es visibilidad completa y exclusiva del marcador: no hay transacción
+de informes ni durabilidad ante apagados mediante `fsync`. Los SHA-256 comprueban
+puntos concretos y pueden no detectar una modificación restaurada entre controles.
+No autentican un conjunto reescrito deliberadamente con sus hashes ni impiden toda
+manipulación de directorios o temporales por otro actor con permisos.
+
+### Compatibilidad y expediente histórico
+
+El expediente real `2026-10-30-h03-2` conserva su versión v1, resultados y hashes.
+No se regenera, migra, completa retrospectivamente ni vuelve a publicar. Su
+validación independiente mantiene su interpretación, sin atribuirle la garantía
+automática nueva. El publicador rechaza resultados v1 o sin vinculación, en lugar
+de inventar su procedencia a partir de los ajustes actuales. Los hashes totales v2
+cambian por esquema y procedencia; esto no implica cambios de resultados estadísticos.
+
+H03.3 sigue utilizando los helpers compartidos de SHA-256, CSV, clasificación,
+porcentajes, perfiles temporales, validación de destinos y exportación sin cambios
+en sus contratos ni comportamiento. El módulo meteorológico no cambia. Una futura
+ejecución H03.3 registrará la nueva huella de `characterization.py`; el expediente
+histórico conserva la huella original y no se regenera para esta corrección.
 
 ## Cierre técnico y observaciones de revisión
 
@@ -213,6 +313,20 @@ automáticamente a H03.3.
 .venv/bin/python -m pytest tests/test_characterization.py -q
 .venv/bin/python -m pytest -m unit -q
 ~~~
+
+Desde Codex se excluyen las dos pruebas que inicializan repositorios Git, incluso
+temporales. Las focales permitidas se seleccionan así:
+
+~~~bash
+.venv/bin/python -B -m pytest -q -p no:cacheprovider \
+  tests/test_characterization.py tests/test_weather_characterization.py \
+  -k 'not test_real_output_ignore_is_checked_from_destination_not_external_config and not test_real_output_git_ignore_guard_uses_only_synthetic_files'
+~~~
+
+Las regresiones nuevas cubren los 21 campos, configuración A/B, mutabilidad,
+alteraciones de TOML/fuentes/métricas, resultados v1 no vinculados y fallos de
+escritura, cierre, enlace y cancelaciones antes/después del marcador. Son pruebas
+exclusivamente sintéticas, sin JVM, datos reales ni operaciones Git mutadoras.
 
 Las pruebas no solicitan la fixture Spark. Cubren partición de celdas, ceros y
 negativos, extremos, rachas 24/72/168, porcentajes límite, percentiles, poblaciones
