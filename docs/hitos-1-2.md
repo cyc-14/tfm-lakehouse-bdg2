@@ -670,8 +670,8 @@ El marcador performance está reservado; no hay benchmarks implementados.
 ### Antecedente: regresiones AUD-05/AUD-08
 
 Para las regresiones AUD-05/AUD-08 del 31/10/2026 se excluyeron expresamente
-`real_data`, `performance` y estas dos pruebas, que entonces ejecutaban `git init`
-y no podían lanzarse desde Codex bajo la política vigente:
+`real_data`, `performance` y estas dos pruebas, que entonces inicializaban
+repositorios Git temporales:
 
 - `tests/test_characterization.py::test_real_output_ignore_is_checked_from_destination_not_external_config`.
 - `tests/test_weather_characterization.py::test_real_output_git_ignore_guard_uses_only_synthetic_files`.
@@ -786,13 +786,12 @@ No se modifican datos reales para probar errores.
 y logs se excluyen de Git. Los fixtures pequeños identificados como sintéticos y las
 pruebas y documentación sí se versionan. Los informes JSON/XML y logs de ejecución
 se guardan localmente bajo data/checks o data/lakehouse/<kind>/_runs y están ignorados.
-Codex no crea commits, no modifica el índice, ramas, historial, referencias o
-remoto y no publica cambios. El autor realiza esas operaciones fuera de Codex.
-La afirmación anterior de que no se habían creado commits describía únicamente
-la intervención de Codex correspondiente, no el historial general del proyecto.
+El historial y la publicación del repositorio los gestionan los autores.
 
-Pendientes: selección conjunta de edificios, interpretación y validación analítica
-de los originales BDG2, metadatos/unidades/zonas verificadas por fuente, Silver y su
-modelo largo, reglas de calidad, integración meteorológica justificada, Gold,
-explotación mínima y evaluación de rendimiento.
+La [transformación preliminar H05.1](hitos-5.md#h051--transformación-técnica-preliminar)
+ya conserva la electricidad en formato largo y está probada con datos sintéticos;
+no interpreta valores o tiempos ni persiste Silver. Siguen pendientes la aprobación
+conjunta de selección y contratos, la interpretación y validación analítica,
+unidades y zonas verificadas por fuente, persistencia Silver, reglas de calidad,
+integración meteorológica, Gold, explotación mínima y evaluación de rendimiento.
 No hay streaming, predicción, cloud ni control operativo de instalaciones.

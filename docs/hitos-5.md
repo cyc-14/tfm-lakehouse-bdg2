@@ -64,8 +64,9 @@ mínimo cumpla su contrato y haya superado una revisión técnica.
 Incremento autorizado por separado el 01/11/2026, exclusivamente con datos
 sintéticos. No aprueba H04 ni completa H05: la selección definitiva y los
 contratos analíticos siguen pendientes. La lista de columnas es un parámetro
-técnico, no un manifiesto académico de edificios seleccionados. El plan general
-conserva su estado previo; actualizarlo queda fuera de este incremento.
+técnico, no un manifiesto académico de edificios seleccionados. La actualización
+del plan general quedó fuera de aquel incremento; su estado se consulta en el
+[registro de hitos](milestones.md).
 
 ### Interfaces y esquema provisional
 

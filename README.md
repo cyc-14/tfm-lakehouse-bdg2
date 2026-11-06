@@ -8,17 +8,23 @@ BDG2 no representa una cadena hotelera y sus edificios no se reclasifican como h
 
 ## Estado
 
-Hito 1 verificado mediante escritura y lectura real de Delta. Hito 2 implementa
-Bronze para electricidad en formato ancho, metadatos y meteorología opcional.
-Las pruebas de software usan fixtures **exclusivamente sintéticos**; los originales
-BDG2 y sus salidas se conservan localmente, fuera de Git.
+Hito 1 verificado mediante escritura y lectura Delta con datos sintéticos.
+Hito 2 implementa Bronze para electricidad en formato ancho, metadatos y
+meteorología opcional. La suite habitual usa fixtures **exclusivamente
+sintéticos**; las pruebas con datos reales requieren autorización expresa.
+Los originales BDG2 y sus salidas se conservan localmente, fuera de Git.
 H03.1 documenta la procedencia de fuentes; H03.2 y H03.3 disponen de herramientas,
 pruebas y ejecuciones reales históricas contrastadas. H03.2 v2 está probado con
 sintéticos, sin nueva ejecución BDG2. El cierre académico global de H03 sigue
 pendiente. El [registro de hitos](docs/milestones.md) mantiene el estado principal
 y separa las revisiones técnicas de las decisiones académicas.
-Silver, Gold, integración analítica, visualización y evaluación de rendimiento
-siguen pendientes. Una carga Bronze no demuestra calidad ni resultados energéticos.
+
+[H05.1](docs/hitos-5.md#h051--transformación-técnica-preliminar) implementa la
+transformación eléctrica a formato largo, probada con datos sintéticos y sin
+interpretación numérica o temporal ni persistencia Silver. H04 y el flujo Silver
+formal siguen pendientes de aprobación y desarrollo; también Gold, integración
+analítica, visualización y evaluación de rendimiento. Una carga Bronze no
+demuestra calidad ni resultados energéticos.
 
 ## Entorno verificado
 
@@ -100,5 +106,6 @@ Fuentes: [repositorio oficial](https://github.com/buds-lab/building-data-genome-
 - [Plan de hitos técnicos y *milestones* de GitHub](docs/milestones.md).
 - [Caracterización eléctrica y metadatos H03.2](docs/h03-2-characterization.md).
 - [Meteorología y diagnóstico temporal H03.3](docs/h03-3-weather-timezones.md).
+- [Electricidad Silver: alcance y componente preliminar H05.1](docs/hitos-5.md).
 - [Definiciones preparadas para los 12 *milestones*](docs/github-milestones.json).
 - [Fixtures sintéticos](tests/fixtures/README.md).

@@ -40,9 +40,9 @@ incluidos los fallos encontrados y las limitaciones pendientes.
       las condiciones de uso de datos reales se explican por separado.
 - [ ] Toda cifra, medición de rendimiento y figura deriva de un método
       y una ejecución identificables.
-- [ ] Se respeta la convención lingüística: Markdown en inglés por defecto;
-      guías y seguimiento de hitos en `docs/`, README raíz y memoria en español.
-      Código, identificadores, pruebas, docstrings y comentarios técnicos en inglés.
+- [ ] La documentación pública y la memoria están en español de España.
+      Código, identificadores, nombres de pruebas, docstrings y comentarios
+      técnicos están en inglés; comandos y contratos conservan sus nombres.
 - [ ] Ambos autores revisan la coherencia técnica y académica y registran
       las limitaciones y líneas de trabajo futuro.
 

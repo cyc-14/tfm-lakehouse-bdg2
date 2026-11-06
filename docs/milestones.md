@@ -39,6 +39,9 @@ técnica de un hito.
 
 ## Estado actual y nivel de evidencia — 31/10/2026
 
+La tabla conserva la situación histórica del 31/10/2026. Las novedades posteriores
+se indican en la actualización fechada que aparece debajo.
+
 Implementación, pruebas, ejecución real, auditoría y aceptación académica son
 dimensiones distintas. Una aceptación técnica no acredita la aprobación global
 del hito ni una nueva ejecución de una revisión posterior del código.
@@ -61,6 +64,15 @@ del hito ni una nueva ejecución de una revisión posterior del código.
 | H10 | Planificado; sin benchmark validado | Pendiente | No ejecutado | Protocolo de evaluación por aprobar |
 | H11 | Planificado; no iniciado | Pendiente | No ejecutado | Validación funcional y analítica pendiente |
 | H12 | Planificado; no iniciado | Pendiente | No ejecutado | Cierre del TFM pendiente |
+
+### Actualización documental — 06/11/2026
+
+H05.1 está implementado y versionado como transformación técnica preliminar de
+electricidad a formato largo. La [guía H05](hitos-5.md#verificación-sintética-y-límites)
+registra 498 pruebas superadas el 01/11/2026, con datos sintéticos; esta revisión
+documental no vuelve a ejecutarlas. No interpreta números o tiempos ni persiste
+Silver, y no se ha validado con BDG2 real. H04 sigue pendiente de aprobación
+conjunta; H05 formal, H05.2, H06 y Gold continúan pendientes.
 
 La [guía H03.2](h03-2-characterization.md) y la
 [guía H03.3](h03-3-weather-timezones.md) describen métodos y límites. Sus
@@ -142,10 +154,9 @@ automáticas a cuentas de GitHub.
 
 1. Alcance, dependencias, responsables, contratos y criterios de aceptación
    aprobados antes de implementar cambios sustanciales.
-2. Markdown en inglés por defecto; guías y seguimiento de hitos en `docs/`,
-   README raíz y prosa académica en español. Código, identificadores, pruebas,
-   docstrings y comentarios técnicos necesarios en inglés. Esta convención no
-   exige traducciones indiscriminadas.
+2. Documentación pública y prosa académica en español de España. Código,
+   identificadores, nombres de pruebas, docstrings y comentarios técnicos
+   necesarios en inglés, conservando comandos y contratos.
 3. CSV originales BDG2 inalterados y excluidos de Git; entradas y salidas
    separadas. Las pruebas sintéticas no acreditan conclusiones energéticas.
 4. Pruebas pertinentes realmente ejecutadas, con comando, revisión de código,
@@ -156,15 +167,12 @@ automáticas a cuentas de GitHub.
 6. Anomalías, registros excluidos, versiones, linaje, recuperación y límites
    de comparabilidad documentados cuando correspondan.
 7. Revisión cruzada de decisiones analíticas y afirmaciones de la memoria.
-   Los cambios de archivos deben acompañarse de una propuesta de mensaje
-   siguiendo Conventional Commits. Codex solo consulta Git: nunca modifica
-   índice, ramas, historial, referencias o remoto. El autor realiza personalmente
-   el versionado y la publicación fuera de Codex.
+   Los mensajes de cambios siguen Conventional Commits. El versionado y la
+   publicación del repositorio corresponden a los autores.
 
 ## Uso de milestones e issues en GitHub
 
-Las recomendaciones de esta sección se dirigen a los autores, no autorizan
-operaciones de escritura o publicación por Codex. Crear un *milestone* por resultado técnico aceptado y dividir su trabajo en
+Crear un *milestone* por resultado técnico aceptado y dividir su trabajo en
 *issues* pequeños y verificables. Los títulos recomendados figuran en la tabla
 anterior y las tareas sugeridas, en cada guía de hito.
 
