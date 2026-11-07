@@ -23,47 +23,81 @@ expedientes privados. Esta revisión documental no reanaliza los CSV.
 | [H03.3](h03-3-weather-timezones.md) | Expediente `data/checks/h03_3/real/2026-10-30-h03-3/`, contrato histórico `h03.3-v1`. | Diagnóstico meteorológico y temporal, sin unión horaria validada. |
 | [H05.1](hitos-5.md#h051--transformación-técnica-preliminar) | Transformación preliminar implementada y probada con datos sintéticos. | No selecciona el caso académico, no aprueba H04 y no acredita una ejecución Silver con BDG2 real. |
 
-### Selección final comunicada y contraste disponible
+### Selección final: contraste visual con la memoria
 
-La metodología atribuida al apartado 2.2.6 de la memoria consta de cuatro
-pasos. El PDF de la versión actual no está disponible en el repositorio, por
-lo que sus tablas 3 y 4 no se han cotejado directamente. Los valores 107, 24 y
-16 se conservan como resultados comunicados para la memoria, no como una
-reproducción independiente de ese documento.
+Las capturas de las páginas aportadas de la memoria permiten cotejar el embudo
+descrito en el apartado 2.2.6 y sus tablas 3 y 4: 168 edificios con
+`primaryspaceusage` `Lodging/residential`, 107 tras el filtro de subcategorías,
+24 con superficie entre 3.500 y 6.000 m² y 16 tras excluir los casos
+con más del 8 % de lecturas ausentes. Este cotejo verifica lo que muestran las
+tablas y el cálculo con sus conteos; no reproduce la selección desde los CSV
+originales.
 
-| Paso | Criterio y resultado comunicado | Evidencia y límite |
-| --- | --- | --- |
-| 1 | 168 edificios con `primaryspaceusage` exactamente `Lodging/residential`. | El recuento 168 también aparece en H03.2 histórico para esa categoría exacta. |
-| 2 | Subcategorías `Hotel`, `Dormitory`, `Lodging /residential` y `Other - Lodging/residential`; quedan 107. | Resultado atribuido a la memoria, pendiente de cotejo. H03.2 registra literalmente `Hotel` (3), `Dormitory` (93), `Lodging/residential` (4) y `Other - Lodging/Residential` (10), que suman 110. Difieren dos grafías; no se ha establecido si cambian el filtro o la versión de metadatos. |
-| 3 | Superficie inclusiva de 3.500 a 6.000 m²; quedan 24. | Resultado atribuido a la memoria, pendiente de cotejo. El embudo H03.2 aplicó 3.000–7.000 m² y no reproduce este paso. |
-| 4 | Excluir edificios con más del 8 % de lecturas eléctricas ausentes, con denominador nominal 17.544; quedan 16 y se excluyen ocho. | El criterio y el resultado son comunicados por el autor. Los 16 nombres y sus recuentos de ausencias tienen contraste parcial con el Excel y los agregados históricos; sin la tabla 3 no se verifica la clasificación de los 24 ni el resultado 24→16. |
+La memoria indica que solo tres de los 168 edificios tienen subcategoría `Hotel`
+y que, además de `Hotel`, considera `Dormitory`, `Lodging /residential` y
+`Other - Lodging/residential`. H03.2 registra históricamente
+`Hotel` (3), `Dormitory` (93), `Lodging/residential` (4) y
+`Other - Lodging/Residential` (10), que suman 110; las tres categorías distintas
+de `Hotel` suman 107. La memoria parece incluir `Hotel`, por lo que esa suma
+parcial no explica por sí sola su recuento de 107. No se ha reproducido la
+diferencia ni se ha determinado si refleja otra versión de metadatos o un filtro
+distinto; se conservan ambas evidencias históricas. La captura no precisa si el
+intervalo de superficie incluye sus extremos.
 
-La regla comunicada es `100 × (17544 − lecturas no ausentes) / 17544 > 8` para
-excluir. Es un umbral estricto: un valor exactamente igual al 8 % no se excluiría.
-Los porcentajes mostrados redondeados no bastan para decidir casos próximos al
-límite; se necesitan los conteos enteros de la tabla 3 o de una fuente verificable.
-En los agregados históricos consultados, los 16 seleccionados tienen entre 0 y
-55 ausencias de 17.544 (máximo aproximado 0,314 %), así que todos cumplen el
-criterio comunicado. Esto no verifica la selección de los ocho excluidos.
+La tabla 3 muestra 24 conteos de valores no ausentes y usa 17.544 horas como
+denominador. Con la regla estricta
+`100 × (17544 − count) / 17544 > 8`, se excluyen los conteos inferiores a
+17.544 − 0,08 × 17.544 = 16.140,48, es decir, `count` ≤ 16.140. Los 16 edificios
+restantes tienen `count` entre 17.489 y 17.544 (hasta 55 ausencias); los ocho
+excluidos son:
 
-Las cabeceras B–Q del Excel verificado identifican esta cohorte, en ese orden:
+| Edificio BDG2 | Valores no ausentes | Ausencias | % ausente mostrado |
+| --- | ---: | ---: | ---: |
+| `Cockatoo_lodging_Katharine` | 16.113 | 1.431 | 8,16 % |
+| `Cockatoo_lodging_Lana` | 16.103 | 1.441 | 8,21 % |
+| `Cockatoo_lodging_Alicia` | 16.061 | 1.483 | 8,45 % |
+| `Cockatoo_lodging_Carmen` | 16.119 | 1.425 | 8,12 % |
+| `Cockatoo_lodging_Eric` | 16.119 | 1.425 | 8,12 % |
+| `Cockatoo_lodging_Olga` | 16.119 | 1.425 | 8,12 % |
+| `Cockatoo_lodging_Linwood` | 16.119 | 1.425 | 8,12 % |
+| `Cockatoo_lodging_Johnathan` | 16.119 | 1.425 | 8,12 % |
 
-1. `Robin_lodging_Dorthy`
-2. `Robin_lodging_Pricilla`
-3. `Robin_lodging_Armand`
-4. `Fox_lodging_Wallace`
-5. `Fox_lodging_Winifred`
-6. `Fox_lodging_Warren`
-7. `Peacock_lodging_Chloe`
-8. `Peacock_lodging_Terrie`
-9. `Peacock_lodging_Nova`
-10. `Bull_lodging_Leonard`
-11. `Bull_lodging_Terence`
-12. `Bull_lodging_Lettie`
-13. `Bull_lodging_Carie`
-14. `Bull_lodging_Jeremiah`
-15. `Bull_lodging_Anibal`
-16. `Bull_lodging_Danielle`
+Así, los conteos enteros confirman el paso 24→16; los ocho excluidos pertenecen
+al emplazamiento Cockatoo. Los porcentajes de la tabla, redondeados a dos
+decimales, concuerdan con esos conteos. Esto verifica la aplicación aritmética
+del umbral a los datos tabulados, no el cálculo original de las estadísticas.
+
+La tabla 4 atribuye a los 16 seleccionados el tipo `Lodging/residential` y el
+subtipo `Dormitory`. Sus identificadores, superficies, emplazamientos y zonas
+horarias son:
+
+| ID | Edificio BDG2 | Superficie (m²) | Emplazamiento | Zona horaria |
+| --- | --- | ---: | --- | --- |
+| `ID_020` | `Robin_lodging_Dorthy` | 5.824,9 | Robin | `Europe/London` |
+| `ID_024` | `Robin_lodging_Pricilla` | 4.607,0 | Robin | `Europe/London` |
+| `ID_026` | `Robin_lodging_Armand` | 5.246,0 | Robin | `Europe/London` |
+| `ID_030` | `Fox_lodging_Wallace` | 5.885,3 | Fox | `US/Mountain` |
+| `ID_032` | `Fox_lodging_Winifred` | 5.582,2 | Fox | `US/Mountain` |
+| `ID_035` | `Fox_lodging_Warren` | 4.562,3 | Fox | `US/Mountain` |
+| `ID_041` | `Peacock_lodging_Chloe` | 4.120,4 | Peacock | `US/Eastern` |
+| `ID_042` | `Peacock_lodging_Terrie` | 4.367,1 | Peacock | `US/Eastern` |
+| `ID_043` | `Peacock_lodging_Nova` | 4.507,6 | Peacock | `US/Eastern` |
+| `ID_052` | `Bull_lodging_Leonard` | 3.831,4 | Bull | `US/Central` |
+| `ID_053` | `Bull_lodging_Terence` | 3.780,9 | Bull | `US/Central` |
+| `ID_055` | `Bull_lodging_Lettie` | 3.683,4 | Bull | `US/Central` |
+| `ID_056` | `Bull_lodging_Carie` | 3.683,5 | Bull | `US/Central` |
+| `ID_065` | `Bull_lodging_Jeremiah` | 5.326,5 | Bull | `US/Central` |
+| `ID_067` | `Bull_lodging_Anibal` | 4.160,6 | Bull | `US/Central` |
+| `ID_068` | `Bull_lodging_Danielle` | 4.188,8 | Bull | `US/Central` |
+
+Los 16 nombres y su orden coinciden con las cabeceras B–Q del Excel verificado.
+La coincidencia documental confirma que la cohorte enumerada allí es la de la
+tabla 4, pero no que el contenido del libro corresponda celda a celda con los
+CSV originales. La memoria describe el caso como una cadena hotelera ficticia y
+presenta los edificios como residencias de estudiantes; no deben interpretarse
+como hoteles reales. H03.2 registra `Dormitory` para los ocho nombres que
+coinciden con sus 14 perfiles, pero no se ha verificado aquí el subuso individual
+de los otros ocho frente a metadatos originales.
 
 Los 16 nombres aparecen en el resultado histórico de la cohorte de 65
 candidatos del intervalo 3.000–7.000 m². Ocho también figuran entre los 14
@@ -73,15 +107,11 @@ dos del grupo previamente descartado (`Bull_lodging_Leonard` y
 y listas distintos; la exclusión histórica de dos candidatos no invalida por
 sí sola su inclusión bajo el criterio comunicado para la memoria.
 
-Según lo comunicado por el autor, la memoria atribuye a los 16 la subcategoría
-`Dormitory` y los sitios Bull, Robin, Fox y Peacock; la afirmación queda
-pendiente de cotejo directo del PDF.
-El informe H03.2 sí registra `Dormitory` para los ocho nombres que coinciden
-con sus 14 perfiles. No se ha verificado aquí el subuso individual de los otros
-ocho ni se debe generalizar el resultado de esos ocho al conjunto completo.
-No consta una ratificación conjunta explícita de la cohorte final ni de la
-secuencia de selección. La confirmación de H05.2 v0.3 se limita al contrato y a
-sus pruebas sintéticas.
+La zona horaria de la tabla 4 es metadato declarado: por sí sola no demuestra
+la semántica de los timestamps ni resuelve cambios estacionales. No consta una
+ratificación conjunta explícita de la cohorte final ni de la secuencia de
+selección. La validación sintética de H05.2 no sustituye esa aprobación ni una
+validación con BDG2 real.
 
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de
