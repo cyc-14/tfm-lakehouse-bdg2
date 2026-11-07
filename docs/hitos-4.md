@@ -146,10 +146,48 @@ verificador.
 El verificador recibe `non_missing_count` ya clasificado para los edificios
 que superan el filtro de superficie; usa el denominador fijo de 17.544 y excluye
 solo cuando `100 × missing_count > 8 × 17544` (1.403 ausencias pasan; 1.404
-excluyen). No interpreta CSV ni Excel. R5, la clasificación de representaciones
-de ausencia de las fuentes, y R6, la política completa de equivalencia entre
-Excel y BDG2, siguen pendientes; por ello no reproduce ni valida los datos
-originales.
+excluyen). No interpreta CSV ni Excel ni reproduce o valida los datos originales.
+
+### Comparación sintética Excel–BDG2 H04.14.A3
+
+Según la confirmación conjunta recibida para H04.14.A3, ambos autores aprueban
+R5: son ausencias los valores null, la cadena vacía exacta y el texto exacto
+`NaN`. Los ceros y negativos finitos no son ausencias; el texto no numérico se
+diagnostica por separado, sin recortes, normalización ni imputación. Un null
+producido por un lector CSV se distingue de un null explícito: el primero no
+permite recuperar el token serializado original.
+
+También aprueban R6: contrastar las 16 series del Excel exploratorio con las
+series BDG2 originales correspondientes, con 17.544 observaciones horarias y
+280.704 posiciones de valor esperadas. La comparación requiere identidad de
+edificio y alineación temporal; solo admite representaciones numéricas distintas
+si se demuestra su igualdad exacta, sin redondeo ni tolerancias. Debe informar
+diferencias de ausencia, fechas, duplicados y ambigüedades.
+
+El núcleo en `src/tfm_lakehouse/excel_bdg2_comparison.py` recibe registros en
+memoria y celdas tipadas. Valida columnas e identificadores, etiquetas nominales,
+cadencia y cobertura, y compara por separado el orden. Si hay etiquetas inválidas,
+la igualdad de cobertura queda indeterminada. Conserva la multiplicidad y contrasta
+los grupos de fechas repetidas como multiconjuntos de filas completas; no atribuye
+sus celdas a parejas y mantiene la alineación como ambigua. Los resultados por
+celda y las diferencias de representación solo cuentan posiciones comparadas;
+se informan aparte las posiciones sin pareja. Utiliza `Decimal` para
+valores exactos aportados como tales, distingue equivalencia de ausencias y
+diferencias de representación, y limita los ejemplos de incidencias. Los valores
+`float` y las fórmulas quedan como ambiguos, sin evaluar cachés. La exactitud de
+una celda declarada exacta depende de la evidencia que aporte quien la suministra.
+El resultado se refiere a los registros y dimensiones suministrados, no acredita
+procedencia ni identifica por sí solo el periodo correcto.
+
+La validación ejecutada en H04.14.A3 comprende 24 casos sintéticos del comparador
+y 26 del verificador de selección. No hay lector XLSX instalado ni declarado
+en las dependencias; falta un adaptador de lectura que conserve el tipo y la
+representación de cada celda, así como su política de fórmulas y precisión. El
+núcleo no lee CSV ni XLSX y no constituye una verificación de extremo a extremo.
+La comparación real requiere verificar variante, hashes e identidad de las
+fuentes y de la publicación, establecer el periodo y autorizar expresamente la
+ejecución con rutas y efectos revisados. Siguen pendientes el contraste con los
+originales y la ratificación conjunta de la selección final de 16 edificios.
 
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de
