@@ -68,6 +68,158 @@ deberán documentarse por separado del identificador BDG2, sin reemplazarlo.
 Las banderas de calidad y la aptitud para un indicador son decisiones distintas;
 no se autorizan exclusiones, imputaciones o conversiones UTC implícitas.
 
+### Propuesta de contrato H05.2 v0.3
+
+La propuesta define una transformación posterior a H05.1. Su revisión técnica
+está completada, con dictamen **READY FOR JOINT REVIEW** y revisión independiente.
+Ese dictamen acredita la preparación del diseño para revisión conjunta; la
+aprobación de los autores y la autorización de implementación siguen separadas:
+
+| Aspecto | Estado |
+| --- | --- |
+| Primer autor | Aprobación provisional del diseño técnico detallado |
+| Irantzu | Acuerdo con los principios generales de tratamiento, comunicado por el primer autor |
+| Ratificación conjunta detallada | No consta evidencia independiente que la acredite |
+| Implementación H05.2 | Todavía no autorizada |
+| Ejecución BDG2 real y publicación Delta | Requieren autorizaciones separadas |
+
+**Alcance y conservación.** La transformación será pura, conservativa,
+determinista y sin persistencia. Su implementación y validación iniciales
+utilizarán exclusivamente datos sintéticos. Quedan fuera BDG2 real,
+persistencia Delta, imputación, limpieza destructiva, correcciones automáticas,
+detección avanzada de anomalías, análisis de rachas de ceros, meteorología y
+cálculos Gold.
+
+Cada aparición de entrada producirá exactamente una aparición de salida. Se
+conservarán todas las columnas recibidas de H05.1: nombres, valores, tipos,
+nulabilidad, nulls, duplicados, multiplicidad, linaje y campos de versión de la
+publicación. No se inventarán claves primarias ni se impondrá unicidad por
+edificio y etiqueta temporal. La proyección sobre los campos originales deberá
+ser igual al multiconjunto de entrada, además de conservar el número de filas.
+
+**Interpretación decimal exacta.** Se interpretará `electricity_value_original`
+como `DECIMAL(38,18)` únicamente cuando su valor sea representable exactamente.
+La gramática será la siguiente, con coincidencia de toda la cadena:
+
+```text
+[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?
+```
+
+Admite dígitos ASCII, punto decimal, signos y notación científica. No admite
+espacios exteriores, separadores regionales ni normalizaciones implícitas.
+No habrá conversiones intermedias a coma flotante binaria, redondeos ni
+truncamientos. Se definen `q = 10^-18` y `M = 10^20 - 10^-18`; un valor es
+exactamente representable si `|x| ≤ M` y `x/q` es entero.
+
+Los ocho estados de `value_parse_status` se asignarán con esta precedencia:
+
+1. NULL recibido → `missing_null`.
+2. Token exacto `""` o `"NaN"` → `missing_token`.
+3. Literal exacto `"Infinity"`, `"+Infinity"` o `"-Infinity"` → `nonfinite_literal`.
+4. Incumplimiento de la gramática completa → `invalid_syntax`.
+5. Cero matemático → `finite`.
+6. `|x| > M` → `overflow`.
+7. `0 < |x| < q` → `underflow`.
+8. Valor dentro del rango, pero sin representación exacta → `scale_exceeded`.
+9. Resto → `finite`.
+
+`electricity_value_numeric` contendrá el decimal exacto solo para `finite`;
+**será NULL para cualquier otro estado**. El texto original permanecerá intacto.
+Se admitirán ceros finales prescindibles, ceros con signo y exponentes válidos
+extremos sin clasificación incorrecta ni expansión numérica desproporcionada.
+
+**Ausencias e indicadores.** Solo NULL, `""` y `"NaN"` exactos serán ausencias.
+`is_missing` será verdadero únicamente para `missing_null` y `missing_token`.
+Para `finite`, `is_zero` indicará igualdad con cero e `is_negative`, valor menor
+que cero; para los demás estados ambos serán NULL. No se imputarán ni eliminarán
+lecturas. Un cero o un negativo no se clasificará automáticamente como error
+físico.
+
+**Temporalidad nominal.** Se conservará `timestamp_original`. El formato
+admitido será exactamente `yyyy-MM-dd HH:mm:ss`, con 19 caracteres ASCII y
+separadores literales. Se aplicará el calendario gregoriano proléptico, años
+0001–9999, horas 00–23 y minutos y segundos 00–59.
+
+Los seis estados de `timestamp_parse_status`, por orden de evaluación, serán:
+
+1. NULL recibido → `missing_null`.
+2. Cadena exactamente vacía → `missing_empty`.
+3. Estructura incorrecta → `invalid_format`.
+4. Fecha imposible o año fuera del dominio → `invalid_calendar`.
+5. Hora, minuto o segundo fuera de rango → `invalid_time`.
+6. Fecha y hora nominales válidas → `valid_nominal`.
+
+Solo para `valid_nominal` se derivarán `nominal_date` y
+`nominal_second_of_day = 3600 * hora + 60 * minuto + segundo`, en el rango
+0–86399. Para cualquier otro estado ambos derivados serán NULL. Se conservarán
+etiquetas repetidas sin inferir UTC, zona horaria, `fold` de DST, instante físico
+ni continuidad física.
+
+**Esquema y validación estructural.** Se añadirán exactamente ocho campos:
+
+| Campo | Tipo Spark | Nullable |
+| --- | --- | --- |
+| `electricity_value_numeric` | DECIMAL(38,18) | Sí |
+| `value_parse_status` | STRING | No |
+| `is_missing` | BOOLEAN | No |
+| `is_zero` | BOOLEAN | Sí |
+| `is_negative` | BOOLEAN | Sí |
+| `nominal_date` | DATE | Sí |
+| `nominal_second_of_day` | INTEGER | Sí |
+| `timestamp_parse_status` | STRING | No |
+
+Se aceptará el esquema largo de H05.1 descrito en la guía H05: la salida básica
+pasará de siete a quince columnas y la del lector, de once a diecinueve. Se
+preservarán la versión Delta entera y todos los campos adicionales cuyos nombres
+no sean ambiguos ni colisionen. No se aplicará directamente el validador Bronze
+que exige cadenas en todas las columnas.
+
+Se rechazarán campos obligatorios ausentes, tipos incompatibles, nombres
+duplicados o ambiguos y colisiones con los ocho nombres nuevos, incluidas las
+detectadas sin distinguir mayúsculas mediante `casefold`. No se renombrarán ni
+sobrescribirán campos. Los tipos y la nulabilidad declarada de salida se
+comprobarán también con DataFrames vacíos.
+
+**Pruebas previstas y aceptación.** Todas las pruebas H05.2 están pendientes de
+ejecución; los resultados históricos de H05.1 no se atribuirán a este incremento.
+Se establecen tres niveles:
+
+- **Nivel 1, desarrollo focalizado:** datos sintéticos para gramática y exactitud
+  decimal, ocho estados numéricos, seis temporales, ausencias e indicadores,
+  calendario, esquema, colisiones y conservación de originales.
+- **Nivel 2, cierre obligatorio:** pruebas focalizadas completas, propiedades
+  deterministas, igualdad de multiconjuntos originales, cardinalidad y
+  multiplicidad de duplicados; referencia matemática decimal exacta e
+  independiente del conversor, sin aproximaciones de coma flotante; fronteras,
+  exponentes extremos, ceros con signo y ceros finales prescindibles; bisiestos,
+  fechas inválidas, errores simultáneos y etiquetas nominales asociadas a DST;
+  esquema y nulabilidad completos, incluida entrada vacía; determinismo frente
+  a reordenaciones y reparticionados; configuraciones pertinentes de ANSI y
+  zona horaria de sesión Spark; regresiones de H05.1 e integración con
+  **10.000 filas largas sintéticas**. El caso propuesto parte de 5.000 filas
+  Bronze y dos columnas de edificio, expandidas mediante H05.1.
+- **Nivel 3, ampliación condicional:** ejecución separada con 100.000 filas
+  largas sintéticas, según recursos disponibles. Los tiempos y consumos serán
+  observaciones, sin demostrar escalabilidad ni imponer umbrales arbitrarios.
+
+Entre los casos decimales obligatorios figurarán `M + 10^-19` → `overflow`,
+`10^-19` → `underflow`, `1.1e-18` → `scale_exceeded` y cero matemático con
+exponente válido extremo → `finite`. Se comprobarán ambos extremos del rango;
+el cero negativo será `finite`, con `is_zero = true` e `is_negative = false`.
+
+El cierre exigirá todas las pruebas obligatorias superadas, conservación exacta
+de originales, tipos, nulabilidad y multiplicidad, clasificación numérica y
+temporal correcta, rechazo de errores estructurales y colisiones, determinismo
+y ausencia de persistencia o ejecución real.
+
+**Límites y aprobación pendiente.** El escenario hotelero es ficticio y no
+modifica los usos reales documentados en BDG2. La propuesta no cierra H04 ni
+autoriza implementar H05.2: falta acreditar la ratificación conjunta detallada
+del alcance y contrato. La ejecución BDG2 real requerirá aprobar cohorte,
+variantes de origen, filtros, procedencia de la extracción del Excel, hashes y
+unidades aplicables. La persistencia y publicación Delta necesitarán otro
+contrato y autorización específica.
+
 ## Actividades incrementales
 
 1. Comparar subconjuntos candidatos con las evidencias de H03, dejando
