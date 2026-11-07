@@ -42,18 +42,23 @@ y menciona, además, `Dormitory`, `Lodging /residential` y
 `Other - Lodging/residential`. H03.2 registra históricamente
 `Hotel` (3), `Dormitory` (93), `Lodging/residential` (4) y
 `Other - Lodging/Residential` (10): las cuatro categorías suman 110 y las tres
-distintas de `Hotel`, 107. El autor informante confirma que se excluyeron los
-tres edificios `Hotel`; esto concilia aritméticamente los recuentos 110 y 107,
-pero la justificación académica concreta sigue pendiente. No se afirma que sus
-mediciones fueran inadecuadas ni se alteran los resultados históricos de H03.2.
+distintas de `Hotel`, 107. Según la confirmación conjunta recibida para
+H04.14.A2, ambos autores aprueban incluir exactamente las tres subcategorías
+citadas y excluir `Hotel` y las restantes dentro de `Lodging/residential`.
+Los recuentos 93, 4 y 10 son referencias históricas de H03.2, no resultados del
+nuevo verificador. La justificación académica concreta de excluir `Hotel`
+sigue pendiente. No se afirma que sus mediciones fueran inadecuadas ni se
+alteran los resultados históricos de H03.2.
 
-El autor informante acepta la selección final de 16 edificios y confirma que el
-intervalo de superficie es inclusivo: `3500 <= sqm <= 6000`. `sqm` es el campo
+El autor informante acepta la selección final de 16 edificios. Según la
+confirmación conjunta recibida para H04.14.A2, ambos autores aprueban el uso de
+`sqm` con el intervalo inclusivo `3500 <= sqm <= 6000`, calculado con
+aritmética decimal exacta. `sqm` es el campo
 de metadatos observado en el código y la documentación H03; la expresión resume
-el criterio confirmado, pero su aplicación final no se ha reproducido desde los
+el criterio aprobado, pero su aplicación final no se ha reproducido desde los
 metadatos BDG2 originales. El código H03 consultado conserva los límites de su
 escenario histórico, por lo que no constituye implementación del filtro final
-H04. Esta aceptación del autor informante no equivale a aprobación conjunta.
+H04.
 
 La tabla 3 muestra 24 conteos de valores no ausentes y usa 17.544 horas nominales
 como denominador. El autor informante confirma la regla estricta
@@ -122,10 +127,29 @@ y listas distintos; la exclusión histórica de dos candidatos no invalida por
 sí sola su inclusión bajo el criterio comunicado para la memoria.
 
 La zona horaria de la tabla 4 es metadato declarado: por sí sola no demuestra
-la semántica de los timestamps ni resuelve cambios estacionales. No consta una
-aprobación conjunta explícita de la selección final ni de la secuencia de
-selección. La validación sintética de H05.2 no sustituye esa aprobación ni una
-validación con BDG2 real.
+la semántica de los timestamps ni resuelve cambios estacionales. La aprobación
+conjunta de R2 y R3 no ratifica por sí sola la selección completa de 16
+edificios ni toda la secuencia. La validación sintética de H05.2 tampoco
+sustituye esa ratificación ni una validación con BDG2 real.
+
+### Verificador sintético H04.14.A2
+
+`src/tfm_lakehouse/building_selection.py` aplica a registros y resúmenes
+proporcionados explícitamente el filtro exacto de uso, las tres subcategorías
+aprobadas, el intervalo de superficie inclusivo y la regla estricta de
+ausencias mediante aritmética entera. Valida esquemas e identificadores,
+conserva los IDs en resultados y exclusiones, informa recuentos por etapa y no
+modifica las entradas. Sus pruebas son exclusivamente sintéticas. Los conteos
+históricos 168 → 107 → 24 → 16 no se presentan como una ejecución del
+verificador.
+
+El verificador recibe `non_missing_count` ya clasificado para los edificios
+que superan el filtro de superficie; usa el denominador fijo de 17.544 y excluye
+solo cuando `100 × missing_count > 8 × 17544` (1.403 ausencias pasan; 1.404
+excluyen). No interpreta CSV ni Excel. R5, la clasificación de representaciones
+de ausencia de las fuentes, y R6, la política completa de equivalencia entre
+Excel y BDG2, siguen pendientes; por ello no reproduce ni valida los datos
+originales.
 
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de
@@ -136,7 +160,8 @@ extremos del expediente no confirman por sí solos errores de medida.
 ## Decisiones y verificaciones pendientes
 
 - Reproducir en los CSV originales los criterios de selección documentados en
-  la memoria y aprobar conjuntamente los 16 edificios y las reglas de selección.
+  la memoria y ratificar conjuntamente la selección completa de 16 edificios y
+  la secuencia de selección.
 - Documentar la justificación académica de excluir la subcategoría `Hotel`.
 - Acordar la política conservadora de preservar y señalar lecturas, y el
   tratamiento de registros malformados, etiquetas repetidas y exclusiones
