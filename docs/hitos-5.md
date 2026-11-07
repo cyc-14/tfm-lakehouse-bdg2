@@ -268,3 +268,18 @@ temporal, unidades verificadas por fuente, integración meteorológica,
 imputación e indicadores Gold. Su aprobación corresponde a H04 y a incrementos
 posteriores expresamente autorizados. Este componente no se ha validado con
 BDG2 real ni modifica el riesgo residual JVM documentado en AUD-09.
+
+## H05.2 — Interpretación sintética incremental
+
+Las etapas `interpret_electricity_numeric` e `interpret_electricity_temporal`
+añaden respectivamente cinco campos numéricos y tres temporales nominales al
+formato largo. La segunda conserva el esquema y los valores recibidos, sin
+asignar zona horaria ni interpretar las etiquetas como instantes físicos.
+
+La verificación sintética de H05.2.2 y las regresiones seleccionadas de H05.2.1
+y H05.1 sumaron 126 pruebas superadas; se excluyó la prueba del lector que
+escribe Delta. Las pruebas temporales cubren calendario, precedencia, esquema,
+duplicados y composición con ambas etapas anteriores, con distintas opciones
+ANSI, zonas horarias y políticas de análisis de fechas. No se han procesado
+datos BDG2 reales ni publicado Silver. El cierre de H05.2 sigue pendiente,
+incluida la integración obligatoria de 10.000 filas largas sintéticas.

@@ -72,13 +72,13 @@ no se autorizan exclusiones, imputaciones o conversiones UTC implícitas.
 
 El contrato define una transformación posterior a H05.1. Según la comunicación
 del primer autor, ambos autores han confirmado conjuntamente el diseño v0.3 y
-el alcance de las pruebas sintéticas. La autorización de esta entrega comprende
-solo la interpretación numérica y sus pruebas sintéticas.
+el alcance de las pruebas sintéticas. Las entregas autorizadas comprenden la
+interpretación numérica y temporal nominal con pruebas sintéticas.
 
 | Aspecto | Estado |
 | --- | --- |
 | Diseño v0.3 y pruebas sintéticas | Confirmados por ambos autores, según comunicación del primer autor |
-| Implementación H05.2 | Autorizado el incremento numérico sintético; temporalidad pendiente |
+| Implementación H05.2 | Autorizadas las etapas numérica y temporal nominal sintéticas; cierre pendiente |
 | Ejecución BDG2 real y publicación Delta | Requieren autorizaciones separadas |
 
 **Alcance y conservación.** La transformación será pura, conservativa,
