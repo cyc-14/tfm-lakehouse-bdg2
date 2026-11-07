@@ -178,10 +178,15 @@ detectadas sin distinguir mayúsculas mediante `casefold`. No se renombrarán ni
 sobrescribirán campos. Los tipos y la nulabilidad declarada de salida se
 comprobarán también con DataFrames vacíos.
 
-**Pruebas previstas y aceptación.** La verificación del contrato completo
-H05.2 sigue pendiente; las pruebas de la interpretación numérica se ejecutan
-por separado y los resultados históricos de H05.1 no se atribuyen a H05.2.
-Se establecen tres niveles:
+**Pruebas previstas y aceptación.** La verificación sintética obligatoria del
+contrato H05.2 se completó en el incremento H05.2.3: la integración de 10.000
+filas largas y la selección H05 superaron 127 pruebas, con una prueba de
+escritura Delta excluida; otras 65 pruebas sintéticas de fuentes y configuración
+también pasaron. La revisión independiente no dejó hallazgos accionables. El
+detalle consta en `docs/hitos-5.md`. La prueba condicional de 100.000 filas no
+se ejecutó. Esta verificación no comprende procesamiento BDG2 real ni
+publicación Delta, que requieren autorizaciones separadas. Los resultados
+históricos de H05.1 no se atribuyen a H05.2. Se establecieron tres niveles:
 
 - **Nivel 1, desarrollo focalizado:** datos sintéticos para gramática y exactitud
   decimal, ocho estados numéricos, seis temporales, ausencias e indicadores,
@@ -209,7 +214,9 @@ el cero negativo será `finite`, con `is_zero = true` e `is_negative = false`.
 El cierre exigirá todas las pruebas obligatorias superadas, conservación exacta
 de originales, tipos, nulabilidad y multiplicidad, clasificación numérica y
 temporal correcta, rechazo de errores estructurales y colisiones, determinismo
-y ausencia de persistencia o ejecución real.
+y ausencia de persistencia o ejecución real. Estos criterios quedaron
+verificados sintéticamente en H05.2.3; la ejecución BDG2 y la publicación Delta
+permanecen pendientes de autorización específica.
 
 **Límites y autorizaciones pendientes.** El escenario hotelero es ficticio y no
 modifica los usos reales documentados en BDG2. El contrato no cierra H04 ni
