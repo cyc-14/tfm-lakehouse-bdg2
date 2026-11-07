@@ -91,10 +91,11 @@ La selección progresiva distingue:
 4. Presencia de columna eléctrica exacta.
 5. Escenarios independientes de porcentaje de ausentes.
 
-La completitud se calcula para toda la cohorte que supera superficie y columna.
+La completitud se calcula para todos los edificios que superan los filtros de
+superficie y presencia de columna.
 Se conserva en memoria el detalle únicamente de los candidatos configurados,
 además del eje temporal; las restantes columnas eléctricas no se acumulan. No se
-infiere una regla para reducir esa cohorte a los 14 aportados ni se inventan
+infiere una regla para limitar ese conjunto a los 14 aportados ni se inventan
 exclusiones retrospectivas.
 
 Cada celda se clasifica de forma excluyente:
@@ -360,5 +361,6 @@ repeticiones. Sus fixtures son sintéticos y no acreditan conclusiones energéti
 - [IANA, enlaces de compatibilidad](https://data.iana.org/time-zones/tzdb/backward).
 
 Estas fuentes no aportan una justificación específica del umbral del 8 % para
-esta cohorte. La selección final, la comparabilidad entre emplazamientos y los
-contratos analíticos corresponden a revisión posterior de ambos autores.
+este conjunto de edificios. La selección final, la comparabilidad entre
+emplazamientos y los contratos analíticos corresponden a revisión posterior de
+ambos autores.

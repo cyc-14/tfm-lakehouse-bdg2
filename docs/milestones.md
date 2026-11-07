@@ -65,7 +65,7 @@ del hito ni una nueva ejecución de una revisión posterior del código.
 | H11 | Planificado; no iniciado | Pendiente | No ejecutado | Validación funcional y analítica pendiente |
 | H12 | Planificado; no iniciado | Pendiente | No ejecutado | Cierre del TFM pendiente |
 
-### Actualización documental — 06/11/2026
+### Actualización documental — 06/11/2026 (antecedente)
 
 H05.1 está implementado y versionado como transformación técnica preliminar de
 electricidad a formato largo. La [guía H05](hitos-5.md#verificación-sintética-y-límites)
@@ -84,6 +84,37 @@ La evolución conserva el plan inicial, las ejecuciones del 30/10/2026 y las
 correcciones posteriores como hechos distintos. El resultado histórico de
 AUD-05/AUD-08 —449 pruebas superadas y tres excluidas— se conserva en la
 [guía H01–H02](hitos-1-2.md); no es un resultado atribuido a AUD-06/AUD-07.
+
+### Actualización documental — 07/11/2026
+
+H01 y H02 están implementados; las evidencias de H01 corresponden a Delta con
+datos sintéticos y las de H02 incluyen regresiones sintéticas y expedientes
+históricos de procedencia. No se infiere de esas pruebas calidad analítica ni una
+nueva ejecución sobre BDG2. H03 dispone de caracterización y ejecuciones reales
+históricas identificadas; H03.2 v2 conserva validación sintética, sin nueva
+ejecución real, y el cierre académico global continúa pendiente.
+
+H04 documenta el embudo y un conjunto final de 16 edificios seleccionados.
+Según la confirmación metodológica comunicada por el autor informante el
+07/11/2026, los límites de superficie son inclusivos
+(`3.500 ≤ area_m2 ≤ 6.000`); se excluyen los tres
+edificios de subcategoría `Hotel` y la regla de ausencia es estrictamente superior
+al 8 %. Esta confirmación no equivale a ratificación conjunta. Siguen pendientes
+la aprobación conjunta de la selección de edificios y la reproducción
+verificable de la selección y procedencia desde las fuentes originales.
+
+H05.1 está implementado y validado con datos sintéticos como transformación
+eléctrica a formato largo. H05.2 implementa la interpretación numérica y temporal
+nominal, con validación sintética obligatoria completada: la evidencia histórica
+registra 127 pruebas H05 superadas y una prueba del lector que escribe Delta
+excluida. Esos resultados no son ejecuciones nuevas de esta actualización. No se
+ha autorizado la validación Silver con BDG2 real ni la publicación de tablas
+Silver en Delta. H05 formal sigue pendiente; integración meteorológica y Gold
+permanecen fuera del alcance implementado.
+
+Esta actualización corrige el estado vigente sin reescribir la tabla histórica
+del 31/10, la actualización del 06/11 ni los resultados H03/H05 previamente
+registrados. La revisión documental no ejecuta pruebas ni procesos de datos.
 
 Los estados reflejan la evidencia disponible en el repositorio, **no** el
 estado de GitHub. El cierre de H01 y H02 deberá revisarse antes de darlos por
@@ -197,13 +228,14 @@ Recomendaciones de seguimiento:
 Las definiciones incluidas aquí **no significan que ya existan milestones
 o issues creados en GitHub**.
 
-## Siguiente actividad recomendada
+## Siguiente actividad recomendada — antecedente de planificación
 
 **`[H03] Contrastar las evidencias técnicas con la memoria y resolver las decisiones abiertas`**.
 
 La primera verificación de rutas y huellas era la recomendación del plan inicial
 y ya tiene evidencia. No se propone repetirla como si estuviera sin iniciar.
-Quedan por aceptar globalmente las fuentes, justificar la selección y las
-exclusiones y acordar la política temporal antes de avanzar a H04. Esta
-actualización documental no autoriza esa actividad. Los criterios se detallan en
+Quedaban por aceptar globalmente las fuentes, justificar la selección y las
+exclusiones y acordar la política temporal antes de avanzar a H04. La situación
+actual de H04 y H05 se recoge en la actualización del 07/11/2026; esta sección
+conserva la recomendación de planificación original. Los criterios se detallan en
 [`hitos-3.md`](hitos-3.md).

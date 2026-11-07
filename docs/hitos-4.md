@@ -1,8 +1,8 @@
 # Hito 4 — Selección del caso de estudio y contratos analíticos
 
 **Estado:** metodología de selección contrastada con las tablas de la memoria y
-cohorte de 16 edificios documentada; cierre de H04 pendiente de ratificación
-conjunta de la cohorte y verificación de procedencia. H05.2 completó su
+selección de 16 edificios documentada; cierre de H04 pendiente de aprobación
+conjunta de la selección y verificación de procedencia. H05.2 completó su
 validación sintética obligatoria. No se ha autorizado la validación con BDG2
 real ni la publicación Silver en Delta. **Responsabilidad:** Irantzu dirige
 las decisiones analíticas; Carlos verifica su viabilidad técnica. **Objetivos:**
@@ -23,9 +23,9 @@ expedientes privados. Esta revisión documental no reanaliza los CSV.
 
 | Referencia | Evidencia existente | Límite para H04 |
 | --- | --- | --- |
-| [H03.2](h03-2-characterization.md) | Expediente `data/checks/h03_2/real/2026-10-30-h03-2/`, contrato histórico `h03.2-v1`. | Utilizó 3.000–7.000 m² y obtuvo 65 candidatos por superficie; no es una verificación del nuevo intervalo o de una cohorte final de 16. |
+| [H03.2](h03-2-characterization.md) | Expediente `data/checks/h03_2/real/2026-10-30-h03-2/`, contrato histórico `h03.2-v1`. | Utilizó 3.000–7.000 m² y obtuvo 65 candidatos por superficie; no verifica el nuevo intervalo ni la selección final de 16 edificios. |
 | [H03.3](h03-3-weather-timezones.md) | Expediente `data/checks/h03_3/real/2026-10-30-h03-3/`, contrato histórico `h03.3-v1`. | Diagnóstico meteorológico y temporal, sin unión horaria validada. |
-| [H05](hitos-5.md) | H05.1 transforma a formato largo; H05.2 implementa e interpreta valores decimales y fechas nominales, con validación sintética completada. | No aprueba la cohorte H04 ni acredita validación con BDG2 real o publicación Silver en Delta. |
+| [H05](hitos-5.md) | H05.1 transforma a formato largo; H05.2 implementa e interpreta valores decimales y fechas nominales, con validación sintética completada. | No aprueba la selección H04 ni acredita validación con BDG2 real o publicación Silver en Delta. |
 
 ### Selección final: contraste visual con la memoria
 
@@ -97,7 +97,7 @@ horarias son:
 | `ID_068` | `Bull_lodging_Danielle` | 4.188,8 | Bull | `US/Central` |
 
 Los 16 nombres y su orden coinciden con las cabeceras B–Q del Excel revisado.
-La coincidencia documental confirma que la cohorte enumerada allí es la de la
+La coincidencia documental confirma que la selección enumerada allí es la de la
 tabla 4. Aunque uno de los autores comunicó el 07/11/2026 haber comprobado la
 correspondencia del Excel, la comparación celda a celda con las mediciones
 originales queda pendiente de un procedimiento y resultados reproducibles.
@@ -108,8 +108,8 @@ reales. H03.2 registra
 coinciden con sus 14 perfiles, pero no se ha verificado aquí el subuso individual
 de los otros ocho frente a metadatos originales.
 
-Los 16 nombres aparecen en el resultado histórico de la cohorte de 65
-candidatos del intervalo 3.000–7.000 m². Ocho también figuran entre los 14
+Los 16 nombres aparecen en el conjunto histórico de 65 edificios candidatos
+del intervalo 3.000–7.000 m². Ocho también figuran entre los 14
 perfiles de aquella configuración: seis del grupo inicialmente seleccionado y
 dos del grupo previamente descartado (`Bull_lodging_Leonard` y
 `Bull_lodging_Jeremiah`). Los otros ocho no están entre esos 14. Son escenarios
@@ -118,7 +118,7 @@ sí sola su inclusión bajo el criterio comunicado para la memoria.
 
 La zona horaria de la tabla 4 es metadato declarado: por sí sola no demuestra
 la semántica de los timestamps ni resuelve cambios estacionales. No consta una
-ratificación conjunta explícita de la cohorte final ni de la secuencia de
+aprobación conjunta explícita de la selección final ni de la secuencia de
 selección. La validación sintética de H05.2 no sustituye esa aprobación ni una
 validación con BDG2 real.
 
@@ -131,7 +131,8 @@ extremos del expediente no confirman por sí solos errores de medida.
 ## Decisiones y verificaciones pendientes
 
 - Reproducir en los CSV originales los criterios de selección documentados en
-  la memoria y ratificar conjuntamente la cohorte, incluida la justificación
+  la memoria y aprobar conjuntamente la selección de edificios, incluida la
+  justificación
   de excluir `Hotel` y la interpretación de los límites de superficie.
 - Verificar la variante, publicación, versiones y hashes de las fuentes y la
   procedencia de la extracción del Excel.
@@ -157,11 +158,11 @@ y en el [contrato Bronze](hitos-1-2.md#salida-estrategia-de-escritura-y-trazabil
 La interpretación decimal y temporal nominal ya están definidas por H05.2 v0.3
 y validadas sintéticamente; este contrato no determina unidades físicas ni su
 procedencia. La etiqueta original tampoco fija offsets, `fold` ni el inicio o
-final de un intervalo energético. Siguen pendientes la aprobación de la cohorte
-y sus fuentes, las reglas de calidad de negocio, la integración contextual y un
-contrato específico para persistir Silver en Delta. Los alias académicos y los
-identificadores ficticios deberán documentarse aparte del identificador BDG2,
-sin reemplazarlo. Las banderas de calidad y la aptitud para un indicador son
+final de un intervalo energético. Siguen pendientes la aprobación de la
+selección de edificios y sus fuentes, las reglas de calidad de negocio, la
+integración contextual y un contrato específico para persistir Silver en Delta.
+Los alias académicos y los identificadores ficticios deberán documentarse aparte
+del identificador BDG2, sin reemplazarlo. Las banderas de calidad y la aptitud para un indicador son
 decisiones distintas; no se autorizan exclusiones, imputaciones ni conversiones
 UTC implícitas.
 
@@ -320,17 +321,19 @@ permanecen pendientes de autorización específica.
 
 **Límites y autorizaciones pendientes.** El escenario hotelero es ficticio y no
 modifica los usos reales documentados en BDG2. H05.2 completó su alcance
-sintético, pero H04 no está cerrado: ambos autores deben ratificar la cohorte y
-quedan por verificar con los originales su extracción y procedencia, la
-publicación y versiones fuente, así como las unidades aplicables y su origen.
+sintético, pero H04 no está cerrado: ambos autores deben aprobar conjuntamente
+la selección de edificios. Quedan por verificar con los originales su extracción
+y procedencia, la publicación y versiones fuente, así como las unidades
+aplicables y su origen.
+
 La ejecución real requiere autorización específica. No se autorizan la
 integración meteorológica ni el desarrollo Gold; la persistencia Silver en
 Delta necesita además contrato y autorización propios.
 
 ## Actividades incrementales
 
-1. Reproducir la selección documentada con las fuentes originales y ratificar
-   conjuntamente la cohorte, dejando constancia de los edificios elegidos y
+1. Reproducir la selección documentada con las fuentes originales y aprobar
+   conjuntamente la selección de edificios, dejando constancia de los elegidos y
    descartados.
 2. Aprobar un manifiesto del caso: edificios, medidores, periodo,
    correspondencia ficticia, versiones de origen y limitaciones.
@@ -374,7 +377,7 @@ se ha reproducido desde los CSV. Las coincidencias de cabeceras y ausencias
 respaldan consistencia parcial. La comprobación adicional comunicada por el
 autor el 07/11/2026 no incluye aquí un procedimiento ni resultados reproducibles
 de comparación celda a celda; esa verificación sigue pendiente. El nombre del
-cuaderno no acredita aprobación de contratos ni de la cohorte.
+cuaderno no acredita aprobación de contratos ni de la selección de edificios.
 
 ## Entregables previstos
 
@@ -407,7 +410,7 @@ cuaderno no acredita aprobación de contratos ni de la cohorte.
 
 H05.1 y H05.2 se autorizaron por separado y completaron sus alcances sintéticos;
 H05 formal sigue pendiente de los contratos y tareas restantes, incluida la
-persistencia. H04 mantiene pendiente la ratificación de la cohorte y la
-verificación de procedencia necesaria para cualquier ejecución real. Esto no
-autoriza fases posteriores. La integración meteorológica queda para
+persistencia. H04 mantiene pendiente la aprobación conjunta de la selección de
+edificios y la verificación de procedencia necesaria para cualquier ejecución
+real. Esto no autoriza fases posteriores. La integración meteorológica queda para
 [H06](hitos-6.md), con semántica temporal y cardinalidad justificadas.

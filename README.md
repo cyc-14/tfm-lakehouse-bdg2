@@ -19,12 +19,20 @@ sintéticos, sin nueva ejecución BDG2. El cierre académico global de H03 sigue
 pendiente. El [registro de hitos](docs/milestones.md) mantiene el estado principal
 y separa las revisiones técnicas de las decisiones académicas.
 
-[H05.1](docs/hitos-5.md#h051--transformación-técnica-preliminar) implementa la
-transformación eléctrica a formato largo, probada con datos sintéticos y sin
-interpretación numérica o temporal ni persistencia Silver. H04 y el flujo Silver
-formal siguen pendientes de aprobación y desarrollo; también Gold, integración
-analítica, visualización y evaluación de rendimiento. Una carga Bronze no
-demuestra calidad ni resultados energéticos.
+H04 documenta el conjunto final propuesto de 16 edificios BDG2. El autor
+informante confirma la selección con límites inclusivos
+(3.500 ≤ superficie ≤ 6.000 m²),
+exclusión de los tres edificios con subcategoría `Hotel` y exclusión por ausencia
+estrictamente superior al 8 %. Sigue pendiente la ratificación conjunta y la
+verificación reproducible de la procedencia y selección desde las fuentes.
+
+[H05.1](docs/hitos-5.md#h051--transformación-técnica-preliminar) transforma
+electricidad a formato largo y está validado sintéticamente. H05.2 implementa la
+interpretación numérica y temporal nominal, también validada sintéticamente según
+la evidencia histórica documentada. No se ha autorizado validar Silver con BDG2
+real ni publicar Silver en Delta. Gold y la integración meteorológica quedan
+fuera del alcance implementado. Una carga Bronze no demuestra calidad ni
+resultados energéticos.
 
 ## Entorno verificado
 
