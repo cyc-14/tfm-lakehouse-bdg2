@@ -68,19 +68,17 @@ deberán documentarse por separado del identificador BDG2, sin reemplazarlo.
 Las banderas de calidad y la aptitud para un indicador son decisiones distintas;
 no se autorizan exclusiones, imputaciones o conversiones UTC implícitas.
 
-### Propuesta de contrato H05.2 v0.3
+### Contrato H05.2 v0.3
 
-La propuesta define una transformación posterior a H05.1. Su revisión técnica
-está completada, con dictamen **READY FOR JOINT REVIEW** y revisión independiente.
-Ese dictamen acredita la preparación del diseño para revisión conjunta; la
-aprobación de los autores y la autorización de implementación siguen separadas:
+El contrato define una transformación posterior a H05.1. Según la comunicación
+del primer autor, ambos autores han confirmado conjuntamente el diseño v0.3 y
+el alcance de las pruebas sintéticas. La autorización de esta entrega comprende
+solo la interpretación numérica y sus pruebas sintéticas.
 
 | Aspecto | Estado |
 | --- | --- |
-| Primer autor | Aprobación provisional del diseño técnico detallado |
-| Irantzu | Acuerdo con los principios generales de tratamiento, comunicado por el primer autor |
-| Ratificación conjunta detallada | No consta evidencia independiente que la acredite |
-| Implementación H05.2 | Todavía no autorizada |
+| Diseño v0.3 y pruebas sintéticas | Confirmados por ambos autores, según comunicación del primer autor |
+| Implementación H05.2 | Autorizado el incremento numérico sintético; temporalidad pendiente |
 | Ejecución BDG2 real y publicación Delta | Requieren autorizaciones separadas |
 
 **Alcance y conservación.** La transformación será pura, conservativa,
@@ -180,8 +178,9 @@ detectadas sin distinguir mayúsculas mediante `casefold`. No se renombrarán ni
 sobrescribirán campos. Los tipos y la nulabilidad declarada de salida se
 comprobarán también con DataFrames vacíos.
 
-**Pruebas previstas y aceptación.** Todas las pruebas H05.2 están pendientes de
-ejecución; los resultados históricos de H05.1 no se atribuirán a este incremento.
+**Pruebas previstas y aceptación.** La verificación del contrato completo
+H05.2 sigue pendiente; las pruebas de la interpretación numérica se ejecutan
+por separado y los resultados históricos de H05.1 no se atribuyen a H05.2.
 Se establecen tres niveles:
 
 - **Nivel 1, desarrollo focalizado:** datos sintéticos para gramática y exactitud
@@ -212,10 +211,9 @@ de originales, tipos, nulabilidad y multiplicidad, clasificación numérica y
 temporal correcta, rechazo de errores estructurales y colisiones, determinismo
 y ausencia de persistencia o ejecución real.
 
-**Límites y aprobación pendiente.** El escenario hotelero es ficticio y no
-modifica los usos reales documentados en BDG2. La propuesta no cierra H04 ni
-autoriza implementar H05.2: falta acreditar la ratificación conjunta detallada
-del alcance y contrato. La ejecución BDG2 real requerirá aprobar cohorte,
+**Límites y autorizaciones pendientes.** El escenario hotelero es ficticio y no
+modifica los usos reales documentados en BDG2. El contrato no cierra H04 ni
+autoriza la ejecución BDG2 real, que requerirá aprobar cohorte,
 variantes de origen, filtros, procedencia de la extracción del Excel, hashes y
 unidades aplicables. La persistencia y publicación Delta necesitarán otro
 contrato y autorización específica.
