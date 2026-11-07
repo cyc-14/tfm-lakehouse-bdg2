@@ -32,7 +32,7 @@ expedientes privados. Esta revisión documental no reanaliza los CSV.
 Las capturas de las páginas aportadas de la memoria permiten cotejar el embudo
 descrito en el apartado 2.2.6 y sus tablas 3 y 4: 168 edificios con
 `primaryspaceusage` `Lodging/residential`, 107 tras el filtro de subcategorías,
-24 con superficie entre 3.500 y 6.000 m² y 16 tras excluir los casos
+24 dentro del intervalo inclusivo de 3.500–6.000 m² y 16 tras excluir los casos
 con más del 8 % de lecturas ausentes. Este cotejo verifica lo que muestran las
 tablas y el cálculo con sus conteos; no reproduce la selección desde los CSV
 originales.
@@ -42,20 +42,25 @@ y menciona, además, `Dormitory`, `Lodging /residential` y
 `Other - Lodging/residential`. H03.2 registra históricamente
 `Hotel` (3), `Dormitory` (93), `Lodging/residential` (4) y
 `Other - Lodging/Residential` (10): las cuatro categorías suman 110 y las tres
-distintas de `Hotel`, 107. Según la aclaración comunicada por uno de los autores
-el 07/11/2026, los tres edificios `Hotel` se excluyeron; esa exclusión concilia
-aritméticamente los recuentos 110 y 107. Su justificación metodológica concreta
-no se ha establecido, por lo que no se afirma que sus mediciones fueran
-inadecuadas. No se ha reproducido el filtro desde los CSV originales ni se
-alteran los resultados históricos de H03.2. La captura no precisa si el
-intervalo de superficie incluye sus extremos.
+distintas de `Hotel`, 107. El autor informante confirma que se excluyeron los
+tres edificios `Hotel`; esto concilia aritméticamente los recuentos 110 y 107,
+pero la justificación académica concreta sigue pendiente. No se afirma que sus
+mediciones fueran inadecuadas ni se alteran los resultados históricos de H03.2.
 
-La tabla 3 muestra 24 conteos de valores no ausentes y usa 17.544 horas como
-denominador. Con la regla estricta
-`100 × (17544 − count) / 17544 > 8`, se excluyen los conteos inferiores a
-17.544 − 0,08 × 17.544 = 16.140,48, es decir, `count` ≤ 16.140. Los 16 edificios
-restantes tienen `count` entre 17.489 y 17.544 (hasta 55 ausencias); los ocho
-excluidos son:
+El autor informante acepta la selección final de 16 edificios y confirma que el
+intervalo de superficie es inclusivo: `3500 <= sqm <= 6000`. `sqm` es el campo
+de metadatos observado en el código y la documentación H03; la expresión resume
+el criterio confirmado, pero su aplicación final no se ha reproducido desde los
+metadatos BDG2 originales. El código H03 consultado conserva los límites de su
+escenario histórico, por lo que no constituye implementación del filtro final
+H04. Esta aceptación del autor informante no equivale a aprobación conjunta.
+
+La tabla 3 muestra 24 conteos de valores no ausentes y usa 17.544 horas nominales
+como denominador. El autor informante confirma la regla estricta
+`100 × (17544 − count) / 17544 > 8`: exactamente un 8 % no activa la exclusión.
+Se excluyen los conteos inferiores a 17.544 − 0,08 × 17.544 = 16.140,48, es
+decir, `count` ≤ 16.140. Los 16 edificios restantes tienen `count` entre 17.489
+y 17.544 (hasta 55 ausencias); los ocho excluidos son:
 
 | Edificio BDG2 | Valores no ausentes | Ausencias | % ausente mostrado |
 | --- | ---: | ---: | ---: |
@@ -68,10 +73,10 @@ excluidos son:
 | `Cockatoo_lodging_Linwood` | 16.119 | 1.425 | 8,12 % |
 | `Cockatoo_lodging_Johnathan` | 16.119 | 1.425 | 8,12 % |
 
-Así, los conteos enteros confirman el paso 24→16; los ocho excluidos pertenecen
-al emplazamiento Cockatoo. Los porcentajes de la tabla, redondeados a dos
-decimales, concuerdan con esos conteos. Esto verifica la aplicación aritmética
-del umbral a los datos tabulados, no el cálculo original de las estadísticas.
+Así, los conteos enteros de la tabla confirman aritméticamente el paso 24→16;
+los ocho excluidos pertenecen al emplazamiento Cockatoo. Los porcentajes,
+redondeados a dos decimales, concuerdan con esos conteos. Esta comprobación de
+la tabla no reproduce el cálculo original desde los ficheros fuente.
 
 La tabla 4 atribuye a los 16 seleccionados el tipo `Lodging/residential` y el
 subtipo `Dormitory`. Sus identificadores, superficies, emplazamientos y zonas
@@ -131,20 +136,29 @@ extremos del expediente no confirman por sí solos errores de medida.
 ## Decisiones y verificaciones pendientes
 
 - Reproducir en los CSV originales los criterios de selección documentados en
-  la memoria y aprobar conjuntamente la selección de edificios, incluida la
-  justificación
-  de excluir `Hotel` y la interpretación de los límites de superficie.
-- Verificar la variante, publicación, versiones y hashes de las fuentes y la
-  procedencia de la extracción del Excel.
+  la memoria y aprobar conjuntamente los 16 edificios y las reglas de selección.
+- Documentar la justificación académica de excluir la subcategoría `Hotel`.
+- Acordar la política conservadora de preservar y señalar lecturas, y el
+  tratamiento de registros malformados, etiquetas repetidas y exclusiones
+  analíticas.
+- Decidir conjuntamente si se adopta un análisis estadístico de valores
+  atípicos y con qué propósito.
+- Verificar variante, publicación, versiones y hashes de las fuentes, unidades
+  aplicables y procedencia de la extracción del Excel.
+- Para cerrar H04, aportar reproducción desde las fuentes originales, contraste
+  reproducible de la selección y constancia de aprobación conjunta. Esta
+  evidencia no autoriza por sí sola ejecución real ni publicación Silver.
 - Correspondencia entre edificios BDG2 y establecimientos simulados, sin
   alterar identificadores ni afirmar que constituyen hoteles reales.
 - Granularidad de electricidad, claves, semántica del medidor, unidades,
   horarios locales, zonas horarias y tratamiento de horas duplicadas o
   inexistentes por cambios de horario.
-- Política de ausencias, ceros, negativos, extremos y duplicados: distinguir
-  avisos, errores confirmados y exclusiones autorizadas.
 - Reglas de integración de metadatos y meteorología, cardinalidades válidas
   y tratamiento de correspondencias no resueltas.
+
+La persistencia Silver en Delta, la integración meteorológica y Gold son
+decisiones e incrementos posteriores. La aprobación de un método de detección de
+valores atípicos no es requisito para completar el alcance sintético H05.2.
 
 ## Relación con el contrato Silver existente
 
@@ -165,6 +179,29 @@ Los alias académicos y los identificadores ficticios deberán documentarse apar
 del identificador BDG2, sin reemplazarlo. Las banderas de calidad y la aptitud para un indicador son
 decisiones distintas; no se autorizan exclusiones, imputaciones ni conversiones
 UTC implícitas.
+
+### Política provisional de calidad de lecturas
+
+La tabla separa las capacidades ya implementadas en H05.2 de los tratamientos
+metodológicos propuestos. Las propuestas requieren aprobación conjunta y no
+amplían el contrato ni la implementación actuales.
+
+| Situación | Criterio de detección | Tratamiento propuesto | Estado y decisión pendiente |
+| --- | --- | --- | --- |
+| Ausencia de lectura | Estados `missing_null` o `missing_token` en `value_parse_status`, correspondientes a NULL, `""` o `"NaN"` exactos en el valor recibido. | Conservar el original y señalar `is_missing`; no imputar ni eliminar filas automáticamente. | Clasificación e indicador H05.2 implementados y validados sintéticamente. Acordar conjuntamente la política de conservación. La ausencia usada para seleccionar edificios se calcula sobre sus conteos y 17.544 observaciones nominales; no es el indicador por lectura. |
+| Cero | Valor con estado `finite` e indicador `is_zero = true`. | Conservar la medición y señalarla; frecuencia y persistencia temporal son análisis separados. Un cero no implica error. | Indicador H05.2 implementado y validado sintéticamente. Análisis de frecuencia y rachas no implementado; acordar si procede. |
+| Valor negativo | Valor con estado `finite` e indicador `is_negative = true`. | Conservar y señalar; evaluar el contexto antes de calificarlo como error. No sustituirlo por cero ni eliminarlo automáticamente. | Indicador H05.2 implementado y validado sintéticamente. El tratamiento analítico requiere aprobación conjunta. |
+| Valor inválido o no representable | Estados H05.2 distintos de `finite` y de los estados de ausencia: sintaxis inválida, literal no finito, desbordamiento, subdesbordamiento o escala excedida. | Conservar la cadena original y tratarlo como problema de interpretación, no como medición válida ni como ausencia. | Estados de parseo H05.2 implementados y validados sintéticamente. Acordar el tratamiento analítico y de registros malformados. |
+| Ausencia o etiqueta temporal no válida | Cualquier estado de `timestamp_parse_status` distinto de `valid_nominal`, incluidos `missing_null`, `missing_empty`, `invalid_format`, `invalid_calendar` e `invalid_time`. | Conservar el texto original; no inferir UTC, resolver ambigüedad DST ni construir instantes físicos. | Clasificación nominal H05.2 implementada y validada sintéticamente. Una política de tiempo físico requiere decisión separada. |
+| Etiquetas edificio/tiempo repetidas | Diagnóstico propuesto de combinaciones repetidas de `building_id` y etiqueta nominal temporal. | Preservar todas las apariciones y multiplicidad; no deduplicar automáticamente. La repetición nominal no demuestra duplicación en origen ni equivalencia de tiempo físico. | H05.1 preserva multiplicidad y H05.2 conserva etiquetas; diagnóstico específico no implementado. Acordar revisión y posible elegibilidad analítica. |
+| Valores atípicos estadísticos | Método estadístico aún por definir; el EDA documenta señales exploratorias IQR. | Análisis futuro; una señal atípica no confirma un error de medida. No corregir, eliminar, winsorizar ni imputar por este criterio. | No implementado y no aprobado. Definir conjuntamente el método y su uso antes de desarrollarlo. |
+
+Antes de adoptar un análisis IQR u otro método se deben acordar: cálculo por
+edificio o agrupado; periodo y población de referencia; método exacto de
+cuantiles; multiplicador (por ejemplo, 1,5 × IQR); inclusión de ausencias,
+ceros y negativos en la referencia; significado y uso de la señal; y necesidad
+de análisis por estacionalidad o patrón operativo. No se autoriza corregir,
+excluir, winsorizar o imputar mediciones como consecuencia de una señal.
 
 ### Contrato H05.2 v0.3
 
@@ -363,12 +400,20 @@ verificar los ocho excluidos del conjunto de 24.
 
 Según la información comunicada por el autor, Irantzu preparó manualmente el
 Excel examinando las fuentes BDG2 y seleccionando los datos de los edificios
-relevantes. No se ha documentado ni reproducido esa extracción. El cuaderno
+relevantes. El autor informa de que ese trabajo apoyó la selección y analizó
+estadísticas descriptivas, ausencias, ceros y posibles valores atípicos sin
+modificar las mediciones originales. No se ha verificado aquí contra los ficheros
+fuente. El cuaderno
 carga el Excel con pandas y contiene estadísticas descriptivas, recuentos de
 ausencias, señales IQR y diagramas de caja; no contiene una selección desde los
 CSV ni instrucciones de generación o exportación del libro. Las opciones de
 imputación están comentadas. Las salidas guardadas no son una ejecución nueva
 ni demuestran el flujo Silver.
+
+El Excel y el cuaderno pueden servir de apoyo exploratorio y referencia para
+contrastes agregados, pero no sustituyen una publicación Bronze verificada ni
+acreditan equivalencia completa, celda a celda, con BDG2. Silver debe partir de
+la publicación Bronze cuya procedencia y versión se hayan verificado.
 
 Quedan por documentar las fuentes, variantes y hashes usados para preparar el
 Excel, los pasos manuales, filtros y posibles cambios de orden o valores. Los
