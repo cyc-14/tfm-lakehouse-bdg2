@@ -23,12 +23,65 @@ expedientes privados. Esta revisión documental no reanaliza los CSV.
 | [H03.3](h03-3-weather-timezones.md) | Expediente `data/checks/h03_3/real/2026-10-30-h03-3/`, contrato histórico `h03.3-v1`. | Diagnóstico meteorológico y temporal, sin unión horaria validada. |
 | [H05.1](hitos-5.md#h051--transformación-técnica-preliminar) | Transformación preliminar implementada y probada con datos sintéticos. | No selecciona el caso académico, no aprueba H04 y no acredita una ejecución Silver con BDG2 real. |
 
-El material exploratorio descrito más abajo identifica 16 columnas eléctricas
-y permite contrastar sus ausencias con los agregados H03.2. Sigue pendiente
-documentar el origen del subconjunto y reproducir sus filtros desde las fuentes.
-Los 14 perfiles detallados de H03.2 no constituyen esa lista definitiva. La
-revisión de rachas de la cohorte completa tampoco queda cubierta por esos
-perfiles ni por las salidas guardadas del cuaderno.
+### Selección final comunicada y contraste disponible
+
+La metodología atribuida al apartado 2.2.6 de la memoria consta de cuatro
+pasos. El PDF de la versión actual no está disponible en el repositorio, por
+lo que sus tablas 3 y 4 no se han cotejado directamente. Los valores 107, 24 y
+16 se conservan como resultados comunicados para la memoria, no como una
+reproducción independiente de ese documento.
+
+| Paso | Criterio y resultado comunicado | Evidencia y límite |
+| --- | --- | --- |
+| 1 | 168 edificios con `primaryspaceusage` exactamente `Lodging/residential`. | El recuento 168 también aparece en H03.2 histórico para esa categoría exacta. |
+| 2 | Subcategorías `Hotel`, `Dormitory`, `Lodging /residential` y `Other - Lodging/residential`; quedan 107. | Resultado atribuido a la memoria, pendiente de cotejo. H03.2 registra literalmente `Hotel` (3), `Dormitory` (93), `Lodging/residential` (4) y `Other - Lodging/Residential` (10), que suman 110. Difieren dos grafías; no se ha establecido si cambian el filtro o la versión de metadatos. |
+| 3 | Superficie inclusiva de 3.500 a 6.000 m²; quedan 24. | Resultado atribuido a la memoria, pendiente de cotejo. El embudo H03.2 aplicó 3.000–7.000 m² y no reproduce este paso. |
+| 4 | Excluir edificios con más del 8 % de lecturas eléctricas ausentes, con denominador nominal 17.544; quedan 16 y se excluyen ocho. | El criterio y el resultado son comunicados por el autor. Los 16 nombres y sus recuentos de ausencias tienen contraste parcial con el Excel y los agregados históricos; sin la tabla 3 no se verifica la clasificación de los 24 ni el resultado 24→16. |
+
+La regla comunicada es `100 × (17544 − lecturas no ausentes) / 17544 > 8` para
+excluir. Es un umbral estricto: un valor exactamente igual al 8 % no se excluiría.
+Los porcentajes mostrados redondeados no bastan para decidir casos próximos al
+límite; se necesitan los conteos enteros de la tabla 3 o de una fuente verificable.
+En los agregados históricos consultados, los 16 seleccionados tienen entre 0 y
+55 ausencias de 17.544 (máximo aproximado 0,314 %), así que todos cumplen el
+criterio comunicado. Esto no verifica la selección de los ocho excluidos.
+
+Las cabeceras B–Q del Excel verificado identifican esta cohorte, en ese orden:
+
+1. `Robin_lodging_Dorthy`
+2. `Robin_lodging_Pricilla`
+3. `Robin_lodging_Armand`
+4. `Fox_lodging_Wallace`
+5. `Fox_lodging_Winifred`
+6. `Fox_lodging_Warren`
+7. `Peacock_lodging_Chloe`
+8. `Peacock_lodging_Terrie`
+9. `Peacock_lodging_Nova`
+10. `Bull_lodging_Leonard`
+11. `Bull_lodging_Terence`
+12. `Bull_lodging_Lettie`
+13. `Bull_lodging_Carie`
+14. `Bull_lodging_Jeremiah`
+15. `Bull_lodging_Anibal`
+16. `Bull_lodging_Danielle`
+
+Los 16 nombres aparecen en el resultado histórico de la cohorte de 65
+candidatos del intervalo 3.000–7.000 m². Ocho también figuran entre los 14
+perfiles de aquella configuración: seis del grupo inicialmente seleccionado y
+dos del grupo previamente descartado (`Bull_lodging_Leonard` y
+`Bull_lodging_Jeremiah`). Los otros ocho no están entre esos 14. Son escenarios
+y listas distintos; la exclusión histórica de dos candidatos no invalida por
+sí sola su inclusión bajo el criterio comunicado para la memoria.
+
+Según lo comunicado por el autor, la memoria atribuye a los 16 la subcategoría
+`Dormitory` y los sitios Bull, Robin, Fox y Peacock; la afirmación queda
+pendiente de cotejo directo del PDF.
+El informe H03.2 sí registra `Dormitory` para los ocho nombres que coinciden
+con sus 14 perfiles. No se ha verificado aquí el subuso individual de los otros
+ocho ni se debe generalizar el resultado de esos ocho al conjunto completo.
+No consta una ratificación conjunta explícita de la cohorte final ni de la
+secuencia de selección. La confirmación de H05.2 v0.3 se limita al contrato y a
+sus pruebas sintéticas.
 
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de
@@ -248,22 +301,28 @@ los archivos revisados; no certifican su derivación de los CSV originales.
 | `consumo_electrico_seleccion.xlsx` | `91e806e478df9256a2b5ad7876fe69a6cf4fc9ec6d31051f7e9d1e1a5478ef87` |
 | `Silver.ipynb` | `2a02354c5607e63bc6b3a82c79179818a320980a2ed6261c687f7570bb24d648` |
 
-La hoja `Hoja1` contiene 17.544 filas de datos, `timestamp` y 16 columnas con
-identificadores BDG2. La lista y los recuentos de ausencia coinciden con las
-salidas guardadas del cuaderno; los 16 recuentos de ausencia también coinciden
-con `metrics.area_cohort_quality` del informe histórico H03.2. Es un contraste
-parcial, sin comprobar identidad celda a celda con los originales.
+La hoja `Hoja1` contiene 17.544 filas de datos, `timestamp` y las 16 columnas
+enumeradas arriba. Sus cabeceras coinciden con las salidas guardadas del
+cuaderno. Los 16 recuentos de ausencia guardados coinciden con el campo
+`missing` del informe histórico H03.2 para esos edificios. Es un contraste
+agregado; no comprueba identidad celda a celda con los originales ni permite
+verificar los ocho excluidos del conjunto de 24.
 
-El cuaderno carga el Excel con pandas y contiene estadísticas descriptivas,
-ausencias, señales IQR y diagramas de caja. Las opciones de imputación están
-comentadas. Las salidas almacenadas no son una ejecución nueva ni demuestran
-el flujo Silver: no hay lectura de publicaciones Bronze, transformación a
-formato largo o persistencia Delta en su código.
+Según la información comunicada por el autor, Irantzu preparó manualmente el
+Excel examinando las fuentes BDG2 y seleccionando los datos de los edificios
+relevantes. No se ha documentado ni reproducido esa extracción. El cuaderno
+carga el Excel con pandas y contiene estadísticas descriptivas, recuentos de
+ausencias, señales IQR y diagramas de caja; no contiene una selección desde los
+CSV ni instrucciones de generación o exportación del libro. Las opciones de
+imputación están comentadas. Las salidas guardadas no son una ejecución nueva
+ni demuestran el flujo Silver.
 
-Falta documentar la extracción del Excel: fuentes, variantes y hashes de
-origen, filtros de selección y transformaciones aplicadas. El nombre del
-cuaderno no acredita aprobación de contratos. Este material complementa el
-contraste de H04; no sustituye las fuentes originales ni la publicación Bronze.
+Quedan por documentar las fuentes, variantes y hashes usados para preparar el
+Excel, los pasos manuales, filtros, posibles cambios de orden o valores, y el
+criterio para seleccionar y excluir edificios. Las coincidencias de cabeceras y
+ausencias respaldan consistencia parcial, no equivalencia completa con las
+fuentes. El nombre del cuaderno no acredita aprobación de contratos ni de la
+cohorte.
 
 ## Entregables previstos
 
