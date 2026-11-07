@@ -281,5 +281,18 @@ y H05.1 sumaron 126 pruebas superadas; se excluyó la prueba del lector que
 escribe Delta. Las pruebas temporales cubren calendario, precedencia, esquema,
 duplicados y composición con ambas etapas anteriores, con distintas opciones
 ANSI, zonas horarias y políticas de análisis de fechas. No se han procesado
-datos BDG2 reales ni publicado Silver. El cierre de H05.2 sigue pendiente,
-incluida la integración obligatoria de 10.000 filas largas sintéticas.
+datos BDG2 reales ni publicado Silver. En aquel momento quedaba pendiente la
+integración obligatoria de 10.000 filas largas sintéticas.
+
+En la verificación posterior de H05.2.3, 5.000 filas Bronze sintéticas y dos
+columnas de edificio produjeron 10.000 filas largas. Se comprobaron las tres
+etapas, los multiconjuntos, duplicados, nulos, linaje, metadatos y esquemas,
+así como el resultado tras reordenar y reparticionar la entrada. La selección
+de integración y regresión H05 ejecutó 127 pruebas con éxito y excluyó la del
+lector que escribe Delta. Otras 65 pruebas sintéticas de fuentes y configuración
+pasaron. La selección H05 cubre opciones ANSI, zonas UTC y con DST, y políticas
+de análisis temporal. La prueba condicional de 100.000 filas no se ha ejecutado.
+La revisión independiente detectó que faltaba materializar y comparar las
+etapas intermedias; se añadieron esas comprobaciones y se repitió la selección.
+Con estos resultados queda verificado el contrato sintético H05.2. Esto no
+autoriza procesar BDG2 real ni publicar tablas Silver.
