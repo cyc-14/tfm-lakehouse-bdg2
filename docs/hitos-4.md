@@ -34,15 +34,17 @@ tablas y el cálculo con sus conteos; no reproduce la selección desde los CSV
 originales.
 
 La memoria indica que solo tres de los 168 edificios tienen subcategoría `Hotel`
-y que, además de `Hotel`, considera `Dormitory`, `Lodging /residential` y
+y menciona, además, `Dormitory`, `Lodging /residential` y
 `Other - Lodging/residential`. H03.2 registra históricamente
 `Hotel` (3), `Dormitory` (93), `Lodging/residential` (4) y
-`Other - Lodging/Residential` (10), que suman 110; las tres categorías distintas
-de `Hotel` suman 107. La memoria parece incluir `Hotel`, por lo que esa suma
-parcial no explica por sí sola su recuento de 107. No se ha reproducido la
-diferencia ni se ha determinado si refleja otra versión de metadatos o un filtro
-distinto; se conservan ambas evidencias históricas. La captura no precisa si el
-intervalo de superficie incluye sus extremos.
+`Other - Lodging/Residential` (10): las cuatro categorías suman 110 y las tres
+distintas de `Hotel`, 107. Según la aclaración comunicada por uno de los autores
+el 07/11/2026, los tres edificios `Hotel` fueron excluidos porque sus datos no
+resultaban adecuados para el estudio. Esta decisión declarada explica la
+diferencia aritmética 107/110; el texto de la memoria deberá hacer explícita la
+exclusión para evitar que parezca que incluye `Hotel`. No se ha reproducido
+el filtro desde los CSV originales ni se alteran los resultados históricos de
+H03.2. La captura no precisa si el intervalo de superficie incluye sus extremos.
 
 La tabla 3 muestra 24 conteos de valores no ausentes y usa 17.544 horas como
 denominador. Con la regla estricta
@@ -90,12 +92,15 @@ horarias son:
 | `ID_067` | `Bull_lodging_Anibal` | 4.160,6 | Bull | `US/Central` |
 | `ID_068` | `Bull_lodging_Danielle` | 4.188,8 | Bull | `US/Central` |
 
-Los 16 nombres y su orden coinciden con las cabeceras B–Q del Excel verificado.
+Los 16 nombres y su orden coinciden con las cabeceras B–Q del Excel revisado.
 La coincidencia documental confirma que la cohorte enumerada allí es la de la
-tabla 4, pero no que el contenido del libro corresponda celda a celda con los
-CSV originales. La memoria describe el caso como una cadena hotelera ficticia y
-presenta los edificios como residencias de estudiantes; no deben interpretarse
-como hoteles reales. H03.2 registra `Dormitory` para los ocho nombres que
+tabla 4. El 07/11/2026 uno de los autores confirmó haber comprobado también
+la correspondencia del Excel; esta declaración se registra como confirmación
+del autor, sin atribuir a la presente revisión una comparación independiente
+celda a celda con los CSV originales. La memoria describe el caso como una
+cadena hotelera ficticia y presenta los edificios como residencias de
+estudiantes; no deben interpretarse como hoteles reales. H03.2 registra
+`Dormitory` para los ocho nombres que
 coinciden con sus 14 perfiles, pero no se ha verificado aquí el subuso individual
 de los otros ocho frente a metadatos originales.
 
@@ -350,9 +355,11 @@ ni demuestran el flujo Silver.
 Quedan por documentar las fuentes, variantes y hashes usados para preparar el
 Excel, los pasos manuales, filtros, posibles cambios de orden o valores, y el
 criterio para seleccionar y excluir edificios. Las coincidencias de cabeceras y
-ausencias respaldan consistencia parcial, no equivalencia completa con las
-fuentes. El nombre del cuaderno no acredita aprobación de contratos ni de la
-cohorte.
+ausencias respaldan consistencia parcial. La comprobación adicional comunicada
+por el autor el 07/11/2026 no incluye aquí un procedimiento ni resultados
+reproducibles de comparación celda a celda; por tanto, no constituye una nueva
+verificación técnica independiente de equivalencia con las fuentes. El nombre
+del cuaderno no acredita aprobación de contratos ni de la cohorte.
 
 ## Entregables previstos
 
