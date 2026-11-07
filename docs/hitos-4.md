@@ -1,8 +1,12 @@
 # Hito 4 — Selección del caso de estudio y contratos analíticos
 
-**Estado:** planificado. **Responsabilidad:** Irantzu dirige las decisiones
-analíticas; Carlos verifica su viabilidad técnica. **Objetivos:** OE1, OE2,
-OE4. **Requisito previo:** caracterización aceptada en H03.
+**Estado:** metodología de selección contrastada con las tablas de la memoria y
+cohorte de 16 edificios documentada; cierre de H04 pendiente de ratificación
+conjunta de la cohorte y verificación de procedencia. H05.2 completó su
+validación sintética obligatoria. No se ha autorizado la validación con BDG2
+real ni la publicación Silver en Delta. **Responsabilidad:** Irantzu dirige
+las decisiones analíticas; Carlos verifica su viabilidad técnica. **Objetivos:**
+OE1, OE2, OE4. **Requisito previo:** caracterización aceptada en H03.
 
 ## Finalidad
 
@@ -21,7 +25,7 @@ expedientes privados. Esta revisión documental no reanaliza los CSV.
 | --- | --- | --- |
 | [H03.2](h03-2-characterization.md) | Expediente `data/checks/h03_2/real/2026-10-30-h03-2/`, contrato histórico `h03.2-v1`. | Utilizó 3.000–7.000 m² y obtuvo 65 candidatos por superficie; no es una verificación del nuevo intervalo o de una cohorte final de 16. |
 | [H03.3](h03-3-weather-timezones.md) | Expediente `data/checks/h03_3/real/2026-10-30-h03-3/`, contrato histórico `h03.3-v1`. | Diagnóstico meteorológico y temporal, sin unión horaria validada. |
-| [H05.1](hitos-5.md#h051--transformación-técnica-preliminar) | Transformación preliminar implementada y probada con datos sintéticos. | No selecciona el caso académico, no aprueba H04 y no acredita una ejecución Silver con BDG2 real. |
+| [H05](hitos-5.md) | H05.1 transforma a formato largo; H05.2 implementa e interpreta valores decimales y fechas nominales, con validación sintética completada. | No aprueba la cohorte H04 ni acredita validación con BDG2 real o publicación Silver en Delta. |
 
 ### Selección final: contraste visual con la memoria
 
@@ -39,12 +43,12 @@ y menciona, además, `Dormitory`, `Lodging /residential` y
 `Hotel` (3), `Dormitory` (93), `Lodging/residential` (4) y
 `Other - Lodging/Residential` (10): las cuatro categorías suman 110 y las tres
 distintas de `Hotel`, 107. Según la aclaración comunicada por uno de los autores
-el 07/11/2026, los tres edificios `Hotel` fueron excluidos porque sus datos no
-resultaban adecuados para el estudio. Esta decisión declarada explica la
-diferencia aritmética 107/110; el texto de la memoria deberá hacer explícita la
-exclusión para evitar que parezca que incluye `Hotel`. No se ha reproducido
-el filtro desde los CSV originales ni se alteran los resultados históricos de
-H03.2. La captura no precisa si el intervalo de superficie incluye sus extremos.
+el 07/11/2026, los tres edificios `Hotel` se excluyeron; esa exclusión concilia
+aritméticamente los recuentos 110 y 107. Su justificación metodológica concreta
+no se ha establecido, por lo que no se afirma que sus mediciones fueran
+inadecuadas. No se ha reproducido el filtro desde los CSV originales ni se
+alteran los resultados históricos de H03.2. La captura no precisa si el
+intervalo de superficie incluye sus extremos.
 
 La tabla 3 muestra 24 conteos de valores no ausentes y usa 17.544 horas como
 denominador. Con la regla estricta
@@ -94,12 +98,12 @@ horarias son:
 
 Los 16 nombres y su orden coinciden con las cabeceras B–Q del Excel revisado.
 La coincidencia documental confirma que la cohorte enumerada allí es la de la
-tabla 4. El 07/11/2026 uno de los autores confirmó haber comprobado también
-la correspondencia del Excel; esta declaración se registra como confirmación
-del autor, sin atribuir a la presente revisión una comparación independiente
-celda a celda con los CSV originales. La memoria describe el caso como una
-cadena hotelera ficticia y presenta los edificios como residencias de
-estudiantes; no deben interpretarse como hoteles reales. H03.2 registra
+tabla 4. Aunque uno de los autores comunicó el 07/11/2026 haber comprobado la
+correspondencia del Excel, la comparación celda a celda con las mediciones
+originales queda pendiente de un procedimiento y resultados reproducibles.
+La memoria describe el caso como una cadena hotelera ficticia y presenta los
+edificios como residencias de estudiantes; no deben interpretarse como hoteles
+reales. H03.2 registra
 `Dormitory` para los ocho nombres que
 coinciden con sus 14 perfiles, pero no se ha verificado aquí el subuso individual
 de los otros ocho frente a metadatos originales.
@@ -124,11 +128,13 @@ ausencia usan registros recibidos; los de ceros, lecturas numéricas finitas.
 Una baja ausencia no descarta episodios prolongados de ceros. Las señales y
 extremos del expediente no confirman por sí solos errores de medida.
 
-## Decisiones previas
+## Decisiones y verificaciones pendientes
 
-- Criterios de selección: identificadores originales, usos y subusos
-  verificados, disponibilidad eléctrica, emplazamiento, periodo, cobertura
-  mínima y motivos de exclusión.
+- Reproducir en los CSV originales los criterios de selección documentados en
+  la memoria y ratificar conjuntamente la cohorte, incluida la justificación
+  de excluir `Hotel` y la interpretación de los límites de superficie.
+- Verificar la variante, publicación, versiones y hashes de las fuentes y la
+  procedencia de la extracción del Excel.
 - Correspondencia entre edificios BDG2 y establecimientos simulados, sin
   alterar identificadores ni afirmar que constituyen hoteles reales.
 - Granularidad de electricidad, claves, semántica del medidor, unidades,
@@ -148,13 +154,16 @@ un identificador original único de fila. El esquema y la lectura de versiones
 publicadas se mantienen en la [guía H05](hitos-5.md#interfaces-y-esquema-provisional)
 y en el [contrato Bronze](hitos-1-2.md#salida-estrategia-de-escritura-y-trazabilidad).
 
-La interpretación numérica, las unidades aplicables, la semántica temporal,
-las reglas de calidad y la persistencia siguen requiriendo los contratos de
-H04. La etiqueta original no fija offsets, `fold` ni el inicio o final de un
-intervalo energético. Los alias académicos y los identificadores ficticios
-deberán documentarse por separado del identificador BDG2, sin reemplazarlo.
-Las banderas de calidad y la aptitud para un indicador son decisiones distintas;
-no se autorizan exclusiones, imputaciones o conversiones UTC implícitas.
+La interpretación decimal y temporal nominal ya están definidas por H05.2 v0.3
+y validadas sintéticamente; este contrato no determina unidades físicas ni su
+procedencia. La etiqueta original tampoco fija offsets, `fold` ni el inicio o
+final de un intervalo energético. Siguen pendientes la aprobación de la cohorte
+y sus fuentes, las reglas de calidad de negocio, la integración contextual y un
+contrato específico para persistir Silver en Delta. Los alias académicos y los
+identificadores ficticios deberán documentarse aparte del identificador BDG2,
+sin reemplazarlo. Las banderas de calidad y la aptitud para un indicador son
+decisiones distintas; no se autorizan exclusiones, imputaciones ni conversiones
+UTC implícitas.
 
 ### Contrato H05.2 v0.3
 
@@ -166,8 +175,10 @@ interpretación numérica y temporal nominal con pruebas sintéticas.
 | Aspecto | Estado |
 | --- | --- |
 | Diseño v0.3 y pruebas sintéticas | Confirmados por ambos autores, según comunicación del primer autor |
-| Implementación H05.2 | Autorizadas las etapas numérica y temporal nominal sintéticas; cierre pendiente |
-| Ejecución BDG2 real y publicación Delta | Requieren autorizaciones separadas |
+| Implementación H05.2 | Etapas numérica y temporal nominal implementadas |
+| Validación sintética obligatoria | Completada: integración de 10.000 filas largas; detalle y regresiones indicados abajo |
+| Prueba sintética opcional de 100.000 filas | No ejecutada |
+| Validación BDG2 real y persistencia/publicación Delta | Pendientes de aprobación y autorización específicas |
 
 **Alcance y conservación.** La transformación será pura, conservativa,
 determinista y sin persistencia. Su implementación y validación iniciales
@@ -266,14 +277,15 @@ detectadas sin distinguir mayúsculas mediante `casefold`. No se renombrarán ni
 sobrescribirán campos. Los tipos y la nulabilidad declarada de salida se
 comprobarán también con DataFrames vacíos.
 
-**Pruebas previstas y aceptación.** La verificación sintética obligatoria del
+**Pruebas y aceptación del contrato.** La verificación sintética obligatoria del
 contrato H05.2 se completó en el incremento H05.2.3: la integración de 10.000
-filas largas y la selección H05 superaron 127 pruebas, con una prueba de
-escritura Delta excluida; otras 65 pruebas sintéticas de fuentes y configuración
-también pasaron. La revisión independiente no dejó hallazgos accionables. El
-detalle consta en `docs/hitos-5.md`. La prueba condicional de 100.000 filas no
-se ejecutó. Esta verificación no comprende procesamiento BDG2 real ni
-publicación Delta, que requieren autorizaciones separadas. Los resultados
+filas largas y la selección H05 superaron 127 pruebas; se excluyó
+intencionadamente una prueba de escritura Delta. Otras 65 pruebas sintéticas de
+fuentes y configuración también pasaron. La revisión independiente no dejó
+hallazgos accionables; el detalle consta en `docs/hitos-5.md`. La prueba
+condicional de 100.000 filas no se ejecutó. Esta verificación no comprende
+procesamiento BDG2 real ni publicación Delta, que requieren autorizaciones
+separadas. Los resultados
 históricos de H05.1 no se atribuyen a H05.2. Se establecieron tres niveles:
 
 - **Nivel 1, desarrollo focalizado:** datos sintéticos para gramática y exactitud
@@ -307,16 +319,19 @@ verificados sintéticamente en H05.2.3; la ejecución BDG2 y la publicación Del
 permanecen pendientes de autorización específica.
 
 **Límites y autorizaciones pendientes.** El escenario hotelero es ficticio y no
-modifica los usos reales documentados en BDG2. El contrato no cierra H04 ni
-autoriza la ejecución BDG2 real, que requerirá aprobar cohorte,
-variantes de origen, filtros, procedencia de la extracción del Excel, hashes y
-unidades aplicables. La persistencia y publicación Delta necesitarán otro
-contrato y autorización específica.
+modifica los usos reales documentados en BDG2. H05.2 completó su alcance
+sintético, pero H04 no está cerrado: ambos autores deben ratificar la cohorte y
+quedan por verificar con los originales su extracción y procedencia, la
+publicación y versiones fuente, así como las unidades aplicables y su origen.
+La ejecución real requiere autorización específica. No se autorizan la
+integración meteorológica ni el desarrollo Gold; la persistencia Silver en
+Delta necesita además contrato y autorización propios.
 
 ## Actividades incrementales
 
-1. Comparar subconjuntos candidatos con las evidencias de H03, dejando
-   constancia de los edificios elegidos y descartados.
+1. Reproducir la selección documentada con las fuentes originales y ratificar
+   conjuntamente la cohorte, dejando constancia de los edificios elegidos y
+   descartados.
 2. Aprobar un manifiesto del caso: edificios, medidores, periodo,
    correspondencia ficticia, versiones de origen y limitaciones.
 3. Especificar tablas Silver, atributos, tipos, claves, granularidades,
@@ -353,13 +368,13 @@ imputación están comentadas. Las salidas guardadas no son una ejecución nueva
 ni demuestran el flujo Silver.
 
 Quedan por documentar las fuentes, variantes y hashes usados para preparar el
-Excel, los pasos manuales, filtros, posibles cambios de orden o valores, y el
-criterio para seleccionar y excluir edificios. Las coincidencias de cabeceras y
-ausencias respaldan consistencia parcial. La comprobación adicional comunicada
-por el autor el 07/11/2026 no incluye aquí un procedimiento ni resultados
-reproducibles de comparación celda a celda; por tanto, no constituye una nueva
-verificación técnica independiente de equivalencia con las fuentes. El nombre
-del cuaderno no acredita aprobación de contratos ni de la cohorte.
+Excel, los pasos manuales, filtros y posibles cambios de orden o valores. Los
+criterios de selección están documentados en la memoria, pero su aplicación no
+se ha reproducido desde los CSV. Las coincidencias de cabeceras y ausencias
+respaldan consistencia parcial. La comprobación adicional comunicada por el
+autor el 07/11/2026 no incluye aquí un procedimiento ni resultados reproducibles
+de comparación celda a celda; esa verificación sigue pendiente. El nombre del
+cuaderno no acredita aprobación de contratos ni de la cohorte.
 
 ## Entregables previstos
 
@@ -385,13 +400,14 @@ del cuaderno no acredita aprobación de contratos ni de la cohorte.
 
 - `[H04] Justificar el subconjunto de edificios de alojamiento`
 - `[H04] Definir la correspondencia con establecimientos ficticios`
-- `[H04] Aprobar esquema Silver y reglas temporales`
+- `[H04] Aprobar esquema Silver persistente y semántica temporal por fuente`
 - `[H04] Aprobar criterios de calidad e integración`
 
 ## Límites y condición de avance
 
-H05.1 fue autorizado por separado como transformación técnica preliminar.
-Su existencia no completa H05 ni habilita fases posteriores. H04 formaliza
-las decisiones pendientes; el siguiente incremento necesita alcance y contratos
-aprobados por ambos autores. La integración meteorológica queda para
+H05.1 y H05.2 se autorizaron por separado y completaron sus alcances sintéticos;
+H05 formal sigue pendiente de los contratos y tareas restantes, incluida la
+persistencia. H04 mantiene pendiente la ratificación de la cohorte y la
+verificación de procedencia necesaria para cualquier ejecución real. Esto no
+autoriza fases posteriores. La integración meteorológica queda para
 [H06](hitos-6.md), con semántica temporal y cardinalidad justificadas.
