@@ -1,5 +1,6 @@
 """Bind an explicitly selected synthetic Bronze publication to H05.3."""
 import json
+import hashlib
 import re
 
 from pyspark.sql import DataFrame, SparkSession, functions as F
@@ -34,7 +35,8 @@ def transform_published_synthetic_electricity(
     try:
         if path.is_symlink():
             raise SnapshotError("Publication report symlinks are unsupported")
-        report = json.loads(path.read_text(encoding="utf-8"))
+        report_bytes = path.read_bytes()
+        report = json.loads(report_bytes)
     except SnapshotError:
         raise
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -77,6 +79,10 @@ def transform_published_synthetic_electricity(
     result = transform_selected_electricity(electricity, selection=selection)
     assessment = {
         "publication_run_id": run_id,
+        "manifest_sha256": hashlib.sha256(report_bytes).hexdigest(),
+        "source_tables": sorted(
+            [{key: item[key] for key in ("name", "table_path", "delta_version", "source_sha256")}
+             for item in report["tables"]], key=lambda item: item["name"]),
         "manifest_compatibility": "passed",
         "snapshot_binding": "h02_version_metadata_schema_count_checked",
         "input_schema": "passed",

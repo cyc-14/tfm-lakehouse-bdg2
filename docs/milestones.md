@@ -101,6 +101,10 @@ el procesamiento real y el cierre formal siguen pendientes.
 ha incorporado para configuraciones sintéticas. La guía H05 detalla los controles
 y sus límites; no acredita procedencia externa ni autoriza procesamiento real.
 
+**Actualización H05.5:** se ha incorporado una publicación Silver Delta limitada
+a directorios temporales sintéticos, con validación de contenido y recuperación
+conservadora. La guía H05 recoge sus límites; no existe publicación Silver real.
+
 H01 y H02 están implementados; las evidencias de H01 corresponden a Delta con
 datos sintéticos y las de H02 incluyen regresiones sintéticas y expedientes
 históricos de procedencia. No se infiere de esas pruebas calidad analítica ni una

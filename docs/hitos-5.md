@@ -377,3 +377,50 @@ y revisión específicas de esta interfaz sintética, además de las decisiones
 metodológicas y autorizaciones correspondientes. Persistir Silver requiere otro
 diseño de publicación, conciliación, recuperación y reejecución; H04 mantiene
 aparte su comparación Excel–BDG2 pendiente.
+
+## H05.5 — Publicación Silver sintética y recuperación conservadora
+
+`publish_synthetic_silver` admite únicamente configuraciones declaradas
+`synthetic` y un directorio aislado bajo `/tmp`. Comprueba que las rutas Bronze
+y Silver estén dentro de ese directorio, separadas entre sí y de las raíces
+protegidas del proyecto. Rechaza enlaces, archivos especiales y enlaces duros
+en los árboles Delta y archivos de control. Estas comprobaciones no prueban el
+origen sintético de los bytes y no eliminan las carreras con procesos ajenos.
+
+La identidad lógica combina el `run_id` Bronze y la versión de transformación
+`h05.3-v1`; el identificador Silver reservado no puede cambiarse para publicar
+otra copia de esa combinación. Solo se admite esa versión de transformación:
+una versión futura requiere una implementación y un contrato nuevos. La
+intención conserva la huella del informe Bronze, los nombres, rutas, hashes y
+versiones declarados por tabla, y los recuentos previstos. H05.4 devuelve la
+huella de los bytes exactos que interpretó; H05.5 la contrasta antes de escribir.
+El informe H02 no aporta un identificador inmutable de tabla Bronze, y sus
+metadatos no acreditan la procedencia externa.
+
+Un cerrojo local coordina escritores que usan esta interfaz. La reserva e
+`intent.json` representan un intento en curso; el commit Delta es independiente;
+`completed.json` solo se crea después de releer la versión comprometida y
+validar esquema, recuento y multiconjunto completo de filas frente al resultado
+esperado, incluidos nulos, duplicados y diagnósticos. La evidencia final incluye
+el identificador real de tabla Delta, su versión, esquema, fuentes y recuentos.
+No existe una transacción atómica entre commit y evidencia.
+
+En un reintento se vuelve a validar el origen y se reconcilian identidad,
+historial Delta y contenido antes de aceptar o finalizar el commit. Una intención
+incompleta, tabla parcial, evidencia ilegible, identidad distinta o destino
+ajeno bloquea la operación y requiere revisión; no se borra ni sobrescribe. Una
+caída antes de completar la evidencia puede dejar estado indeterminado. No se
+garantiza exactamente una publicación frente a escritores no cooperativos,
+manipulación coordinada, pérdida de almacenamiento o cambios posteriores en las
+versiones retenidas. El plan fuente sigue siendo diferido hasta materializarse.
+
+La validación y las regresiones seleccionadas han superado 183 pruebas
+sintéticas, con una prueba del lector excluida. Incluyen una publicación Bronze
+nueva y una Silver en directorios temporales, reintentos y fallos antes, durante
+y después del commit. Se han utilizado JAR locales y no se han procesado datos
+reales.
+
+Esta implementación y su evidencia son exclusivamente sintéticas. El uso con
+datos o destinos reales necesita otro contrato, autorización expresa, decisiones
+metodológicas y validación de recuperación; H05 no queda cerrado y H04 mantiene
+su comparación pendiente.
