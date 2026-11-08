@@ -424,3 +424,70 @@ Esta implementación y su evidencia son exclusivamente sintéticas. El uso con
 datos o destinos reales necesita otro contrato, autorización expresa, decisiones
 metodológicas y validación de recuperación; H05 no queda cerrado y H04 mantiene
 su comparación pendiente.
+
+## H05.6 — Diagnóstico conservador de calidad
+
+`summarize_electricity_quality` recibe un DataFrame con el esquema eléctrico de
+H05.3 y devuelve otro DataFrame de resumen, sin modificar ni publicar las
+mediciones. Reutiliza los estados y banderas de H05.2. Comprueba el esquema,
+los identificadores y las categorías, y rechaza valores de bandera o numéricos
+incompatibles con el estado declarado. Recibe una salida H05.3 íntegra y confía
+en la interpretación temporal H05.2; no vuelve a interpretar ni autenticar las
+etiquetas o fechas facilitadas. La comprobación ejecuta una acción Spark;
+la agregación posterior es diferida y requiere que la entrada siga disponible y
+sin cambios hasta evaluarla. La función no autentica la procedencia ni autoriza
+el acceso a datos reales.
+
+El grano del resultado es cada edificio presente y combinación de las cuatro
+columnas de linaje Bronze; si se suministra contexto de publicación, se exigen
+sus cuatro campos y también forman parte del grano. Así no se mezclan
+publicaciones o procedencias declaradas diferentes. Solo se aceptan los 16
+identificadores aprobados; un identificador ajeno o nulo provoca error, no una
+exclusión silenciosa. Una entrada vacía produce un resumen vacío y no se crean
+filas para edificios ausentes. La salida no tiene orden garantizado.
+
+Para cada grupo, `total_occurrences` es el número de apariciones Silver y es el
+**denominador** de las cuentas siguientes; no se calculan porcentajes:
+
+- `numeric_<estado>` cuenta cada uno de los ocho estados numéricos existentes;
+  su suma coincide con el total. `missing_occurrences` cuenta las banderas de
+  ausencia, mientras que `zero_occurrences` y `negative_occurrences` cuentan
+  las banderas verdaderas de valores finitos. Ausencias, ceros y negativos no
+  son errores confirmados.
+- `timestamp_<estado>` cuenta cada uno de los seis estados temporales; su suma
+  coincide con el total. `unclassifiable_timestamps` cuenta todos los estados
+  distintos de `valid_nominal`, incluidas ausencias y etiquetas inválidas.
+- `repeated_nominal_keys` cuenta etiquetas temporales originales válidas que
+  aparecen más de una vez dentro del grupo; su denominador natural es el número
+  de etiquetas nominales válidas distintas del grupo.
+  `occurrences_in_repeated_nominal_keys` cuenta **todas** las apariciones
+  pertenecientes a esas etiquetas; su denominador es `total_occurrences`.
+  Los valores temporales no interpretables no forman claves repetidas.
+
+Una etiqueta repetida puede contener lecturas idénticas o diferentes. La
+igualdad exacta de registros requeriría comparar todas las columnas Silver;
+este resumen no afirma que las etiquetas repetidas sean registros idénticos ni
+calcula ese número. Tampoco demuestra errores de origen o instantes físicos
+idénticos. No se resuelven zona ni DST y no se crean identificadores de fila,
+imputaciones, exclusiones o correcciones de lecturas.
+
+No se implementa IQR: además del multiplicador mencionado en la memoria, faltan
+acuerdos sobre población por edificio, agrupación temporal, ausencias y valores
+inválidos, ceros y negativos, algoritmo e interpolación de cuartiles, límites
+estrictos o inclusivos, poblaciones insuficientes y uso de la señal. Los autores
+deben decidirlos antes de incorporar ese análisis. Una señal no confirma un
+error ni autoriza sustituir o eliminar observaciones.
+
+Los edificios representan el caso de una cadena hotelera ficticia; las futuras
+observaciones BDG2 reales no son datos sintéticos. H04 y H05 formal siguen
+pendientes. La ejecución con fuentes reales requiere decisiones y autorización
+expresas, revisión de procedencia y rutas y un contrato de publicación real;
+este diagnóstico no las concede.
+
+La verificación sintética de H05.6 superó tres pruebas focales. Las regresiones
+H05 y compatibilidad de módulos superaron 181 pruebas; las de H02, configuración
+y Spark, 228, con una prueba real excluida. La selección sintética general
+superó 858 pruebas y excluyó la prueba real y una prueba de política que consulta
+rutas protegidas. Se usaron JAR locales y destinos temporales; no se procesaron
+mediciones BDG2 reales ni se publicaron tablas reales. La revisión técnica
+independiente no identificó defectos bloqueantes dentro del contrato descrito.
