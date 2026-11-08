@@ -1,8 +1,12 @@
 """End-to-end synthetic provenance and selection checks."""
 from datetime import datetime, timedelta
+from dataclasses import replace
 from decimal import Decimal
 import hashlib
 import io
+import json
+import warnings
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 from openpyxl import Workbook
@@ -10,6 +14,7 @@ from openpyxl import Workbook
 from tfm_lakehouse.bdg2_comparison import APPROVED_BUILDINGS
 from tfm_lakehouse.comparison_csv import CsvAdapterError
 from tfm_lakehouse.comparison_xlsx import XlsxInput, _serial_timestamp
+from tfm_lakehouse.controlled_synthetic_verification import SyntheticSpec, assess_synthetic
 from tfm_lakehouse.excel_bdg2_comparison import Cell
 from tfm_lakehouse.source_provenance import ProvenanceError
 from tfm_lakehouse.synthetic_selection_workflow import SelectionGridError, run_synthetic_workflow
@@ -34,8 +39,8 @@ def synthetic_sources():
     workbook = Workbook(write_only=True)
     sheet = workbook.create_sheet("Hoja1")
     sheet.append(["timestamp", *APPROVED_BUILDINGS])
-    for label in labels:
-        sheet.append([label, *([0] * 16)])
+    for index, label in enumerate(labels):
+        sheet.append([start if index == 0 else label, *([0] * 16)])
     target = io.BytesIO()
     workbook.save(target)
     workbook.close()
@@ -120,7 +125,8 @@ def test_selection_order_mismatch_prevents_comparison(synthetic_sources, monkeyp
     token = "42370.00000000005"
     decoded, info = _serial_timestamp(token, "1900")
     fake = XlsxInput(({"timestamp": decoded},),
-                     ({"timestamp": {"raw": token, **info}},), "1900")
+                     ({"timestamp": {"raw": token, **info}},), "1900",
+                     ("timestamp", *APPROVED_BUILDINGS), "Hoja1")
     monkeypatch.setattr("tfm_lakehouse.synthetic_selection_workflow.read_xlsx_snapshot",
                         lambda snapshot, ids: fake)
     result = run(reversed_metadata, electricity, b"synthetic")
@@ -140,7 +146,8 @@ def test_invalid_nonmissing_value_blocks_even_when_approved_selection_matches(
     metadata, electricity, _ = synthetic_sources
     broken = electricity.replace(b",0,0,0", b",bad,0,0", 1)
     monkeypatch.setattr("tfm_lakehouse.synthetic_selection_workflow.read_xlsx_snapshot",
-                        lambda snapshot, ids: XlsxInput((), (), "1900"))
+                        lambda snapshot, ids: XlsxInput((), (), "1900",
+                                                       ("timestamp", *APPROVED_BUILDINGS), "Hoja1"))
     result = run(metadata, broken, b"synthetic")
     selection = result["selection_reproduction"]
     assert selection["approved_selection"]["same_order"]
@@ -176,3 +183,217 @@ def test_every_temporal_adjustment_is_retained_beyond_example_limit(synthetic_so
     assert result["comparison"]["electricity_value_equivalence"] is True
     assert "comparison:temporal_adjustments" in result["verification_limitations"]
     assert not result["synthetic_records_eligible"] and not result["verified"]
+
+
+def controlled_spec(sources):
+    return SyntheticSpec(
+        source_labels=("metadata_fixture", "electricity_fixture", "xlsx_fixture"),
+        expected_sha256=tuple(digest(source) for source in sources),
+        max_bytes=tuple(len(source) + 1 for source in sources),
+        dataset_variant="synthetic", dataset_version="fixture-v1", worksheet="Hoja1",
+        building_ids=APPROVED_BUILDINGS, period_start="2016-01-01 00:00:00",
+        period_end="2017-12-31 23:00:00",
+    )
+
+
+def assess(sources, spec=None):
+    return assess_synthetic(spec or controlled_spec(sources), *(io.BytesIO(item) for item in sources))
+
+
+def rewrite_xlsx(content, old, new):
+    target = io.BytesIO()
+    with ZipFile(io.BytesIO(content)) as source, ZipFile(target, "w", ZIP_DEFLATED) as output:
+        for item in source.infolist():
+            data = source.read(item)
+            if item.filename == "xl/worksheets/sheet1.xml":
+                assert old in data
+                data = data.replace(old, new, 1)
+            output.writestr(item.filename, data)
+    return target.getvalue()
+
+
+def test_controlled_synthetic_full_run_has_explicit_stages_and_no_output(synthetic_sources, capsys):
+    result = assess(synthetic_sources)
+    assert result["stages"]["configuration"] == "passed"
+    for stage in ("metadata_bytes_schema", "selection_filters", "electricity_grid",
+                  "selection_counts", "selection_reconciliation", "xlsx_integrity",
+                  "xlsx_structure", "comparison", "comparison_assessment"):
+        assert result["stages"][stage] == "passed"
+    assert result["stages"]["source_provenance"] == "unresolved"
+    assert result["stages"]["parser_warnings"] == "passed"
+    assert result["stages"]["real_authorization"] == "not_granted"
+    assert result["stages"]["evidence_output"] == "disabled"
+    report = result["assessment"]
+    assert report["timestamp_serialization_identity"] == "not_established"
+    assert report["comparison"]["compared_positions"] == 280_704
+    assert report["nominal_and_value_agreement"]
+    assert report["synthetic_records_eligible"]
+    assert not report["complete_verification_eligible"] and not result["verified"]
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("field,value,code", [
+    ("expected_sha256", ("", "0" * 64, "0" * 64), "three_expected_digests_required"),
+    ("dataset_variant", "raw", "synthetic_variant_and_version_required"),
+    ("worksheet", "other", "profile_identity_or_period_mismatch"),
+    ("building_ids", tuple(reversed(APPROVED_BUILDINGS)), "profile_identity_or_period_mismatch"),
+    ("period_start", "2016-01-01 01:00:00", "profile_identity_or_period_mismatch"),
+    ("evidence_destination", "/unauthorized/report", "evidence_output_not_authorized"),
+])
+def test_controlled_contract_rejects_invalid_config_before_reading(field, value, code):
+    sources = (b"a", b"b", b"c")
+    spec = replace(controlled_spec(sources), **{field: value})
+    streams = tuple(io.BytesIO(source) for source in sources)
+    report = assess_synthetic(spec, *streams)
+    assert report["stages"]["configuration"] == "failed"
+    assert report["blocking_reasons"] == [{"stage": "configuration", "code": code}]
+    assert all(stream.tell() == 0 for stream in streams)
+    assert not report["verified"] and report["assessment"] is None
+
+
+def test_controlled_contract_blocks_real_config_and_file_streams_before_reading(tmp_path, monkeypatch):
+    sources = (b"a", b"b", b"c")
+    spec = controlled_spec(sources)
+    monkeypatch.setenv("TFM_REAL_CONFIG", "synthetic-placeholder")
+    streams = tuple(io.BytesIO(source) for source in sources)
+    report = assess_synthetic(spec, *streams)
+    assert report["blocking_reasons"][0]["code"] == "real_configuration_present"
+    assert all(stream.tell() == 0 for stream in streams)
+    monkeypatch.delenv("TFM_REAL_CONFIG")
+    path = tmp_path / "fixture.csv"
+    path.write_bytes(b"a")
+    with path.open("rb") as source:
+        report = assess_synthetic(spec, source, io.BytesIO(b"b"), io.BytesIO(b"c"))
+        assert source.tell() == 0
+    assert report["blocking_reasons"][0]["code"] == "synthetic_memory_streams_required"
+
+
+def test_no_evidence_destination_means_no_persistence_or_implicit_authorization():
+    sources = (b"bad", b"bad", b"bad")
+    report = assess(sources)
+    assert report["stages"]["configuration"] == "passed"
+    assert report["stages"]["metadata_bytes_schema"] == "failed"
+    assert report["stages"]["evidence_output"] == "disabled"
+    assert report["stages"]["real_authorization"] == "not_granted"
+
+
+def test_controlled_digest_mismatch_is_a_sanitized_partial_failure(synthetic_sources):
+    spec = controlled_spec(synthetic_sources)
+    bad = replace(spec, expected_sha256=("0" * 64, *spec.expected_sha256[1:]))
+    report = assess(synthetic_sources, bad)
+    assert report["stages"]["metadata_bytes_schema"] == "failed"
+    assert report["stages"]["comparison"] == "not_run"
+    assert report["blocking_reasons"] == [{"stage": "metadata_bytes_schema", "code": "ProvenanceError"}]
+    assert report["assessment"] is None and not report["verified"]
+
+
+def test_controlled_xlsx_digest_failure_preserves_checked_stages(synthetic_sources):
+    spec = controlled_spec(synthetic_sources)
+    bad = replace(spec, expected_sha256=(*spec.expected_sha256[:2], "0" * 64))
+    report = assess(synthetic_sources, bad)
+    assert report["stages"]["metadata_integrity"] == "passed"
+    assert report["stages"]["electricity_integrity"] == "passed"
+    assert report["stages"]["xlsx_integrity"] == "failed"
+    assert report["stages"]["xlsx_structure"] == "not_run"
+    assert "metadata" in report["checked_digests"]
+    assert "electricity_count_pass" in report["checked_digests"]
+    assert "xlsx" not in report["checked_digests"]
+    assert report["assessment"] is None and not report["verified"]
+
+
+@pytest.mark.parametrize("change", ["missing", "duplicate", "unexpected"])
+def test_controlled_grid_failure_has_counts_and_stops_before_comparison(synthetic_sources, change):
+    metadata, electricity, xlsx = synthetic_sources
+    lines = electricity.splitlines(keepends=True)
+    if change == "missing":
+        lines.pop()
+    elif change == "duplicate":
+        lines[2] = lines[1]
+    else:
+        lines[-1] = lines[-1].replace(b"2017-12-31 23:00:00", b"2018-01-01 00:00:00")
+    report = assess((metadata, b"".join(lines), xlsx))
+    assert report["stages"]["electricity_grid"] == "failed"
+    assert report["stages"]["selection_counts"] == report["stages"]["comparison"] == "not_run"
+    assert report["grid_failure"]["missing_hours"] >= 1
+    assert not report["verified"]
+
+
+def test_controlled_selection_failure_is_explicit(synthetic_sources):
+    metadata, electricity, xlsx = synthetic_sources
+    lines = metadata.splitlines(keepends=True)
+    report = assess((lines[0] + b"".join(reversed(lines[1:])), electricity, xlsx))
+    assert report["stages"]["selection_reconciliation"] == "failed"
+    assert report["stages"]["comparison"] == "not_run"
+    assert report["assessment"]["comparison"] is None
+    assert not report["assessment"]["complete_verification_eligible"]
+
+
+def test_xlsx_structure_checked_even_when_selection_failed(synthetic_sources, monkeypatch):
+    metadata, electricity, _ = synthetic_sources
+    lines = metadata.splitlines(keepends=True)
+    reordered = lines[0] + b"".join(reversed(lines[1:]))
+    fake = XlsxInput((), (), "1900", ("timestamp", *reversed(APPROVED_BUILDINGS)), "Hoja1")
+    monkeypatch.setattr("tfm_lakehouse.synthetic_selection_workflow.read_xlsx_snapshot",
+                        lambda snapshot, ids: fake)
+    report = assess((reordered, electricity, b"fixture"))
+    assert report["stages"]["selection_reconciliation"] == "failed"
+    assert report["stages"]["xlsx_integrity"] == "passed"
+    assert report["stages"]["xlsx_structure"] == "failed"
+    assert report["blocking_reasons"] == [
+        {"stage": "selection_reconciliation", "code": "selection_not_eligible"},
+        {"stage": "xlsx_structure", "code": "ComparisonError"},
+    ]
+    assert report["stages"]["comparison"] == "not_run" and not report["verified"]
+
+
+def test_controlled_value_mismatch_never_exposes_measurements(synthetic_sources):
+    metadata, electricity, xlsx = synthetic_sources
+    marker = b"0.123456789123456789"
+    changed = electricity.replace(b",0,0,0", b"," + marker + b",0,0", 1)
+    report = assess((metadata, changed, xlsx))
+    assert report["assessment"]["comparison"]["electricity_value_equivalence"] is False
+    assert report["stages"]["comparison_assessment"] == "failed"
+    assert not report["assessment"]["nominal_and_value_agreement"]
+    assert marker.decode() not in json.dumps(report)
+    assert not report["verified"]
+
+
+def test_controlled_reader_warning_never_exposes_cell_value(synthetic_sources, capsys):
+    metadata, electricity, xlsx = synthetic_sources
+    marker = b"999999999999999999999"
+    changed = rewrite_xlsx(xlsx, b'<c r="B2" t="n"><v>0</v></c>',
+                           b'<c r="B2" s="1" t="n"><v>' + marker + b'</v></c>')
+    with warnings.catch_warnings(record=True) as outside:
+        warnings.simplefilter("always")
+        report = assess((metadata, electricity, changed))
+    assert not outside
+    assert report["parser_warning_count"] >= 1
+    assert report["stages"]["parser_warnings"] == "unresolved"
+    assert marker.decode() not in json.dumps(report)
+    assert not report["verified"]
+    assert capsys.readouterr() == ("", "")
+
+
+def test_controlled_formula_is_ambiguous_and_not_certified(synthetic_sources):
+    metadata, electricity, xlsx = synthetic_sources
+    formula = rewrite_xlsx(xlsx, b'<c r="B2" t="n"><v>0</v></c>',
+                           b'<c r="B2"><f>1+1</f><v>2</v></c>')
+    report = assess((metadata, electricity, formula))
+    comparison = report["assessment"]["comparison"]
+    assert comparison["electricity_value_equivalence"] is None
+    assert report["assessment"]["nominal_and_value_agreement"] is None
+    assert report["stages"]["comparison_assessment"] == "unresolved"
+    assert comparison["outcomes"]["representation_ambiguity"] == 1
+    assert not report["verified"]
+
+
+def test_controlled_adjusted_timestamp_is_nominally_consistent_but_not_verified(synthetic_sources):
+    metadata, electricity, xlsx = synthetic_sources
+    adjusted = rewrite_xlsx(xlsx, b'<c r="A2" s="1" t="n"><v>42370</v></c>',
+                            b'<c r="A2" s="1" t="n"><v>42370.00000000005</v></c>')
+    report = assess((metadata, electricity, adjusted))
+    assert report["assessment"]["nominal_and_value_agreement"]
+    assert report["stages"]["comparison_assessment"] == "unresolved"
+    assert report["assessment"]["comparison"]["temporal_adjustments"]["adjusted_rows"] == 1
+    assert not report["assessment"]["synthetic_records_eligible"]
+    assert not report["assessment"]["complete_verification_eligible"] and not report["verified"]

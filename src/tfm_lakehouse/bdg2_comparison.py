@@ -96,6 +96,16 @@ def validate_bdg2_calendar(records: Sequence[Mapping], *, example_limit: int = 2
     }
 
 
+def validate_bdg2_xlsx_structure(xlsx: XlsxInput) -> None:
+    """Require the approved worksheet and original ordered header."""
+    if not isinstance(xlsx, XlsxInput):
+        raise ComparisonError("XLSX adapter output is required")
+    if xlsx.worksheet != "Hoja1":
+        raise ComparisonError("The expected XLSX worksheet is Hoja1")
+    if xlsx.source_columns != ("timestamp", *APPROVED_BUILDINGS):
+        raise ComparisonError("XLSX source columns are missing, unexpected or reordered")
+
+
 def compare_bdg2(
     csv_records: Sequence[Mapping], xlsx: XlsxInput, building_ids: Sequence[str], *,
     example_limit: int = 20,
@@ -109,12 +119,7 @@ def compare_bdg2(
     if type(example_limit) is not int or example_limit < 0:
         raise ComparisonError("example_limit must be a nonnegative integer")
     _require_buildings(building_ids, example_limit)
-    if not isinstance(xlsx, XlsxInput):
-        raise ComparisonError("XLSX adapter output is required")
-    if xlsx.worksheet != "Hoja1":
-        raise ComparisonError("The expected XLSX worksheet is Hoja1")
-    if xlsx.source_columns != ("timestamp", *APPROVED_BUILDINGS):
-        raise ComparisonError("XLSX source columns are missing, unexpected or reordered")
+    validate_bdg2_xlsx_structure(xlsx)
     csv_calendar = validate_bdg2_calendar(csv_records, example_limit=example_limit)
     xlsx_calendar = validate_bdg2_calendar(xlsx.records, example_limit=example_limit)
     comparison = compare_xlsx_electricity(

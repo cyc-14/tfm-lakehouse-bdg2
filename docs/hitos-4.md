@@ -381,6 +381,60 @@ La validación de B2 ha superado 183 pruebas sintéticas y regresiones, incluida
 una integración inventada con 17.544 filas y 16 edificios; sus resultados no
 constituyen evidencia de una ejecución sobre BDG2 real.
 
+### Preparación controlada sintética H04.14.B3.A
+
+`controlled_synthetic_verification.py` ofrece una evaluación en memoria para
+fuentes declaradas sintéticas. Exige tres identificadores de fuente distintos,
+tres SHA-256 esperados y límites de bytes explícitos, versión de fixture,
+`Hoja1`, la lista ordenada aprobada y la rejilla nominal completa. Solo acepta
+objetos `BytesIO` y rechaza la presencia de `TFM_REAL_CONFIG` y cualquier destino
+de evidencia. No abre rutas ni persiste informes; que los bytes suministrados en
+memoria sean realmente sintéticos depende de quien llama.
+
+El informe separa configuración, hashes y esquemas, filtros, rejilla, conteos,
+conciliación, estructura XLSX y comparación. Cada etapa queda como superada,
+fallida, pendiente o no ejecutada según corresponda. Los digest comprobados se
+identifican incluso si una etapa posterior falla. Incluye embudo, edificios,
+conteos R5, cobertura, posiciones comparadas, resultados exactos o ambiguos y
+traza de ajustes. Los ejemplos de discrepancia son limitados y omiten valores de
+consumo; no se escriben mensajes ordinarios con mediciones. Los avisos del
+lector se cuentan sin reproducir su contenido y dejan la evaluación pendiente.
+
+La coincidencia nominal y de valores se informa por separado de la elegibilidad
+estricta. Los ajustes temporales siguen visibles y mantienen `verified=False`;
+la identidad de serialización temporal, el origen de las fuentes y la estabilidad
+posterior de las rutas no quedan acreditados. La verificación completa permanece
+en falso, incluso si los datos sintéticos coinciden. Se validan la hoja y el orden
+de cabecera XLSX también cuando falla la conciliación de edificios.
+
+La validación de B3.A ha superado 203 pruebas y regresiones sintéticas, incluida
+la comparación completa de 280.704 posiciones inventadas. No se han procesado
+fuentes reales.
+
+Para preparar una ejecución real futura haría falta, como contrato separado:
+
+1. Facilitar y revisar las rutas exactas del CSV de metadatos, del CSV eléctrico
+   BDG2 v1.0 `raw` y del XLSX exploratorio, con el SHA-256 esperado de cada uno.
+2. Confirmar variante y versión, `Hoja1`, los 16 identificadores aprobados y el
+   periodo nominal de 2016–2017; comprobar el vínculo entre las huellas y los
+   bytes leídos, así como la procedencia y estabilidad de cada fuente.
+3. Obtener autorización explícita para esa ejecución y sus efectos, además de
+   la configuración `TFM_REAL_CONFIG` exigida por el proyecto. Esta preparación
+   no implementa ni concede ese acceso.
+4. Si se autorizan salidas, revisar por separado un destino privado exacto y sin
+   solapamiento con las entradas. Sin destino autorizado no se generarían
+   informes persistentes; la vía sintética actual no admite ningún destino.
+5. Detener la certificación ante errores de identidad, esquema, selección,
+   calendario o valores; conciliar las 280.704 posiciones y conservar por
+   separado ausencias, duplicados, discrepancias y ajustes temporales.
+
+La compatibilidad del libro real no se ha comprobado en esta fase: nombre y
+cabecera de hoja, tipos de fecha, números, fórmulas, partes binarias y límites
+de tamaño podrían exigir revisión. Las huellas suministradas identifican bytes,
+no acreditan su origen; tampoco se ha diseñado ni autorizado todavía un acceso
+real con vínculo de ruta y fuente durante toda la ejecución. **NO-GO para la
+ejecución real** hasta resolver estas condiciones y revisar el procedimiento.
+
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de
 ausencia usan registros recibidos; los de ceros, lecturas numéricas finitas.

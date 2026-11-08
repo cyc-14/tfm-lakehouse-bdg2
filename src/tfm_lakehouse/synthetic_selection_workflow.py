@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import csv
-from typing import BinaryIO, TextIO
+from typing import BinaryIO, Callable, TextIO
 
-from tfm_lakehouse.bdg2_comparison import APPROVED_BUILDINGS, compare_bdg2, validate_bdg2_calendar
+from tfm_lakehouse.bdg2_comparison import (
+    APPROVED_BUILDINGS, compare_bdg2, validate_bdg2_calendar, validate_bdg2_xlsx_structure,
+)
 from tfm_lakehouse.building_selection import SelectionError, qualify_buildings
 from tfm_lakehouse.comparison_csv import iter_csv_electricity_stream
 from tfm_lakehouse.comparison_xlsx import read_xlsx_snapshot
@@ -76,6 +78,7 @@ def run_synthetic_workflow(
     metadata_source: BinaryIO, electricity_source: BinaryIO, xlsx_source: BinaryIO, *,
     metadata_sha256: str, electricity_sha256: str, xlsx_sha256: str,
     max_metadata_bytes: int, max_electricity_bytes: int, max_xlsx_bytes: int,
+    _stage_observer: Callable[[str, str], None] | None = None,
 ) -> dict:
     """Run only with synthetic streams; no paths, files, outputs or real-data gate.
 
@@ -83,34 +86,65 @@ def run_synthetic_workflow(
     exact bytes parsed and must match the same expected digest. No result is
     returned until all three identities and parsing steps have succeeded.
     """
-    metadata, metadata_identity = parse_verified_csv(
+    def perform(stage, operation):
+        if _stage_observer is not None:
+            _stage_observer(stage, "running")
+        try:
+            result = operation()
+        except Exception:
+            if _stage_observer is not None:
+                _stage_observer(stage, "failed")
+            raise
+        if _stage_observer is not None:
+            _stage_observer(stage, "passed")
+        return result
+
+    metadata, metadata_identity = perform("metadata_bytes_schema", lambda: parse_verified_csv(
         metadata_source, metadata_sha256, _metadata_records, max_bytes=max_metadata_bytes,
-    )
-    qualified = qualify_buildings(metadata)
+    ))
+    qualified = perform("selection_filters", lambda: qualify_buildings(metadata))
     candidates = tuple(qualified["area_qualified_building_ids"])
     metadata_ids = tuple(row["building_id"] for row in metadata)
-    grid, grid_identity = parse_verified_csv(
-        electricity_source, electricity_sha256,
-        lambda stream: _grid_pass(stream, candidates, metadata_ids),
-        max_bytes=max_electricity_bytes,
-    )
-    if not grid["coverage_matches"] or not grid["order_matches"]:
-        raise SelectionGridError(grid)
-    try:
-        if electricity_source.seek(0) != 0:
-            raise ProvenanceError("Could not rewind electricity source")
-    except (OSError, ValueError) as exc:
-        raise ProvenanceError("Could not rewind electricity source") from exc
-    (selection, projected), count_identity = parse_verified_csv(
-        electricity_source, electricity_sha256,
-        lambda stream: _count_pass(stream, metadata, candidates, metadata_ids),
-        max_bytes=max_electricity_bytes,
-    )
-    if grid_identity != count_identity:
-        raise ProvenanceError("Electricity passes did not consume the same bytes")
-    snapshot, xlsx_identity = read_verified_snapshot(xlsx_source, xlsx_sha256,
-                                                     max_bytes=max_xlsx_bytes)
-    xlsx = read_xlsx_snapshot(snapshot, APPROVED_BUILDINGS)
+    def check_grid():
+        grid, identity = parse_verified_csv(
+            electricity_source, electricity_sha256,
+            lambda stream: _grid_pass(stream, candidates, metadata_ids),
+            max_bytes=max_electricity_bytes,
+        )
+        if not grid["coverage_matches"] or not grid["order_matches"]:
+            raise SelectionGridError(grid)
+        return grid, identity
+
+    grid, grid_identity = perform("electricity_grid", check_grid)
+
+    def count_selection():
+        try:
+            if electricity_source.seek(0) != 0:
+                raise ProvenanceError("Could not rewind electricity source")
+        except (OSError, ValueError) as exc:
+            raise ProvenanceError("Could not rewind electricity source") from exc
+        (selection, projected), identity = parse_verified_csv(
+            electricity_source, electricity_sha256,
+            lambda stream: _count_pass(stream, metadata, candidates, metadata_ids),
+            max_bytes=max_electricity_bytes,
+        )
+        if grid_identity != identity:
+            raise ProvenanceError("Electricity passes did not consume the same bytes")
+        return selection, projected, identity
+
+    selection, projected, count_identity = perform("selection_counts", count_selection)
+    if _stage_observer is not None:
+        _stage_observer("selection_reconciliation", "passed" if
+                        selection["selection_reproduction_eligible"] else "failed")
+    snapshot, xlsx_identity = perform("xlsx_integrity", lambda: read_verified_snapshot(
+        xlsx_source, xlsx_sha256, max_bytes=max_xlsx_bytes,
+    ))
+    def parse_xlsx():
+        result = read_xlsx_snapshot(snapshot, APPROVED_BUILDINGS)
+        validate_bdg2_xlsx_structure(result)
+        return result
+
+    xlsx = perform("xlsx_structure", parse_xlsx)
     adjustment_trace = [
         {"row": index + 2, "decoded_timestamp": xlsx.records[index]["timestamp"],
          "raw": item["timestamp"]["raw"], "error_seconds": item["timestamp"]["error_seconds"],
@@ -120,7 +154,18 @@ def run_synthetic_workflow(
     ]
     comparison = None
     if selection["selection_reproduction_eligible"] and projected is not None:
-        comparison = compare_bdg2(projected, xlsx, APPROVED_BUILDINGS)
+        comparison = perform("comparison", lambda: compare_bdg2(projected, xlsx, APPROVED_BUILDINGS))
+        if _stage_observer is not None:
+            if (comparison["electricity_value_equivalence"] is False
+                    or not comparison["nominal_temporal_agreement"]):
+                comparison_status = "failed"
+            elif comparison["comparison_of_supplied_records_eligible"]:
+                comparison_status = "passed"
+            else:
+                comparison_status = "unresolved"
+            _stage_observer("comparison_assessment", comparison_status)
+    elif _stage_observer is not None:
+        _stage_observer("comparison", "not_run")
     stages = selection["selection"]["stage_counts"]
     observed_funnel = [stages[name] for name in ("main_use", "subcategory", "area", "selected")]
     limitations = ["synthetic_only", "source_origin_not_verified", "path_stability_not_verified",
