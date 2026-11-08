@@ -180,14 +180,74 @@ El resultado se refiere a los registros y dimensiones suministrados, no acredita
 procedencia ni identifica por sí solo el periodo correcto.
 
 La validación ejecutada en H04.14.A3 comprende 24 casos sintéticos del comparador
-y 26 del verificador de selección. No hay lector XLSX instalado ni declarado
-en las dependencias; falta un adaptador de lectura que conserve el tipo y la
-representación de cada celda, así como su política de fórmulas y precisión. El
-núcleo no lee CSV ni XLSX y no constituye una verificación de extremo a extremo.
+y 26 del verificador de selección. En aquel incremento no había lector XLSX
+instalado ni declarado y faltaba un adaptador para el tipo y la representación
+de cada celda, así como su política de fórmulas y precisión. El núcleo de
+comparación no lee archivos y, por sí solo, no verifica ambos orígenes.
 La comparación real requiere verificar variante, hashes e identidad de las
 fuentes y de la publicación, establecer el periodo y autorizar expresamente la
 ejecución con rutas y efectos revisados. Siguen pendientes el contraste con los
 originales y la ratificación conjunta de la selección final de 16 edificios.
+
+### Adaptador CSV sintético H04.14.A4
+
+`src/tfm_lakehouse/comparison_csv.py` lee CSV UTF-8 con BOM opcional y sintaxis
+estándar de comillas, mediante un iterador de solo lectura. Exige `timestamp` y
+los identificadores solicitados con coincidencia exacta; admite otras columnas de
+origen, pero valida la cabecera completa y la anchura de cada registro. Rechaza
+cabeceras vacías, duplicadas o ambiguas, registros de anchura incorrecta y errores
+de sintaxis detectados por el lector CSV de Python, que no comprueba todos los
+casos contrarios a RFC 4180. Una línea física vacía se rechaza por anchura cero;
+Bronze documenta que las omite. Devuelve las columnas elegidas en el
+orden original de las filas, incluidos duplicados, como `Cell("text", valor)`
+para el comparador. Conserva
+campos vacíos y `NaN` exactos sin pasar por `float`; los valores son los del
+lector CSV, no una copia de su serialización. La validación completa exige
+consumir el iterador entero; el comparador actual materializa los registros.
+
+En H04.14.A4 se han superado 24 casos sintéticos del adaptador y 50 casos de
+regresión del comparador y la selección. Una prueba integra el CSV sintético con
+celdas preparadas en memoria; no se comparó ningún libro real. En aquel momento
+`openpyxl` no estaba instalado ni declarado y quedaba pendiente el adaptador XLSX.
+Las aprobaciones conjuntas R5 y R6, y las condiciones de procedencia,
+autorización y ratificación indicadas arriba, continúan vigentes.
+
+### Adaptador XLSX sintético H04.14.A5
+
+`src/tfm_lakehouse/comparison_xlsx.py` lee una hoja y una lista de edificios
+proporcionadas explícitamente, con `Hoja1` y 17.544 filas como valores por
+defecto. Exige cabeceras exactas, una columna temporal y las columnas indicadas;
+rechaza columnas adicionales, filas ausentes y estructuras no admitidas. Conserva
+orden y duplicados, proporciona los registros al comparador y mantiene aparte
+las representaciones observadas. Usa `openpyxl` 3.1.5 y su dependencia
+`et-xmlfile` 2.0.0, fijadas en el entorno y las declaraciones del proyecto.
+
+Los valores numéricos se recuperan del token OOXML guardado y se interpretan
+mediante `Decimal`, sin utilizar el `float` de `openpyxl` ni aplicar tolerancias.
+La igualdad se refiere al token guardado y no demuestra que Excel conservara el
+valor anterior al guardado. Las fórmulas son ambiguas y sus cachés no se usan;
+los errores de Excel se conservan como diagnóstico no numérico. Se distinguen
+el texto vacío y una celda ausente. El lector no ejecuta fórmulas ni macros y
+desactiva los enlaces externos. Rechaza cadenas compartidas que el lector
+normalizaría y celdas tipadas cuya estructura no permite interpretarlas.
+
+Las fechas de texto se conservan como etiquetas nominales. Para fechas Excel se
+aplica el sistema 1900 o 1904 al serial guardado y se rechaza el día ficticio
+1900-02-29. Solo se convierten seriales que expresan un número entero exacto de
+segundos; sin redondeo, esto también rechaza seriales decimales habituales para
+horas completas como las 01:00. Las fechas numéricas sin formato de fecha,
+instantes con zona, fracciones de segundo y fechas en celdas de medida quedan
+fuera del alcance. Las fechas ISO tipadas deben incluir fecha y hora con segundos
+completos. No se deduce UTC ni se resuelve DST. El lector limita tamaño
+y expansión ZIP, rechaza declaraciones de entidades XML y solo admite partes
+XML y RELS; por ello tampoco acepta libros con imágenes, macros u otras partes
+binarias.
+
+La validación H04.14.A5 ha superado 28 casos sintéticos XLSX y 74 pruebas de
+regresión de CSV, comparación y selección. La equivalencia del libro real, la
+identidad y hashes de las fuentes, la
+ratificación final de los edificios y la autorización expresa para procesarlos
+siguen pendientes.
 
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de

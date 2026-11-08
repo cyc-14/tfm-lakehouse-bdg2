@@ -7,7 +7,7 @@ name = "tfm-lakehouse"
 version = "0.1.0"
 description = "Prototipo local Spark/Delta para el TFM energético multisede"
 requires-python = ">=3.11,<3.12"
-dependencies = ["pyspark==3.5.7", "delta-spark==3.3.3"]
+dependencies = ["pyspark==3.5.7", "delta-spark==3.3.3", "openpyxl==3.1.5"]
 
 [project.optional-dependencies]
 dev = ["pytest==8.4.2"]
