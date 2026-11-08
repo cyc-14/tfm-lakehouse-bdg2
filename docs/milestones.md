@@ -87,6 +87,11 @@ AUD-05/AUD-08 —449 pruebas superadas y tres excluidas— se conserva en la
 
 ### Actualización documental — 07/11/2026
 
+**Nota posterior:** la guía H04 registra la ratificación conjunta comunicada de
+los 16 identificadores. Las afirmaciones de esta actualización sobre una
+aprobación pendiente reflejan el estado anterior a esa confirmación; H04 sigue
+sin cerrarse y la reproducción y procedencia siguen pendientes.
+
 H01 y H02 están implementados; las evidencias de H01 corresponden a Delta con
 datos sintéticos y las de H02 incluyen regresiones sintéticas y expedientes
 históricos de procedencia. No se infiere de esas pruebas calidad analítica ni una

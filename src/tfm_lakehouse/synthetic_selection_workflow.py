@@ -74,13 +74,13 @@ def _count_pass(source: TextIO, metadata: list[dict], candidates: Sequence[str],
     return report, tuple(projected) if can_project else None
 
 
-def run_synthetic_workflow(
+def _run_verified_workflow(
     metadata_source: BinaryIO, electricity_source: BinaryIO, xlsx_source: BinaryIO, *,
     metadata_sha256: str, electricity_sha256: str, xlsx_sha256: str,
     max_metadata_bytes: int, max_electricity_bytes: int, max_xlsx_bytes: int,
     _stage_observer: Callable[[str, str], None] | None = None,
 ) -> dict:
-    """Run only with synthetic streams; no paths, files, outputs or real-data gate.
+    """Run the shared verified-byte algorithm on caller-owned streams.
 
     Caller-owned streams must begin at offset zero. Both CSV passes hash the
     exact bytes parsed and must match the same expected digest. No result is
@@ -205,3 +205,19 @@ def run_synthetic_workflow(
         "verified": False,
         "verification_limitations": limitations,
     }
+
+
+def run_synthetic_workflow(
+    metadata_source: BinaryIO, electricity_source: BinaryIO, xlsx_source: BinaryIO, *,
+    metadata_sha256: str, electricity_sha256: str, xlsx_sha256: str,
+    max_metadata_bytes: int, max_electricity_bytes: int, max_xlsx_bytes: int,
+    _stage_observer: Callable[[str, str], None] | None = None,
+) -> dict:
+    """Run the existing synthetic-only stream workflow."""
+    return _run_verified_workflow(
+        metadata_source, electricity_source, xlsx_source,
+        metadata_sha256=metadata_sha256, electricity_sha256=electricity_sha256,
+        xlsx_sha256=xlsx_sha256, max_metadata_bytes=max_metadata_bytes,
+        max_electricity_bytes=max_electricity_bytes, max_xlsx_bytes=max_xlsx_bytes,
+        _stage_observer=_stage_observer,
+    )

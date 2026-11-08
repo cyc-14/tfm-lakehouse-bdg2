@@ -435,6 +435,33 @@ no acreditan su origen; tampoco se ha diseñado ni autorizado todavía un acceso
 real con vínculo de ruta y fuente durante toda la ejecución. **NO-GO para la
 ejecución real** hasta resolver estas condiciones y revisar el procedimiento.
 
+### Entrada controlada H04.14.B3.B1
+
+La entrada `verify_real_sources` recibe rutas absolutas, tres SHA-256 esperados,
+límites de bytes, versión y variante, hoja, selección y periodo explícitos. Exige
+`TFM_REAL_CONFIG` con una configuración del proyecto que coincida con los dos
+CSV, y una declaración separada de autorización para ese alcance y las
+operaciones de lectura, cálculo de huellas y comparación en memoria. La
+declaración refleja lo indicado por quien llama: no demuestra por sí sola una
+aprobación humana. No hay rutas de datos incorporadas ni salida persistente.
+
+La configuración y las fuentes se abren en lectura sin seguir enlaces; se
+rechazan alias, se comprueba la estabilidad observable y los parsers reciben los
+mismos bytes vinculados a las huellas. Las comprobaciones no prueban el origen
+externo ni la estabilidad posterior. El sistema de archivos podría actualizar
+la fecha de acceso. Un fallo, discrepancia o ambigüedad mantiene la verificación
+global sin acreditar. Las salidas diagnósticas omiten valores de consumo.
+
+La validación de esta entrada y sus regresiones ha superado 280 pruebas con
+datos sintéticos, incluida una integración de 17.544 filas y 16 edificios en
+archivos temporales. No se han leído ni comparado fuentes reales.
+
+La compatibilidad real del libro y las rutas concretas permanecen sin comprobar.
+Antes de cualquier ejecución real se necesitan una revisión técnica completa,
+las rutas y huellas confirmadas, las decisiones académicas aplicables y una
+autorización humana explícita para esa ejecución y sus efectos. La aprobación
+metodológica anterior no autoriza la lectura.
+
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de
 ausencia usan registros recibidos; los de ceros, lecturas numéricas finitas.

@@ -397,3 +397,224 @@ def test_controlled_adjusted_timestamp_is_nominally_consistent_but_not_verified(
     assert report["assessment"]["comparison"]["temporal_adjustments"]["adjusted_rows"] == 1
     assert not report["assessment"]["synthetic_records_eligible"]
     assert not report["assessment"]["complete_verification_eligible"] and not report["verified"]
+
+
+@pytest.fixture
+def real_entry_fixture(tmp_path, synthetic_sources, monkeypatch):
+    from tfm_lakehouse.controlled_real_verification import (
+        ExecutionAuthorization, RealVerificationSpec, _OPERATIONS,
+    )
+
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    paths = (raw / "metadata.csv", raw / "electricity.csv", tmp_path / "workbook.xlsx")
+    for path, content in zip(paths, synthetic_sources):
+        path.write_bytes(content)
+    config = tmp_path / "config.toml"
+    config.write_text(
+        '[paths]\nraw_root = "raw"\nlakehouse_root = "lakehouse"\n'
+        '[dataset]\nkind = "real"\nreference = "synthetic test"\n'
+        '[sources]\nmetadata = "metadata.csv"\nelectricity = "electricity.csv"\n'
+    )
+    spec = RealVerificationSpec(
+        config, *paths, tuple(digest(item) for item in synthetic_sources),
+        tuple(len(item) + 100 for item in synthetic_sources), "BDG2 v1.0", "raw", "Hoja1",
+        APPROVED_BUILDINGS, "2016-01-01 00:00:00", "2017-12-31 23:00:00",
+    )
+    authorization = ExecutionAuthorization(spec, "synthetic test approval", _OPERATIONS)
+    monkeypatch.setenv("TFM_REAL_CONFIG", str(config))
+    return spec, authorization
+
+
+def test_real_entry_full_synthetic_files(real_entry_fixture, capsys):
+    from tfm_lakehouse.controlled_real_verification import verify_real_sources
+
+    spec, authorization = real_entry_fixture
+    before = tuple(path.read_bytes() for path in
+                   (spec.metadata_path, spec.electricity_path, spec.xlsx_path))
+    report = verify_real_sources(spec, authorization)
+    assert report["failure"] is None
+    assert report["source_integrity"] == "matched_expected_sha256"
+    assert report["path_stability"] == "matched_at_checks_only"
+    assert report["authorization"] == "caller_attested_not_independently_verified"
+    assert report["evidence_output"] == "disabled"
+    assert report["assessment"]["selection_reproduced"]
+    assert report["assessment"]["comparison"]["compared_positions"] == 280_704
+    assert report["assessment"]["comparison"]["electricity_value_equivalence"] is True
+    assert not report["verified"] and not report["assessment"]["complete_verification_eligible"]
+    assert before == tuple(path.read_bytes() for path in
+                           (spec.metadata_path, spec.electricity_path, spec.xlsx_path))
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("change,expected", [
+    ("authorization", "specific_authorization_required"),
+    ("different_scope", "specific_authorization_required"),
+    ("config_missing", "real_config_required"),
+    ("config_invalid", "invalid_real_config"),
+    ("input_missing", "absolute_paths_required"),
+    ("digest_missing", "three_expected_digests_required"),
+    ("variant", "dataset_variant_mismatch"),
+    ("output", "evidence_output_disabled"),
+])
+def test_real_entry_rejects_bad_scope_before_opening_sources(real_entry_fixture, monkeypatch,
+                                                            change, expected):
+    import tfm_lakehouse.controlled_real_verification as entry
+
+    spec, authorization = real_entry_fixture
+    if change == "authorization":
+        authorization = None
+    elif change == "different_scope":
+        spec = replace(spec, electricity_variant="cleaned")
+    elif change == "config_missing":
+        monkeypatch.delenv("TFM_REAL_CONFIG")
+    elif change == "config_invalid":
+        spec.config_path.write_text("broken = [")
+    elif change == "input_missing":
+        spec = replace(spec, metadata_path=None)
+    elif change == "digest_missing":
+        spec = replace(spec, expected_sha256=("", *spec.expected_sha256[1:]))
+    elif change == "variant":
+        spec = replace(spec, electricity_variant="cleaned")
+    elif change == "output":
+        spec = replace(spec, evidence_destination="report.json")
+    if authorization is not None and change not in {"different_scope", "authorization"}:
+        authorization = replace(authorization, scope=spec)
+    original_open = entry._open_source
+    monkeypatch.setattr(entry, "_open_source", lambda path: original_open(path)
+                        if path == spec.config_path else pytest.fail("opened source"))
+    result = entry.verify_real_sources(spec, authorization)
+    assert result["failure"] == expected
+    assert not result["verified"]
+
+
+def test_real_entry_wrong_hash_and_read_error(real_entry_fixture):
+    from tfm_lakehouse.controlled_real_verification import verify_real_sources
+
+    spec, auth = real_entry_fixture
+    spec = replace(spec, expected_sha256=("0" * 64, *spec.expected_sha256[1:]))
+    report = verify_real_sources(spec, replace(auth, scope=spec))
+    assert report["failure"] == "ProvenanceError"
+    assert report["stages"]["metadata_bytes_schema"] == "failed"
+    spec.metadata_path.unlink()
+    report = verify_real_sources(spec, replace(auth, scope=spec))
+    assert report["failure"] == "invalid_real_config"
+
+
+@pytest.mark.parametrize("change,stage", [
+    ("metadata", "metadata_bytes_schema"),
+    ("selection", "selection_reconciliation"),
+    ("grid", "electricity_grid"),
+    ("sheet", "xlsx_structure"),
+    ("header", "xlsx_structure"),
+    ("formula", "comparison_assessment"),
+    ("adjustment", "comparison_assessment"),
+    ("mismatch", "comparison_assessment"),
+])
+def test_real_entry_synthetic_failure_modes(real_entry_fixture, change, stage):
+    from tfm_lakehouse.controlled_real_verification import verify_real_sources
+
+    spec, auth = real_entry_fixture
+    paths = (spec.metadata_path, spec.electricity_path, spec.xlsx_path)
+    index = 0 if change in {"metadata", "selection"} else 1 if change in {"grid", "mismatch"} else 2
+    data = paths[index].read_bytes()
+    marker = b"0.123456789123456789"
+    if change == "metadata":
+        data = b"bad_header\ninvalid\n"
+    elif change == "selection":
+        lines = data.splitlines(keepends=True)
+        data = lines[0] + b"".join(reversed(lines[1:]))
+    elif change == "grid":
+        data = data.rsplit(b"\n", 2)[0] + b"\n"
+    elif change == "sheet":
+        data = rewrite_xlsx(data, b'<c r="B2" t="n"><v>0</v></c>', b'<c r="B2"><f>2</f></c>')
+        # Change the workbook sheet name without opening a real workbook.
+        out = io.BytesIO()
+        with ZipFile(io.BytesIO(data)) as src, ZipFile(out, "w", ZIP_DEFLATED) as dst:
+            for item in src.infolist():
+                content = src.read(item)
+                if item.filename == "xl/workbook.xml":
+                    content = content.replace(b'Hoja1', b'Other')
+                dst.writestr(item.filename, content)
+        data = out.getvalue()
+    elif change == "header":
+        data = rewrite_xlsx(data, b'Robin_lodging_Dorthy', b'Robin_lodging_Fake')
+    elif change == "formula":
+        data = rewrite_xlsx(data, b'<c r="B2" t="n"><v>0</v></c>',
+                            b'<c r="B2"><f>1+1</f><v>2</v></c>')
+    elif change == "adjustment":
+        data = rewrite_xlsx(data, b'<c r="A2" s="1" t="n"><v>42370</v></c>',
+                            b'<c r="A2" s="1" t="n"><v>42370.00000000005</v></c>')
+    elif change == "mismatch":
+        data = data.replace(b",0,0,0", b"," + marker + b",0,0", 1)
+    paths[index].write_bytes(data)
+    digests = list(spec.expected_sha256)
+    digests[index] = digest(data)
+    limits = list(spec.max_bytes)
+    limits[index] = len(data) + 100
+    spec = replace(spec, expected_sha256=tuple(digests), max_bytes=tuple(limits))
+    report = verify_real_sources(spec, replace(auth, scope=spec))
+    assert report["stages"][stage] in {"failed", "unresolved"}
+    assert marker.decode() not in json.dumps(report)
+    assert not report["verified"]
+
+
+def test_real_entry_rejects_config_source_hardlink_and_symlink(real_entry_fixture, monkeypatch):
+    import os
+    import tfm_lakehouse.controlled_real_verification as entry
+
+    spec, auth = real_entry_fixture
+    spec.xlsx_path.unlink()
+    os.link(spec.config_path, spec.xlsx_path)
+    assert entry.verify_real_sources(spec, auth)["failure"] == "config_source_alias"
+    spec.xlsx_path.unlink()
+    spec.xlsx_path.symlink_to(spec.config_path)
+    assert entry.verify_real_sources(spec, auth)["failure"] == "source_symlink"
+
+
+def test_real_entry_detects_source_substitution(real_entry_fixture, monkeypatch):
+    import tfm_lakehouse.controlled_real_verification as entry
+
+    spec, auth = real_entry_fixture
+    original = entry._run_verified_workflow
+
+    def replace_after_read(*args, **kwargs):
+        result = original(*args, **kwargs)
+        replacement = spec.xlsx_path.with_name("replacement.xlsx")
+        replacement.write_bytes(b"different synthetic content")
+        replacement.replace(spec.xlsx_path)
+        return result
+
+    monkeypatch.setattr(entry, "_run_verified_workflow", replace_after_read)
+    report = entry.verify_real_sources(spec, auth)
+    assert report["failure"] == "source_changed"
+    assert report["assessment"] is None and not report["verified"]
+
+
+def test_real_entry_read_error_is_sanitized(real_entry_fixture, monkeypatch):
+    import tfm_lakehouse.source_provenance as provenance
+    from tfm_lakehouse.controlled_real_verification import verify_real_sources
+
+    spec, auth = real_entry_fixture
+    def failed_read(self, buffer):
+        raise OSError("sensitive measurement 123456789")
+    monkeypatch.setattr(provenance._HashingReader, "readinto", failed_read)
+    report = verify_real_sources(spec, auth)
+    assert report["failure"] in {"OSError", "ProvenanceError"}
+    assert "123456789" not in json.dumps(report)
+    assert not report["verified"]
+
+
+@pytest.mark.parametrize("extension", [
+    '\nweather = "metadata.csv"\n',
+    '\n[spark]\nivy_dir = "raw/ivy"\n',
+])
+def test_real_entry_enforces_full_project_config(real_entry_fixture, extension):
+    from tfm_lakehouse.controlled_real_verification import verify_real_sources
+
+    spec, auth = real_entry_fixture
+    with spec.config_path.open("a") as config:
+        config.write(extension)
+    report = verify_real_sources(spec, auth)
+    assert report["failure"] == "invalid_real_config"
+    assert all(value == "not_run" for value in report["stages"].values())

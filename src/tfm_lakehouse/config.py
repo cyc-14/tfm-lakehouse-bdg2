@@ -139,6 +139,14 @@ def load_config(path: Path) -> BronzeConfig:
     try:
         with path.open("rb") as handle:
             data = tomllib.load(handle)
+        return config_from_mapping(data, path)
+    except (OSError, KeyError, TypeError, AttributeError, tomllib.TOMLDecodeError) as exc:
+        raise ConfigurationError(f"Configuración inválida {path}: {exc}") from exc
+
+
+def config_from_mapping(data: dict, path: Path) -> BronzeConfig:
+    """Validate parsed config with paths relative to its original location."""
+    try:
         base = path.parent
 
         def resolve(value: str) -> Path:
