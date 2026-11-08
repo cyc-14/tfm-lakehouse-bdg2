@@ -7,7 +7,7 @@ import os
 import pytest
 from openpyxl import Workbook
 
-from tfm_lakehouse.comparison_xlsx import read_xlsx_snapshot
+from tfm_lakehouse.comparison.comparison_xlsx import read_xlsx_snapshot
 from tfm_lakehouse.source_provenance import (
     ProvenanceError, parse_verified_csv, read_verified_snapshot,
 )

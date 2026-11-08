@@ -18,7 +18,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def config(tmp_path):
     raw = tmp_path / "raw"
-    shutil.copytree(Path(__file__).parent / "fixtures/synthetic_bdg2", raw)
+    shutil.copytree(Path(__file__).parent.parent / "fixtures/synthetic_bdg2", raw)
     return BronzeConfig(
         raw_root=raw, lakehouse_root=tmp_path / "lake",
         electricity=raw / "data/meters/raw/electricity.csv",

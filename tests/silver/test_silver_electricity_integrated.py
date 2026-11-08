@@ -5,9 +5,9 @@ from decimal import Decimal
 import pytest
 from pyspark.sql.types import StringType, StructField, StructType
 
-from tfm_lakehouse.bdg2_comparison import APPROVED_BUILDINGS
-from tfm_lakehouse.silver_electricity import _LINEAGE_COLUMNS
-from tfm_lakehouse.silver_electricity_integrated import (
+from tfm_lakehouse.comparison.bdg2_comparison import APPROVED_BUILDINGS
+from tfm_lakehouse.silver.silver_electricity import _LINEAGE_COLUMNS
+from tfm_lakehouse.silver.silver_electricity_integrated import (
     _publication_identity, transform_selected_electricity,
 )
 

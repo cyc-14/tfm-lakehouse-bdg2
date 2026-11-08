@@ -3,9 +3,9 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from tfm_lakehouse.building_selection import SelectionError
-from tfm_lakehouse.excel_bdg2_comparison import Cell
-from tfm_lakehouse.selection_reproduction import reproduce_selection
+from tfm_lakehouse.selection.building_selection import SelectionError
+from tfm_lakehouse.comparison.excel_bdg2_comparison import Cell
+from tfm_lakehouse.selection.selection_reproduction import reproduce_selection
 
 
 def metadata(building_id, *, primary="Lodging/residential", sub="Dormitory", sqm="4000"):

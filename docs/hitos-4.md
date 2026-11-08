@@ -135,7 +135,7 @@ La validación sintética de H05.2 no equivale a una validación con BDG2 real.
 
 ### Verificador sintético H04.14.A2
 
-`src/tfm_lakehouse/building_selection.py` aplica a registros y resúmenes
+`src/tfm_lakehouse/selection/building_selection.py` aplica a registros y resúmenes
 proporcionados explícitamente el filtro exacto de uso, las tres subcategorías
 aprobadas, el intervalo de superficie inclusivo y la regla estricta de
 ausencias mediante aritmética entera. Valida esquemas e identificadores,
@@ -165,7 +165,7 @@ edificio y alineación temporal; solo admite representaciones numéricas distint
 si se demuestra su igualdad exacta, sin redondeo ni tolerancias. Debe informar
 diferencias de ausencia, fechas, duplicados y ambigüedades.
 
-El núcleo en `src/tfm_lakehouse/excel_bdg2_comparison.py` recibe registros en
+El núcleo en `src/tfm_lakehouse/comparison/excel_bdg2_comparison.py` recibe registros en
 memoria y celdas tipadas. Valida columnas e identificadores, etiquetas nominales,
 cadencia y cobertura, y compara por separado el orden. Si hay etiquetas inválidas,
 la igualdad de cobertura queda indeterminada. Conserva la multiplicidad y contrasta
@@ -192,7 +192,7 @@ originales; la selección de los 16 identificadores se aprobó después en H04.1
 
 ### Adaptador CSV sintético H04.14.A4
 
-`src/tfm_lakehouse/comparison_csv.py` lee CSV UTF-8 con BOM opcional y sintaxis
+`src/tfm_lakehouse/comparison/comparison_csv.py` lee CSV UTF-8 con BOM opcional y sintaxis
 estándar de comillas, mediante un iterador de solo lectura. Exige `timestamp` y
 los identificadores solicitados con coincidencia exacta; admite otras columnas de
 origen, pero valida la cabecera completa y la anchura de cada registro. Rechaza
@@ -215,7 +215,7 @@ autorización indicadas arriba continúan vigentes.
 
 ### Adaptador XLSX sintético H04.14.A5
 
-`src/tfm_lakehouse/comparison_xlsx.py` lee una hoja y una lista de edificios
+`src/tfm_lakehouse/comparison/comparison_xlsx.py` lee una hoja y una lista de edificios
 proporcionadas explícitamente, con `Hoja1` y 17.544 filas como valores por
 defecto. Exige cabeceras exactas, una columna temporal y las columnas indicadas;
 rechaza columnas adicionales, filas ausentes y estructuras no admitidas. Conserva
@@ -313,7 +313,7 @@ las posiciones y registrar las ausencias, discrepancias y ambigüedades.
 
 ### Perfil estricto sintético H04.14.B1
 
-`src/tfm_lakehouse/bdg2_comparison.py` define una única lista ordenada con los
+`src/tfm_lakehouse/comparison/bdg2_comparison.py` define una única lista ordenada con los
 16 identificadores aprobados. El perfil exige esa lista, la hoja `Hoja1` y el
 orden original de su cabecera; el CSV ancho puede contener otras columnas, que
 el adaptador proyecta sin incorporarlas a la selección. La rejilla nominal va

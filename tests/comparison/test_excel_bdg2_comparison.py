@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from tfm_lakehouse.excel_bdg2_comparison import Cell, ComparisonError, compare_electricity
+from tfm_lakehouse.comparison.excel_bdg2_comparison import Cell, ComparisonError, compare_electricity
 
 
 T1 = "2020-01-01 00:00:00"

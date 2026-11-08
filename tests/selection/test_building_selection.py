@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import pytest
 
-from tfm_lakehouse.building_selection import SelectionError, verify_building_selection
+from tfm_lakehouse.selection.building_selection import SelectionError, verify_building_selection
 
 
 def record(building_id="b1", *, primary="Lodging/residential", sub="Dormitory", sqm="4000"):

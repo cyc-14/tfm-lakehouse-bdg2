@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 from pyspark.sql.types import StringType, StructField, StructType
 
-from tfm_lakehouse.bdg2_comparison import APPROVED_BUILDINGS
+from tfm_lakehouse.comparison.bdg2_comparison import APPROVED_BUILDINGS
 from tfm_lakehouse.config import BronzeConfig
-from tfm_lakehouse.silver_electricity import _LINEAGE_COLUMNS
-from tfm_lakehouse.silver_electricity_integrated import transform_selected_electricity
-from tfm_lakehouse.silver_synthetic_publication import (
+from tfm_lakehouse.silver.silver_electricity import _LINEAGE_COLUMNS
+from tfm_lakehouse.silver.silver_electricity_integrated import transform_selected_electricity
+from tfm_lakehouse.silver.silver_synthetic_publication import (
     SilverPublicationError, _validate_workspace, publish_synthetic_silver,
 )
 
@@ -62,7 +62,7 @@ def test_rejects_unsupported_ids_and_transform_before_source_access(config_and_m
 
 @pytest.mark.unit
 def test_link_inside_bronze_tree_blocks_before_reader(config_and_manifest, tmp_path, monkeypatch):
-    import tfm_lakehouse.silver_synthetic_publication as publication
+    import tfm_lakehouse.silver.silver_synthetic_publication as publication
     cfg, _, _ = config_and_manifest
     nested = cfg.table_path("electricity") / "_delta_log"
     nested.mkdir(parents=True)
@@ -76,7 +76,7 @@ def test_link_inside_bronze_tree_blocks_before_reader(config_and_manifest, tmp_p
 @pytest.mark.unit
 @pytest.mark.parametrize("name", ["manifest", "lock"])
 def test_hardlinked_manifest_or_lock_rejected_before_reader(config_and_manifest, tmp_path, monkeypatch, name):
-    import tfm_lakehouse.silver_synthetic_publication as publication
+    import tfm_lakehouse.silver.silver_synthetic_publication as publication
     cfg, _, report = config_and_manifest
     extra = tmp_path / "other"
     if name == "manifest":
@@ -93,7 +93,7 @@ def test_hardlinked_manifest_or_lock_rejected_before_reader(config_and_manifest,
 
 @pytest.mark.unit
 def test_parsed_manifest_identity_mismatch_stops_before_write(config_and_manifest, tmp_path, monkeypatch):
-    import tfm_lakehouse.silver_synthetic_publication as publication
+    import tfm_lakehouse.silver.silver_synthetic_publication as publication
     cfg, _, _ = config_and_manifest
     monkeypatch.setattr(publication, "transform_published_synthetic_electricity", lambda *args: (
         {"snapshot_binding": "h02_version_metadata_schema_count_checked",
@@ -123,7 +123,7 @@ def fake_assessment(path, report):
 
 @pytest.mark.integration
 def test_delta_commit_retry_recovery_and_conflicts(spark, config_and_manifest, tmp_path, monkeypatch):
-    import tfm_lakehouse.silver_synthetic_publication as publication
+    import tfm_lakehouse.silver.silver_synthetic_publication as publication
     cfg, report, report_path = config_and_manifest
     frame = synthetic_silver(spark)
     calls = []
@@ -166,7 +166,7 @@ def test_delta_commit_retry_recovery_and_conflicts(spark, config_and_manifest, t
 @pytest.mark.integration
 def test_write_failures_and_unknown_target_stop_without_cleanup(spark, config_and_manifest,
                                                                  tmp_path, monkeypatch):
-    import tfm_lakehouse.silver_synthetic_publication as publication
+    import tfm_lakehouse.silver.silver_synthetic_publication as publication
     cfg, report, report_path = config_and_manifest
     frame = synthetic_silver(spark)
     monkeypatch.setattr(publication, "transform_published_synthetic_electricity",
@@ -187,7 +187,7 @@ def test_write_failures_and_unknown_target_stop_without_cleanup(spark, config_an
 @pytest.mark.integration
 def test_interrupted_write_leaves_partial_target_and_retry_fails_closed(spark, config_and_manifest,
                                                                         tmp_path, monkeypatch):
-    import tfm_lakehouse.silver_synthetic_publication as publication
+    import tfm_lakehouse.silver.silver_synthetic_publication as publication
     from pyspark.sql.readwriter import DataFrameWriter
     cfg, report, report_path = config_and_manifest
     frame = synthetic_silver(spark)
@@ -208,7 +208,7 @@ def test_interrupted_write_leaves_partial_target_and_retry_fails_closed(spark, c
 
 @pytest.mark.integration
 def test_unrelated_target_is_not_modified(spark, config_and_manifest, tmp_path, monkeypatch):
-    import tfm_lakehouse.silver_synthetic_publication as publication
+    import tfm_lakehouse.silver.silver_synthetic_publication as publication
     cfg, report, report_path = config_and_manifest
     frame = synthetic_silver(spark)
     monkeypatch.setattr(publication, "transform_published_synthetic_electricity",

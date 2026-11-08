@@ -11,7 +11,7 @@ import pytest
 
 from tfm_lakehouse.config import BronzeConfig
 from tfm_lakehouse.ingestion.bronze import run_bronze
-from tfm_lakehouse import silver_electricity as silver
+from tfm_lakehouse.silver import silver_electricity as silver
 
 LINEAGE = (
     "_bronze_source_uri", "_bronze_source_sha256", "_bronze_data_kind",
@@ -173,7 +173,7 @@ def test_transform_is_lazy_and_rejects_bad_schema_before_building_a_plan(spark, 
 @pytest.mark.integration
 def test_reader_uses_published_version_not_latest_physical(spark, tmp_path, monkeypatch):
     raw = tmp_path / "synthetic-input"
-    shutil.copytree(Path(__file__).parent / "fixtures/synthetic_bdg2", raw)
+    shutil.copytree(Path(__file__).parent.parent / "fixtures/synthetic_bdg2", raw)
     config = BronzeConfig(
         raw_root=raw, lakehouse_root=tmp_path / "synthetic-output",
         electricity=raw / "data/meters/raw/electricity.csv",

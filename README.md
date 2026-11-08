@@ -33,6 +33,13 @@ real ni publicar Silver en Delta. Gold y la integración meteorológica quedan
 fuera del alcance implementado. Una carga Bronze no demuestra calidad ni
 resultados energéticos.
 
+## Organización del código
+
+El código se agrupa por responsabilidad en `src/tfm_lakehouse/ingestion/`,
+`selection/`, `comparison/` y `silver/`. La configuración, Spark y las
+herramientas compartidas permanecen en la raíz del paquete. Las pruebas siguen
+la misma organización, con los fixtures comunes en `tests/fixtures/`.
+
 ## Entorno verificado
 
 Ubuntu 26.04.1 LTS en WSL2, Python 3.11.17, OpenJDK 17.0.20.1,

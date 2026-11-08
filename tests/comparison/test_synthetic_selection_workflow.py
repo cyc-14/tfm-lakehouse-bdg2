@@ -11,13 +11,13 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pytest
 from openpyxl import Workbook
 
-from tfm_lakehouse.bdg2_comparison import APPROVED_BUILDINGS
-from tfm_lakehouse.comparison_csv import CsvAdapterError
-from tfm_lakehouse.comparison_xlsx import XlsxInput, _serial_timestamp
-from tfm_lakehouse.controlled_synthetic_verification import SyntheticSpec, assess_synthetic
-from tfm_lakehouse.excel_bdg2_comparison import Cell
+from tfm_lakehouse.comparison.bdg2_comparison import APPROVED_BUILDINGS
+from tfm_lakehouse.comparison.comparison_csv import CsvAdapterError
+from tfm_lakehouse.comparison.comparison_xlsx import XlsxInput, _serial_timestamp
+from tfm_lakehouse.comparison.controlled_synthetic_verification import SyntheticSpec, assess_synthetic
+from tfm_lakehouse.comparison.excel_bdg2_comparison import Cell
 from tfm_lakehouse.source_provenance import ProvenanceError
-from tfm_lakehouse.synthetic_selection_workflow import SelectionGridError, run_synthetic_workflow
+from tfm_lakehouse.comparison.synthetic_selection_workflow import SelectionGridError, run_synthetic_workflow
 
 
 def digest(content):
@@ -127,7 +127,7 @@ def test_selection_order_mismatch_prevents_comparison(synthetic_sources, monkeyp
     fake = XlsxInput(({"timestamp": decoded},),
                      ({"timestamp": {"raw": token, **info}},), "1900",
                      ("timestamp", *APPROVED_BUILDINGS), "Hoja1")
-    monkeypatch.setattr("tfm_lakehouse.synthetic_selection_workflow.read_xlsx_snapshot",
+    monkeypatch.setattr("tfm_lakehouse.comparison.synthetic_selection_workflow.read_xlsx_snapshot",
                         lambda snapshot, ids: fake)
     result = run(reversed_metadata, electricity, b"synthetic")
     selection = result["selection_reproduction"]
@@ -145,7 +145,7 @@ def test_invalid_nonmissing_value_blocks_even_when_approved_selection_matches(
 ):
     metadata, electricity, _ = synthetic_sources
     broken = electricity.replace(b",0,0,0", b",bad,0,0", 1)
-    monkeypatch.setattr("tfm_lakehouse.synthetic_selection_workflow.read_xlsx_snapshot",
+    monkeypatch.setattr("tfm_lakehouse.comparison.synthetic_selection_workflow.read_xlsx_snapshot",
                         lambda snapshot, ids: XlsxInput((), (), "1900",
                                                        ("timestamp", *APPROVED_BUILDINGS), "Hoja1"))
     result = run(metadata, broken, b"synthetic")
@@ -171,7 +171,7 @@ def test_every_temporal_adjustment_is_retained_beyond_example_limit(synthetic_so
         assert decoded == labels[index]
         observed[index] = {"timestamp": {"kind": "d", "raw_type": "n", "raw": token, **info}}
     fake = XlsxInput(records, tuple(observed), "1900", ("timestamp", *APPROVED_BUILDINGS), "Hoja1")
-    monkeypatch.setattr("tfm_lakehouse.synthetic_selection_workflow.read_xlsx_snapshot",
+    monkeypatch.setattr("tfm_lakehouse.comparison.synthetic_selection_workflow.read_xlsx_snapshot",
                         lambda snapshot, ids: fake)
     result = run(metadata, electricity, b"synthetic")
     trace = result["temporal_adjustment_trace"]
@@ -333,7 +333,7 @@ def test_xlsx_structure_checked_even_when_selection_failed(synthetic_sources, mo
     lines = metadata.splitlines(keepends=True)
     reordered = lines[0] + b"".join(reversed(lines[1:]))
     fake = XlsxInput((), (), "1900", ("timestamp", *reversed(APPROVED_BUILDINGS)), "Hoja1")
-    monkeypatch.setattr("tfm_lakehouse.synthetic_selection_workflow.read_xlsx_snapshot",
+    monkeypatch.setattr("tfm_lakehouse.comparison.synthetic_selection_workflow.read_xlsx_snapshot",
                         lambda snapshot, ids: fake)
     report = assess((reordered, electricity, b"fixture"))
     assert report["stages"]["selection_reconciliation"] == "failed"
@@ -401,7 +401,7 @@ def test_controlled_adjusted_timestamp_is_nominally_consistent_but_not_verified(
 
 @pytest.fixture
 def real_entry_fixture(tmp_path, synthetic_sources, monkeypatch):
-    from tfm_lakehouse.controlled_real_verification import (
+    from tfm_lakehouse.comparison.controlled_real_verification import (
         ExecutionAuthorization, RealVerificationSpec, _OPERATIONS,
     )
 
@@ -427,7 +427,7 @@ def real_entry_fixture(tmp_path, synthetic_sources, monkeypatch):
 
 
 def test_real_entry_full_synthetic_files(real_entry_fixture, capsys):
-    from tfm_lakehouse.controlled_real_verification import verify_real_sources
+    from tfm_lakehouse.comparison.controlled_real_verification import verify_real_sources
 
     spec, authorization = real_entry_fixture
     before = tuple(path.read_bytes() for path in
@@ -459,7 +459,7 @@ def test_real_entry_full_synthetic_files(real_entry_fixture, capsys):
 ])
 def test_real_entry_rejects_bad_scope_before_opening_sources(real_entry_fixture, monkeypatch,
                                                             change, expected):
-    import tfm_lakehouse.controlled_real_verification as entry
+    import tfm_lakehouse.comparison.controlled_real_verification as entry
 
     spec, authorization = real_entry_fixture
     if change == "authorization":
@@ -489,7 +489,7 @@ def test_real_entry_rejects_bad_scope_before_opening_sources(real_entry_fixture,
 
 
 def test_real_entry_wrong_hash_and_read_error(real_entry_fixture):
-    from tfm_lakehouse.controlled_real_verification import verify_real_sources
+    from tfm_lakehouse.comparison.controlled_real_verification import verify_real_sources
 
     spec, auth = real_entry_fixture
     spec = replace(spec, expected_sha256=("0" * 64, *spec.expected_sha256[1:]))
@@ -512,7 +512,7 @@ def test_real_entry_wrong_hash_and_read_error(real_entry_fixture):
     ("mismatch", "comparison_assessment"),
 ])
 def test_real_entry_synthetic_failure_modes(real_entry_fixture, change, stage):
-    from tfm_lakehouse.controlled_real_verification import verify_real_sources
+    from tfm_lakehouse.comparison.controlled_real_verification import verify_real_sources
 
     spec, auth = real_entry_fixture
     paths = (spec.metadata_path, spec.electricity_path, spec.xlsx_path)
@@ -561,7 +561,7 @@ def test_real_entry_synthetic_failure_modes(real_entry_fixture, change, stage):
 
 def test_real_entry_rejects_config_source_hardlink_and_symlink(real_entry_fixture, monkeypatch):
     import os
-    import tfm_lakehouse.controlled_real_verification as entry
+    import tfm_lakehouse.comparison.controlled_real_verification as entry
 
     spec, auth = real_entry_fixture
     spec.xlsx_path.unlink()
@@ -573,7 +573,7 @@ def test_real_entry_rejects_config_source_hardlink_and_symlink(real_entry_fixtur
 
 
 def test_real_entry_detects_source_substitution(real_entry_fixture, monkeypatch):
-    import tfm_lakehouse.controlled_real_verification as entry
+    import tfm_lakehouse.comparison.controlled_real_verification as entry
 
     spec, auth = real_entry_fixture
     original = entry._run_verified_workflow
@@ -593,7 +593,7 @@ def test_real_entry_detects_source_substitution(real_entry_fixture, monkeypatch)
 
 def test_real_entry_read_error_is_sanitized(real_entry_fixture, monkeypatch):
     import tfm_lakehouse.source_provenance as provenance
-    from tfm_lakehouse.controlled_real_verification import verify_real_sources
+    from tfm_lakehouse.comparison.controlled_real_verification import verify_real_sources
 
     spec, auth = real_entry_fixture
     def failed_read(self, buffer):
@@ -610,7 +610,7 @@ def test_real_entry_read_error_is_sanitized(real_entry_fixture, monkeypatch):
     '\n[spark]\nivy_dir = "raw/ivy"\n',
 ])
 def test_real_entry_enforces_full_project_config(real_entry_fixture, extension):
-    from tfm_lakehouse.controlled_real_verification import verify_real_sources
+    from tfm_lakehouse.comparison.controlled_real_verification import verify_real_sources
 
     spec, auth = real_entry_fixture
     with spec.config_path.open("a") as config:

@@ -46,8 +46,9 @@ src/tfm_lakehouse/
     snapshot.py               # consulta de publicaciones completas
 scripts/check_environment.py  # alternativa al comando check-environment
 tests/
-  test_config.py, test_sources.py, test_environment.py
-  test_bronze.py, test_bronze_safety.py, test_real_data.py
+  test_config.py, test_environment.py
+  ingestion/
+    test_sources.py, test_bronze.py, test_bronze_safety.py, test_real_data.py
   fixtures/synthetic_bdg2/data/{meters/raw,metadata,weather}/
 docs/
   hitos-1-2.md

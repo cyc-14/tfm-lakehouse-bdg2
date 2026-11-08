@@ -10,11 +10,11 @@ import pytest
 from openpyxl import Workbook
 from openpyxl.utils.datetime import MAC_EPOCH
 
-from tfm_lakehouse.comparison_csv import iter_csv_electricity
-from tfm_lakehouse.comparison_xlsx import (
+from tfm_lakehouse.comparison.comparison_csv import iter_csv_electricity
+from tfm_lakehouse.comparison.comparison_xlsx import (
     XlsxAdapterError, compare_xlsx_electricity, read_xlsx_electricity,
 )
-from tfm_lakehouse.excel_bdg2_comparison import Cell, compare_electricity
+from tfm_lakehouse.comparison.excel_bdg2_comparison import Cell, compare_electricity
 
 
 def workbook_file(tmp_path, rows, *, epoch=None, sheet="Hoja1", iso_dates=False):

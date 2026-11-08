@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from tfm_lakehouse.comparison_csv import CsvAdapterError, iter_csv_electricity
-from tfm_lakehouse.excel_bdg2_comparison import Cell, compare_electricity
+from tfm_lakehouse.comparison.comparison_csv import CsvAdapterError, iter_csv_electricity
+from tfm_lakehouse.comparison.excel_bdg2_comparison import Cell, compare_electricity
 
 
 T1 = "2020-01-01 00:00:00"

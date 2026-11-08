@@ -10,9 +10,9 @@ from pyspark.sql.types import (
     StructType,
 )
 
-from tfm_lakehouse.silver_electricity import electricity_to_long
-from tfm_lakehouse.silver_electricity_numeric import interpret_electricity_numeric
-from tfm_lakehouse.silver_electricity_temporal import interpret_electricity_temporal
+from tfm_lakehouse.silver.silver_electricity import electricity_to_long
+from tfm_lakehouse.silver.silver_electricity_numeric import interpret_electricity_numeric
+from tfm_lakehouse.silver.silver_electricity_temporal import interpret_electricity_temporal
 
 
 # Explicit expectations are independent of the implementation's parser.

@@ -5,12 +5,12 @@ from fractions import Fraction
 import pytest
 from openpyxl import Workbook
 
-from tfm_lakehouse.bdg2_comparison import (
+from tfm_lakehouse.comparison.bdg2_comparison import (
     APPROVED_BUILDINGS, compare_bdg2, validate_bdg2_calendar,
 )
-from tfm_lakehouse.comparison_csv import iter_csv_electricity
-from tfm_lakehouse.comparison_xlsx import XlsxInput, read_xlsx_electricity
-from tfm_lakehouse.excel_bdg2_comparison import Cell, ComparisonError
+from tfm_lakehouse.comparison.comparison_csv import iter_csv_electricity
+from tfm_lakehouse.comparison.comparison_xlsx import XlsxInput, read_xlsx_electricity
+from tfm_lakehouse.comparison.excel_bdg2_comparison import Cell, ComparisonError
 
 
 @pytest.fixture(scope="module")

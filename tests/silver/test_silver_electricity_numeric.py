@@ -9,8 +9,8 @@ from pyspark.sql.types import (
     BooleanType, DecimalType, IntegerType, StringType, StructField, StructType,
 )
 
-from tfm_lakehouse import silver_electricity_numeric as numeric
-from tfm_lakehouse.silver_electricity import electricity_to_long
+from tfm_lakehouse.silver import silver_electricity_numeric as numeric
+from tfm_lakehouse.silver.silver_electricity import electricity_to_long
 
 
 CASES = [

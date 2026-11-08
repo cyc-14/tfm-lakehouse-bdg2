@@ -70,7 +70,7 @@ del plan general quedó fuera de aquel incremento; su estado se consulta en el
 
 ### Interfaces y esquema provisional
 
-El módulo `src/tfm_lakehouse/silver_electricity.py` ofrece:
+El módulo `src/tfm_lakehouse/silver/silver_electricity.py` ofrece:
 
 ```python
 electricity_to_long(bronze, electricity_columns) -> DataFrame
@@ -166,14 +166,14 @@ columnas. No se han medido rendimiento, escalabilidad ni umbrales de anchura.
 
 ### Verificación sintética y límites
 
-`tests/test_silver_electricity.py` separa validaciones `unit` sin JVM de pruebas
+`tests/silver/test_silver_electricity.py` separa validaciones `unit` sin JVM de pruebas
 `integration` con Spark/Delta y datos inventados. La integración crea una
 publicación Bronze temporal válida y después una versión eléctrica física
 divergente sin publicación completa. Verifica que la interfaz consume la versión
 publicada, conserva el linaje y concilia 4×2=8 filas, incluidos los duplicados.
 Solo se escriben tablas Bronze sintéticas temporales; no se persiste Silver.
 
-Selección focal: `tests/test_silver_electricity.py`; regresión general:
+Selección focal: `tests/silver/test_silver_electricity.py`; regresión general:
 `-m "not real_data and not performance"`, con `TFM_REAL_CONFIG` ausente. Para
 evitar descargas y cambios en Ivy se utiliza el [perfil de JAR locales](hitos-1-2.md#perfil-temporal-sin-resolución-maven),
 con copias en un directorio temporal. En este incremento también se asignaron
@@ -203,7 +203,7 @@ BDG2 reales, ni se modificaron dependencias o los archivos de Git.
 
 El procedimiento siguiente reproduce el perfil utilizado. Ejecutarlo primero
 tal como aparece para la selección focal y, en un proceso nuevo, omitir el
-argumento `"tests/test_silver_electricity.py"` para la suite general. Requiere
+argumento `"tests/silver/test_silver_electricity.py"` para la suite general. Requiere
 los JAR ya disponibles y un entorno que permita los sockets locales de Spark;
 si falta un artefacto, termina sin descargarlo.
 
@@ -254,7 +254,7 @@ with TemporaryDirectory(prefix="tfm-h051-tests-") as temporary:
     manager.configure_spark_with_delta_pip = local_jars
     status = pytest.main([
         "-q", "-p", "no:cacheprovider",
-        "tests/test_silver_electricity.py",
+        "tests/silver/test_silver_electricity.py",
         "-m", "not real_data and not performance",
         "--basetemp", str(root / "pytest"),
     ])

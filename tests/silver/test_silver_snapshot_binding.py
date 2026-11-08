@@ -5,12 +5,12 @@ from types import SimpleNamespace
 import pytest
 from pyspark.sql.types import StringType, StructField, StructType
 
-from tfm_lakehouse.bdg2_comparison import APPROVED_BUILDINGS
+from tfm_lakehouse.comparison.bdg2_comparison import APPROVED_BUILDINGS
 from tfm_lakehouse.config import BronzeConfig
 from tfm_lakehouse.ingestion import snapshot
 from tfm_lakehouse.ingestion.snapshot import SnapshotError
-from tfm_lakehouse.silver_electricity import _LINEAGE_COLUMNS
-from tfm_lakehouse.silver_snapshot_binding import transform_published_synthetic_electricity
+from tfm_lakehouse.silver.silver_electricity import _LINEAGE_COLUMNS
+from tfm_lakehouse.silver.silver_snapshot_binding import transform_published_synthetic_electricity
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def publication(tmp_path):
                                   "missing_hash", "bad_hash", "bad_schema", "bad_count", "zero_count",
                                   "source_mismatch", "escape"])
 def test_explicit_publication_rejects_invalid_inputs_without_fallback(publication, monkeypatch, case):
-    import tfm_lakehouse.silver_snapshot_binding as binding
+    import tfm_lakehouse.silver.silver_snapshot_binding as binding
     cfg, report, path = publication
     if case == "missing":
         path.unlink()
