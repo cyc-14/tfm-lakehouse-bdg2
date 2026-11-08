@@ -352,7 +352,7 @@ identifican por sí solos una nueva ruta explotable en el perfil actual.
 **Comprobado en la implementación:** el gestor exige master local; configura
 Delta y desactiva la UI. Bronze valida el contenido CSV y usa `.csv()` con
 comprobación posterior de la fuente local exacta. Se aplican las protecciones
-de rutas y arranque Ivy ya documentadas. H03.2/H03.3 utilizan lectores Python
+de rutas y arranque Ivy ya documentadas. La caracterización eléctrica y la meteorológica utilizan lectores Python
 sin JVM. Ninguno de estos controles corrige los bytes vulnerables.
 
 **Condiciones de la propuesta, no una lista técnicamente impuesta por el código:**
@@ -696,7 +696,7 @@ sobre el mismo destino, sin repositorios nuevos. No deben excluirse. Una prueba
 complementaria consulta el checkout existente: `check-ignore --no-index` verifica
 las reglas y `ls-files` comprueba por separado que los datos privados no estén
 versionados. Los controles de fixtures y código detectan exclusiones excesivas.
-Los hashes requeridos por las fixtures H03.3 siguen siendo exclusivamente
+Los hashes requeridos por las fixtures de caracterización meteorológica y temporal siguen siendo exclusivamente
 sintéticos. Si falta Git, esa comprobación adicional declara su omisión; los
 dos casos con dobles siguen ejecutándose.
 
@@ -707,7 +707,7 @@ No modifica las cifras históricas anteriores ni acredita una ejecución BDG2.
 | Selección ejecutada | Superadas | Fallidas | Excluidas por selección |
 | --- | --- | --- | --- |
 | Dos casos corregidos y política Git del checkout | 3 | 0 | 0 |
-| H03.2 + H03.3 completos | 163 | 0 | 0 |
+| caracterización eléctrica y de metadatos + caracterización meteorológica y temporal completos | 163 | 0 | 0 |
 | Selección completa `unit` | 426 | 0 | 27, fuera del marcador seleccionado |
 | Suite general con el perfil temporal siguiente | 452 | 0 | 1, `real_data` |
 
@@ -789,7 +789,7 @@ pruebas y documentación sí se versionan. Los informes JSON/XML y logs de ejecu
 se guardan localmente bajo data/checks o data/lakehouse/<kind>/_runs y están ignorados.
 El historial y la publicación del repositorio los gestionan los autores.
 
-La [transformación preliminar H05.1](hitos-5.md#h051--transformación-técnica-preliminar)
+La [transformación preliminar de electricidad a formato largo — H05](hitos-5.md#transformación-eléctrica-a-formato-largo--h05)
 ya conserva la electricidad en formato largo y está probada con datos sintéticos;
 no interpreta valores o tiempos ni persiste Silver. Siguen pendientes la aprobación
 conjunta de selección y contratos, la interpretación y validación analítica,

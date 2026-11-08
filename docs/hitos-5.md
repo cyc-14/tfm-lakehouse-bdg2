@@ -1,6 +1,6 @@
 # Hito 5 — Silver de electricidad y controles de calidad
 
-**Estado:** H05 formal pendiente; H05.1 preliminar implementado, con verificación
+**Estado:** H05 formal pendiente; transformación eléctrica a formato largo implementada de forma preliminar, con verificación
 sintética registrada al final de esta guía. **Responsabilidad:** Carlos implementa el flujo;
 Irantzu define y valida las reglas analíticas. **Objetivos:** OE3, OE4.
 **Requisito previo para H05 formal:** contratos aceptados en H04.
@@ -59,7 +59,7 @@ No incorporar otros combustibles, imputaciones no aprobadas, meteorología,
 predicciones ni indicadores Gold. H06 requiere que el flujo eléctrico
 mínimo cumpla su contrato y haya superado una revisión técnica.
 
-## H05.1 — Transformación técnica preliminar
+## Transformación eléctrica a formato largo — H05
 
 Incremento autorizado por separado el 01/11/2026, exclusivamente con datos
 sintéticos. No aprueba H04 ni completa H05: la selección definitiva y los
@@ -198,7 +198,7 @@ Los errores del primer intento corresponden a `java.net.SocketException:
 Operation not permitted`, no a aserciones de la transformación. No motivaron
 cambios en el código de Spark. Las duraciones describen estas ejecuciones de
 pruebas, no constituyen un benchmark. La suite general incluye las regresiones
-de Bronze, Spark, H03.2 y H03.3. No se ejecutaron ingestas ni caracterizaciones
+de Bronze, Spark, caracterización eléctrica y de metadatos y caracterización meteorológica y temporal. No se ejecutaron ingestas ni caracterizaciones
 BDG2 reales, ni se modificaron dependencias o los archivos de Git.
 
 El procedimiento siguiente reproduce el perfil utilizado. Ejecutarlo primero
@@ -269,22 +269,21 @@ imputación e indicadores Gold. Su aprobación corresponde a H04 y a incrementos
 posteriores expresamente autorizados. Este componente no se ha validado con
 BDG2 real ni modifica el riesgo residual JVM documentado en AUD-09.
 
-## H05.2 — Interpretación sintética incremental
+## Interpretación numérica y temporal — H05
 
 Las etapas `interpret_electricity_numeric` e `interpret_electricity_temporal`
 añaden respectivamente cinco campos numéricos y tres temporales nominales al
 formato largo. La segunda conserva el esquema y los valores recibidos, sin
 asignar zona horaria ni interpretar las etiquetas como instantes físicos.
 
-La verificación sintética de H05.2.2 y las regresiones seleccionadas de H05.2.1
-y H05.1 sumaron 126 pruebas superadas; se excluyó la prueba del lector que
+La verificación sintética de la interpretación numérica y temporal y las regresiones seleccionadas de las pruebas iniciales y de transformación a formato largo sumaron 126 pruebas superadas; se excluyó la prueba del lector que
 escribe Delta. Las pruebas temporales cubren calendario, precedencia, esquema,
 duplicados y composición con ambas etapas anteriores, con distintas opciones
 ANSI, zonas horarias y políticas de análisis de fechas. No se han procesado
 datos BDG2 reales ni publicado Silver. En aquel momento quedaba pendiente la
 integración obligatoria de 10.000 filas largas sintéticas.
 
-En la verificación posterior de H05.2.3, 5.000 filas Bronze sintéticas y dos
+En la verificación posterior de integración sintética de 10.000 filas, 5.000 filas Bronze sintéticas y dos
 columnas de edificio produjeron 10.000 filas largas. Se comprobaron las tres
 etapas, los multiconjuntos, duplicados, nulos, linaje, metadatos y esquemas,
 así como el resultado tras reordenar y reparticionar la entrada. La selección
@@ -294,13 +293,13 @@ pasaron. La selección H05 cubre opciones ANSI, zonas UTC y con DST, y política
 de análisis temporal. La prueba condicional de 100.000 filas no se ha ejecutado.
 La revisión independiente detectó que faltaba materializar y comparar las
 etapas intermedias; se añadieron esas comprobaciones y se repitió la selección.
-Con estos resultados queda verificado el contrato sintético H05.2. Esto no
+Con estos resultados queda verificado sintéticamente el contrato de interpretación numérica y temporal. Esto no
 autoriza procesar BDG2 real ni publicar tablas Silver.
 
-## H05.3 — Integración de la selección eléctrica
+## Integración Silver eléctrica — H05
 
 `transform_selected_electricity` recibe un DataFrame Bronze ya suministrado y
-compone H05.1 con las interpretaciones numérica y temporal de H05.2. Exige las
+compone la transformación a formato largo con las etapas de interpretación numérica y temporal. Exige las
 16 columnas aprobadas, con coincidencia exacta; rechaza las ausentes y los
 esquemas incompatibles del contrato Bronze. Otras columnas eléctricas no
 seleccionadas no se transforman. No busca ni selecciona publicaciones, ejecuta
@@ -317,12 +316,12 @@ de fila. Un contexto de publicación facilitado expresamente añade
 `_bronze_table_path`; ese contexto declarado no autentica el DataFrame ni
 demuestra que proceda de esa publicación. Si no se facilita, no se inventa.
 
-Los valores y etiquetas originales, nulos y duplicados se conservan. H05.2
+Los valores y etiquetas originales, nulos y duplicados se conservan. La interpretación numérica y temporal
 distingue ausencias, finitos, sintaxis inválida, literales no finitos, desborde,
 subdesborde y exceso de escala; el texto original permanece incluso cuando no
 cabe en el decimal. Sus indicadores de cero y negativo son diagnósticos. La
 interpretación temporal es nominal y no resuelve zona, UTC ni DST. No se aplica
-R5 de selección como sustituto de las categorías de H05.2, ni se imputan,
+R5 de selección como sustituto de las categorías de interpretación, ni se imputan,
 agregan o eliminan valores por calidad o por IQR.
 
 Siguen pendientes la aceptación de los contratos y decisiones metodológicas
@@ -332,14 +331,14 @@ diseño y pruebas de persistencia, reejecución, recuperación y conciliación.
 H04 mantiene pendiente la comparación entre sus fuentes; esta integración no
 acredita su equivalencia ni constituye ejecución real.
 
-La verificación H05.3 y las regresiones H05 seleccionadas han superado 137
+La verificación de la integración eléctrica en Silver y las regresiones H05 seleccionadas han superado 137
 pruebas con datos sintéticos; se excluyó la prueba del lector que escribe Delta.
 La integración nueva comprueba las 16 columnas, multiplicidad, estados de
 calidad y contexto declarado. El primer intento en el entorno restringido no
 pudo iniciar la pasarela local de Spark; las pruebas se repitieron con sockets
 locales y directorios temporales. No se han procesado datos reales.
 
-## H05.4 — Vínculo con una publicación Bronze sintética
+## Vínculo con una publicación Bronze sintética — H05
 
 `transform_published_synthetic_electricity` exige un `run_id` explícito y
 consulta únicamente su informe `<run_id>.json` en el directorio de ejecuciones
@@ -352,9 +351,9 @@ los bytes y las pruebas utilizan exclusivamente recursos temporales sintéticos.
 El informe H02 identifica las fuentes y la versión Delta de cada tabla. Se
 reutilizan sus controles de configuración, rutas, estado, metadatos del commit,
 esquema, recuento y lectura mediante `versionAsOf`. Sobre electricidad se exige
-además el esquema H05.3 y que las cuatro columnas de linaje de todas las filas
+además el esquema de la integración eléctrica en Silver y que las cuatro columnas de linaje de todas las filas
 coincidan con los datos declarados en el informe y la configuración, sin nulos.
-El DataFrame leído y su contexto pasan juntos a H05.3; no se acepta un DataFrame
+El DataFrame leído y su contexto pasan juntos a la integración eléctrica en Silver; no se acepta un DataFrame
 externo como prueba de pertenencia. La comparación de linaje y metadatos no
 demuestra por sí sola la autenticidad de la fuente externa.
 
@@ -367,7 +366,7 @@ las garantías no establecidas; no certifica automáticamente la corrección de
 cada resultado Silver. Las pruebas con lectores simulados comprueban la
 orquestación y las versiones solicitadas, no autentican una tabla Delta real.
 
-La selección H05.4 y las regresiones H05 y H02 ejecutadas han superado 172
+La verificación del vínculo con la publicación Bronze y las regresiones H05 y H02 ejecutadas han superado 172
 pruebas sintéticas; se excluyó una prueba del lector que escribe Delta. La
 revisión independiente detectó y verificó la corrección de los controles de
 linaje discordante o nulo y de informes con recuento vacío.
@@ -378,7 +377,7 @@ metodológicas y autorizaciones correspondientes. Persistir Silver requiere otro
 diseño de publicación, conciliación, recuperación y reejecución; H04 mantiene
 aparte su comparación Excel–BDG2 pendiente.
 
-## H05.5 — Publicación Silver sintética y recuperación conservadora
+## Publicación Silver sintética y recuperación conservadora — H05
 
 `publish_synthetic_silver` admite únicamente configuraciones declaradas
 `synthetic` y un directorio aislado bajo `/tmp`. Comprueba que las rutas Bronze
@@ -392,8 +391,8 @@ La identidad lógica combina el `run_id` Bronze y la versión de transformación
 otra copia de esa combinación. Solo se admite esa versión de transformación:
 una versión futura requiere una implementación y un contrato nuevos. La
 intención conserva la huella del informe Bronze, los nombres, rutas, hashes y
-versiones declarados por tabla, y los recuentos previstos. H05.4 devuelve la
-huella de los bytes exactos que interpretó; H05.5 la contrasta antes de escribir.
+versiones declarados por tabla y los recuentos previstos. La vinculación con la publicación Bronze devuelve la
+huella de los bytes exactos que interpretó. Antes de escribir, la publicación sintética en Silver contrasta esa huella.
 El informe H02 no aporta un identificador inmutable de tabla Bronze, y sus
 metadatos no acreditan la procedencia externa.
 
@@ -425,14 +424,14 @@ datos o destinos reales necesita otro contrato, autorización expresa, decisione
 metodológicas y validación de recuperación; H05 no queda cerrado y H04 mantiene
 su comparación pendiente.
 
-## H05.6 — Diagnóstico conservador de calidad
+## Diagnóstico conservador de calidad — H05
 
 `summarize_electricity_quality` recibe un DataFrame con el esquema eléctrico de
-H05.3 y devuelve otro DataFrame de resumen, sin modificar ni publicar las
-mediciones. Reutiliza los estados y banderas de H05.2. Comprueba el esquema,
+integración eléctrica en Silver y devuelve un DataFrame de resumen, sin modificar ni publicar
+las mediciones. Reutiliza los estados y banderas de la etapa de interpretación numérica y temporal. Comprueba el esquema,
 los identificadores y las categorías, y rechaza valores de bandera o numéricos
-incompatibles con el estado declarado. Recibe una salida H05.3 íntegra y confía
-en la interpretación temporal H05.2; no vuelve a interpretar ni autenticar las
+incompatibles con el estado declarado. Recibe una salida íntegra de la integración eléctrica en Silver y confía
+en las etiquetas de tiempo nominal de la etapa de interpretación; no vuelve a interpretar ni autenticar las
 etiquetas o fechas facilitadas. La comprobación ejecuta una acción Spark;
 la agregación posterior es diferida y requiere que la entrada siga disponible y
 sin cambios hasta evaluarla. La función no autentica la procedencia ni autoriza
@@ -484,7 +483,7 @@ pendientes. La ejecución con fuentes reales requiere decisiones y autorización
 expresas, revisión de procedencia y rutas y un contrato de publicación real;
 este diagnóstico no las concede.
 
-La verificación sintética de H05.6 superó tres pruebas focales. Las regresiones
+La verificación sintética de diagnóstico de calidad superó tres pruebas focales. Las regresiones
 H05 y compatibilidad de módulos superaron 181 pruebas; las de H02, configuración
 y Spark, 228, con una prueba real excluida. La selección sintética general
 superó 858 pruebas y excluyó la prueba real y una prueba de política que consulta

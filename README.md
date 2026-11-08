@@ -13,8 +13,7 @@ Hito 2 implementa Bronze para electricidad en formato ancho, metadatos y
 meteorología opcional. La suite habitual usa fixtures **exclusivamente
 sintéticos**; las pruebas con datos reales requieren autorización expresa.
 Los originales BDG2 y sus salidas se conservan localmente, fuera de Git.
-H03.1 documenta la procedencia de fuentes; H03.2 y H03.3 disponen de herramientas,
-pruebas y ejecuciones reales históricas contrastadas. H03.2 v2 está probado con
+H03 incluye la verificación de procedencia y las caracterizaciones eléctrica y meteorológica, con herramientas, pruebas y ejecuciones reales históricas contrastadas. La versión 2 de la caracterización eléctrica está probada con
 sintéticos, sin nueva ejecución BDG2. El cierre académico global de H03 sigue
 pendiente. El [registro de hitos](docs/milestones.md) mantiene el estado principal
 y separa las revisiones técnicas de las decisiones académicas.
@@ -25,10 +24,9 @@ límites inclusivos de 3.500–6.000 m², excluye los tres edificios de subcateg
 pendientes la verificación reproducible de la procedencia y la reproducción de
 la selección desde las fuentes originales.
 
-[H05.1](docs/hitos-5.md#h051--transformación-técnica-preliminar) transforma
-electricidad a formato largo y está validado sintéticamente. H05.2 implementa la
-interpretación numérica y temporal nominal, también validada sintéticamente según
-la evidencia histórica documentada. No se ha autorizado validar Silver con BDG2
+La [transformación eléctrica a formato largo — H05](docs/hitos-5.md#transformación-eléctrica-a-formato-largo--h05) está validada con datos sintéticos. H05 incluye la
+interpretación numérica y temporal, también validada sintéticamente según la
+evidencia histórica documentada. No se ha autorizado validar Silver con BDG2
 real ni publicar Silver en Delta. Gold y la integración meteorológica quedan
 fuera del alcance implementado. Una carga Bronze no demuestra calidad ni
 resultados energéticos.
@@ -118,8 +116,8 @@ Fuentes: [repositorio oficial](https://github.com/buds-lab/building-data-genome-
 
 - [Arquitectura, contratos, configuración y comandos](docs/hitos-1-2.md).
 - [Plan de hitos técnicos y *milestones* de GitHub](docs/milestones.md).
-- [Caracterización eléctrica y metadatos H03.2](docs/h03-2-characterization.md).
-- [Meteorología y diagnóstico temporal H03.3](docs/h03-3-weather-timezones.md).
-- [Electricidad Silver: alcance y componente preliminar H05.1](docs/hitos-5.md).
+- [Caracterización eléctrica y metadatos — H03](docs/h03-2-characterization.md).
+- [Meteorología y diagnóstico temporal — H03](docs/h03-3-weather-timezones.md).
+- [Electricidad Silver: alcance y transformación preliminar — H05](docs/hitos-5.md).
 - [Definiciones preparadas para los 12 *milestones*](docs/github-milestones.json).
 - [Fixtures sintéticos](tests/fixtures/README.md).

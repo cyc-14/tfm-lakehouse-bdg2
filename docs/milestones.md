@@ -51,10 +51,10 @@ del hito ni una nueva ejecución de una revisión posterior del código.
 | H01 | Implementado | Persistencia Delta con registros sintéticos; auditorías de entorno, Spark e Ivy | No es una validación BDG2 | No acredita resultados analíticos ni aceptación académica global |
 | H02 | Bronze implementado | Regresiones sintéticas; correcciones AUD-01/AUD-02/AUD-05/AUD-08 | Expediente histórico `data/checks/bronze-hardening/`; sin reingesta en estas correcciones | No acredita calidad energética ni aceptación académica global |
 | H03 | Subentregables técnicos disponibles | Evidencia desglosada a continuación | Ejecuciones históricas identificadas | **Cierre académico global pendiente** |
-| H03.1 | Verificación de procedencia, variantes y SHA-256 documentada | Huellas contrastadas, recogidas en configuraciones y expedientes H03 | Identidad de los originales recibidos; sin inventar una ejecución independiente adicional | Aceptación global de fuentes y contraste con la memoria pendientes |
-| H03.2 histórico v1 | Caracterización eléctrica y de metadatos implementada | Pruebas y contraste independiente; cierre técnico con observaciones aceptado el 30/10/2026 | `2026-10-30-h03-2`, contrato `h03.2-v1` | Selección final, exclusiones y comparabilidad pendientes |
-| H03.2 v2 actual | AUD-03/AUD-04 implementados: vinculación de procedencia y publicación exclusiva | Validado mediante pruebas sintéticas y regresiones | **No ejecutado nuevamente sobre BDG2 real** | No atribuir al expediente v1 las garantías automáticas v2 |
-| H03.3 | Meteorología y diagnóstico temporal implementados | Pruebas sintéticas y auditoría independiente con observaciones aceptada | `2026-10-30-h03-3`, contrato histórico `h03.3-v1` | Política temporal, integración y selección definitiva pendientes |
+| Verificación de procedencia | Verificación de procedencia, variantes y SHA-256 documentada | Huellas contrastadas, recogidas en configuraciones y expedientes H03 | Identidad de los originales recibidos; sin inventar una ejecución independiente adicional | Aceptación global de fuentes y contraste con la memoria pendientes |
+| Caracterización eléctrica y de metadatos (expediente histórico v1) | Caracterización eléctrica y de metadatos implementada | Pruebas y contraste independiente; cierre técnico con observaciones aceptado el 30/10/2026 | `2026-10-30-h03-2`, contrato `h03.2-v1` | Selección final, exclusiones y comparabilidad pendientes |
+| Evolución técnica de la caracterización eléctrica (v2) | AUD-03/AUD-04 implementados: vinculación de procedencia y publicación exclusiva | Validado mediante pruebas sintéticas y regresiones | **No ejecutado nuevamente sobre BDG2 real** | No atribuir al expediente v1 las garantías automáticas v2 |
+| Caracterización meteorológica y temporal | Meteorología y diagnóstico temporal implementados | Pruebas sintéticas y auditoría independiente con observaciones aceptada | `2026-10-30-h03-3`, contrato histórico `h03.3-v1` | Política temporal, integración y selección definitiva pendientes |
 | H04 | Diseñado en su guía; no iniciado | Pendiente | No ejecutado | Selección del caso y contratos por aprobar |
 | H05 | Planificado; no implementado | Pendiente | No ejecutado | Depende de H04 |
 | H06 | Planificado; no implementado | Pendiente | No ejecutado | Integración temporal por justificar |
@@ -67,15 +67,14 @@ del hito ni una nueva ejecución de una revisión posterior del código.
 
 ### Actualización documental — 06/11/2026 (antecedente)
 
-H05.1 está implementado y versionado como transformación técnica preliminar de
-electricidad a formato largo. La [guía H05](hitos-5.md#verificación-sintética-y-límites)
+La transformación eléctrica a formato largo está implementada y versionada como entrega técnica preliminar. La [guía H05](hitos-5.md#verificación-sintética-y-límites)
 registra 498 pruebas superadas el 01/11/2026, con datos sintéticos; esta revisión
 documental no vuelve a ejecutarlas. No interpreta números o tiempos ni persiste
 Silver, y no se ha validado con BDG2 real. H04 sigue pendiente de aprobación
-conjunta; H05 formal, H05.2, H06 y Gold continúan pendientes.
+conjunta; H05 formal, la interpretación numérica y temporal, H06 y Gold continúan pendientes.
 
-La [guía H03.2](h03-2-characterization.md) y la
-[guía H03.3](h03-3-weather-timezones.md) describen métodos y límites. Sus
+La [guía de caracterización eléctrica](h03-2-characterization.md) y la
+[guía de caracterización meteorológica](h03-3-weather-timezones.md) describen métodos y límites. Sus
 `execution.json` privados identifican fecha, revisión y hashes originales;
 no se regeneran para actualizar este registro. Los cambios de comentarios,
 pruebas o contratos posteriores no se consideran nuevas ejecuciones reales.
@@ -92,16 +91,16 @@ los 16 identificadores. Las afirmaciones de esta actualización sobre una
 aprobación pendiente reflejan el estado anterior a esa confirmación; H04 sigue
 sin cerrarse y la reproducción y procedencia siguen pendientes.
 
-**Actualización H05.3:** se ha incorporado la composición de las 16 columnas
-aprobadas con las etapas H05.1 y H05.2, sin lectura automática de snapshots ni
+**Actualización de integración eléctrica en Silver:** se ha incorporado la composición de las 16 columnas
+aprobadas con las etapas de transformación a formato largo e interpretación numérica y temporal, sin lectura automática de snapshots ni
 publicación Silver. El estado y la validación sintética constan en la guía H05;
 el procesamiento real y el cierre formal siguen pendientes.
 
-**Actualización H05.4:** el vínculo con una publicación Bronze identificada se
+**Actualización del vínculo con la publicación Bronze:** el vínculo con una publicación Bronze identificada se
 ha incorporado para configuraciones sintéticas. La guía H05 detalla los controles
 y sus límites; no acredita procedencia externa ni autoriza procesamiento real.
 
-**Actualización H05.5:** se ha incorporado una publicación Silver Delta limitada
+**Actualización de publicación sintética en Silver:** se ha incorporado una publicación Silver Delta limitada
 a directorios temporales sintéticos, con validación de contenido y recuperación
 conservadora. La guía H05 recoge sus límites; no existe publicación Silver real.
 
@@ -109,7 +108,7 @@ H01 y H02 están implementados; las evidencias de H01 corresponden a Delta con
 datos sintéticos y las de H02 incluyen regresiones sintéticas y expedientes
 históricos de procedencia. No se infiere de esas pruebas calidad analítica ni una
 nueva ejecución sobre BDG2. H03 dispone de caracterización y ejecuciones reales
-históricas identificadas; H03.2 v2 conserva validación sintética, sin nueva
+históricas identificadas; la evolución técnica de la caracterización eléctrica conserva validación sintética, sin nueva
 ejecución real, y el cierre académico global continúa pendiente.
 
 H04 documenta el embudo y un conjunto final de 16 edificios seleccionados.
@@ -121,8 +120,8 @@ al 8 %. Esta confirmación no equivale a ratificación conjunta. Siguen pendient
 la aprobación conjunta de la selección de edificios y la reproducción
 verificable de la selección y procedencia desde las fuentes originales.
 
-H05.1 está implementado y validado con datos sintéticos como transformación
-eléctrica a formato largo. H05.2 implementa la interpretación numérica y temporal
+La transformación eléctrica a formato largo está implementada y validada con
+datos sintéticos. La etapa siguiente añade la interpretación numérica y temporal
 nominal, con validación sintética obligatoria completada: la evidencia histórica
 registra 127 pruebas H05 superadas y una prueba del lector que escribe Delta
 excluida. Esos resultados no son ejecuciones nuevas de esta actualización. No se
@@ -218,6 +217,13 @@ automáticas a cuentas de GitHub.
 7. Revisión cruzada de decisiones analíticas y afirmaciones de la memoria.
    Los mensajes de cambios siguen Conventional Commits. El versionado y la
    publicación del repositorio corresponden a los autores.
+
+## Convención de nomenclatura
+
+Los únicos identificadores de hito son H01–H12. Las actividades de cada hito se
+identifican mediante títulos descriptivos, sin códigos jerárquicos nuevos. Los
+códigos históricos o técnicos solo se conservan cuando forman parte de una
+referencia reproducible y se explicita su función.
 
 ## Uso de milestones e issues en GitHub
 

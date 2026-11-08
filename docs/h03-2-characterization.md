@@ -1,9 +1,9 @@
-# H03.2 — Caracterización reproducible de electricidad BDG2
+# Caracterización reproducible de electricidad BDG2 — H03
 
 ## Alcance y estado de la evidencia
 
 Herramienta local, por lotes y de solo lectura para caracterizar CSV originales.
-Implementa el diseño aprobado de H03.2. Su existencia no acredita por sí sola una
+Implementa el diseño aprobado de caracterización eléctrica y de metadatos. Su existencia no acredita por sí sola una
 ejecución real ni el cierre del hito: los resultados de cada ejecución se guardan
 en un directorio privado, con sus hashes y comandos.
 
@@ -73,7 +73,7 @@ trabajo. No se importa ni modifica la configuración Bronze.
 La coincidencia con hashes esperados comprueba identidad de bytes. Una referencia
 de versión o una unidad declaradas no verifican por sí solas la procedencia. El
 ejemplo contiene las huellas contrastadas con los objetos oficiales v1.0 en
-H03.1; nunca sustituye raw por cleaned o kaggle.
+verificación de procedencia; nunca sustituye raw por cleaned o kaggle.
 
 ## Procedimiento y denominadores
 
@@ -285,15 +285,15 @@ automática nueva. El publicador rechaza resultados v1 o sin vinculación, en lu
 de inventar su procedencia a partir de los ajustes actuales. Los hashes totales v2
 cambian por esquema y procedencia; esto no implica cambios de resultados estadísticos.
 
-H03.3 sigue utilizando los helpers compartidos de SHA-256, CSV, clasificación,
+La guía de caracterización meteorológica sigue utilizando los helpers compartidos de SHA-256, CSV, clasificación,
 porcentajes, perfiles temporales, validación de destinos y exportación sin cambios
 en sus contratos ni comportamiento. El módulo meteorológico no cambia. Una futura
-ejecución H03.3 registrará la nueva huella de `characterization.py`; el expediente
+ejecución meteorológica registrará la nueva huella de `characterization.py`; el expediente
 histórico conserva la huella original y no se regenera para esta corrección.
 
 ## Cierre técnico y observaciones de revisión
 
-Los autores aprobaron el cierre técnico de H03.2 con observaciones el 30/10/2026,
+Los autores aprobaron el cierre técnico de caracterización eléctrica y de metadatos con observaciones el 30/10/2026,
 tras la revisión del código, las pruebas sintéticas y la reproducción de las
 métricas sobre los originales. El cierre se limita a la caracterización; no
 aprueba una selección definitiva ni acredita causas de las señales observadas.
@@ -312,9 +312,9 @@ huellas registradas. Las observaciones se documentan aquí:
 
 Siguen pendientes el contraste con el apartado 2.2.6, la trazabilidad de la
 selección histórica, la justificación del umbral del 8 %, la interpretación de
-las señales y la comparabilidad energética. La prohibición de avanzar
-automáticamente a H03.3 era una condición de aquel cierre; H03.3 se autorizó
-posteriormente y dispone de su propia guía. Ningún cierre técnico concede una
+las señales y la comparabilidad energética. La prohibición de avanzar automáticamente a la caracterización meteorológica
+formaba parte de las condiciones de aquel cierre; posteriormente se autorizó esa
+caracterización y se publicó su propia guía. Ningún cierre técnico concede una
 autorización automática para H04 u otros hitos.
 
 ## Pruebas sintéticas

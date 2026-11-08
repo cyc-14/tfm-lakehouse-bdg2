@@ -2,8 +2,7 @@
 
 **Estado:** metodología de selección contrastada con las tablas de la memoria y
 selección de 16 edificios aprobada conjuntamente; cierre de H04 pendiente de
-reproducción y verificación de procedencia. H05.2 completó su
-validación sintética obligatoria. No se ha autorizado la validación con BDG2
+reproducción y verificación de procedencia. La interpretación numérica y temporal ha completado su validación sintética obligatoria. No se ha autorizado la validación con BDG2
 real ni la publicación Silver en Delta. **Responsabilidad:** Irantzu dirige
 las decisiones analíticas; Carlos verifica su viabilidad técnica. **Objetivos:**
 OE1, OE2, OE4. **Requisito previo:** caracterización aceptada en H03.
@@ -23,9 +22,9 @@ expedientes privados. Esta revisión documental no reanaliza los CSV.
 
 | Referencia | Evidencia existente | Límite para H04 |
 | --- | --- | --- |
-| [H03.2](h03-2-characterization.md) | Expediente `data/checks/h03_2/real/2026-10-30-h03-2/`, contrato histórico `h03.2-v1`. | Utilizó 3.000–7.000 m² y obtuvo 65 candidatos por superficie; no verifica el nuevo intervalo ni la selección final de 16 edificios. |
-| [H03.3](h03-3-weather-timezones.md) | Expediente `data/checks/h03_3/real/2026-10-30-h03-3/`, contrato histórico `h03.3-v1`. | Diagnóstico meteorológico y temporal, sin unión horaria validada. |
-| [H05](hitos-5.md) | H05.1 transforma a formato largo; H05.2 implementa e interpreta valores decimales y fechas nominales, con validación sintética completada. | No aprueba la selección H04 ni acredita validación con BDG2 real o publicación Silver en Delta. |
+| [caracterización eléctrica y de metadatos](h03-2-characterization.md) | Expediente `data/checks/h03_2/real/2026-10-30-h03-2/`, contrato histórico `h03.2-v1`. | Utilizó 3.000–7.000 m² y obtuvo 65 candidatos por superficie; no verifica el nuevo intervalo ni la selección final de 16 edificios. |
+| [caracterización meteorológica y temporal](h03-3-weather-timezones.md) | Expediente `data/checks/h03_3/real/2026-10-30-h03-3/`, contrato histórico `h03.3-v1`. | Diagnóstico meteorológico y temporal, sin unión horaria validada. |
+| [H05](hitos-5.md) | La transformación eléctrica a formato largo y la interpretación de valores decimales y fechas nominales cuentan con validación sintética. | No aprueba la selección H04 ni acredita validación con BDG2 real o publicación Silver en Delta. |
 
 ### Selección final: contraste visual con la memoria
 
@@ -39,20 +38,20 @@ originales.
 
 La memoria indica que solo tres de los 168 edificios tienen subcategoría `Hotel`
 y menciona, además, `Dormitory`, `Lodging /residential` y
-`Other - Lodging/residential`. H03.2 registra históricamente
+`Other - Lodging/residential`. La caracterización eléctrica registra históricamente
 `Hotel` (3), `Dormitory` (93), `Lodging/residential` (4) y
 `Other - Lodging/Residential` (10): las cuatro categorías suman 110 y las tres
 distintas de `Hotel`, 107. Según la confirmación conjunta recibida para
-H04.14.A2, ambos autores aprueban incluir exactamente las tres subcategorías
+H04.14.A2 (referencia histórica de aprobación), ambos autores aprueban incluir exactamente las tres subcategorías
 citadas y excluir `Hotel` y las restantes dentro de `Lodging/residential`.
-Los recuentos 93, 4 y 10 son referencias históricas de H03.2, no resultados del
+Los recuentos 93, 4 y 10 son referencias históricas de caracterización eléctrica y de metadatos, no resultados del
 nuevo verificador. La justificación académica concreta de excluir `Hotel`
 sigue pendiente. No se afirma que sus mediciones fueran inadecuadas ni se
-alteran los resultados históricos de H03.2.
+alteran los resultados históricos de caracterización eléctrica y de metadatos.
 
-Según la confirmación comunicada para H04.14.B0, ambos autores aprueban los 16
+Según la confirmación comunicada para H04.14.B0 (referencia histórica de aprobación), ambos autores aprueban los 16
 identificadores enumerados en la tabla 4. Según la confirmación conjunta recibida
-para H04.14.A2, ambos autores aprueban el uso de
+para H04.14.A2 (referencia histórica de aprobación), ambos autores aprueban el uso de
 `sqm` con el intervalo inclusivo `3500 <= sqm <= 6000`, calculado con
 aritmética decimal exacta. `sqm` es el campo
 de metadatos observado en el código y la documentación H03; la expresión resume
@@ -114,7 +113,7 @@ correspondencia del Excel, la comparación celda a celda con las mediciones
 originales queda pendiente de un procedimiento y resultados reproducibles.
 La memoria describe el caso como una cadena hotelera ficticia y presenta los
 edificios como residencias de estudiantes; no deben interpretarse como hoteles
-reales. H03.2 registra
+reales. La caracterización eléctrica registra
 `Dormitory` para los ocho nombres que
 coinciden con sus 14 perfiles, pero no se ha verificado aquí el subuso individual
 de los otros ocho frente a metadatos originales.
@@ -129,11 +128,11 @@ sí sola su inclusión bajo el criterio comunicado para la memoria.
 
 La zona horaria de la tabla 4 es metadato declarado: por sí sola no demuestra
 la semántica de los timestamps ni resuelve cambios estacionales. La aprobación
-conjunta comunicada en H04.14.B0 ratifica los 16 identificadores de la tabla;
+conjunta comunicada en H04.14.B0 (referencia histórica de aprobación) ratifica los 16 identificadores de la tabla;
 la secuencia aplicada y la procedencia todavía deben reproducirse con las fuentes.
-La validación sintética de H05.2 no equivale a una validación con BDG2 real.
+La validación sintética de interpretación numérica y temporal no equivale a una validación con BDG2 real.
 
-### Verificador sintético H04.14.A2
+### Verificador sintético de selección — H04
 
 `src/tfm_lakehouse/selection/building_selection.py` aplica a registros y resúmenes
 proporcionados explícitamente el filtro exacto de uso, las tres subcategorías
@@ -149,9 +148,9 @@ que superan el filtro de superficie; usa el denominador fijo de 17.544 y excluye
 solo cuando `100 × missing_count > 8 × 17544` (1.403 ausencias pasan; 1.404
 excluyen). No interpreta CSV ni Excel ni reproduce o valida los datos originales.
 
-### Comparación sintética Excel–BDG2 H04.14.A3
+### Comparación sintética Excel–BDG2 — H04
 
-Según la confirmación conjunta recibida para H04.14.A3, ambos autores aprueban
+Según la confirmación conjunta recibida para H04.14.A3 (referencia histórica de aprobación), ambos autores aprueban
 R5: son ausencias los valores null, la cadena vacía exacta y el texto exacto
 `NaN`. Los ceros y negativos finitos no son ausencias; el texto no numérico se
 diagnostica por separado, sin recortes, normalización ni imputación. Un null
@@ -180,7 +179,7 @@ una celda declarada exacta depende de la evidencia que aporte quien la suministr
 El resultado se refiere a los registros y dimensiones suministrados, no acredita
 procedencia ni identifica por sí solo el periodo correcto.
 
-La validación ejecutada en H04.14.A3 comprende 24 casos sintéticos del comparador
+La validación ejecutada en H04.14.A3 (referencia histórica de aprobación) comprende 24 casos sintéticos del comparador
 y 26 del verificador de selección. En aquel incremento no había lector XLSX
 instalado ni declarado y faltaba un adaptador para el tipo y la representación
 de cada celda, así como su política de fórmulas y precisión. El núcleo de
@@ -188,9 +187,9 @@ comparación no lee archivos y, por sí solo, no verifica ambos orígenes.
 La comparación real requiere verificar variante, hashes e identidad de las
 fuentes y de la publicación, establecer el periodo y autorizar expresamente la
 ejecución con rutas y efectos revisados. Sigue pendiente el contraste con los
-originales; la selección de los 16 identificadores se aprobó después en H04.14.B0.
+originales; la selección de los 16 identificadores se aprobó después en H04.14.B0 (referencia histórica de aprobación).
 
-### Adaptador CSV sintético H04.14.A4
+### Adaptador CSV sintético — H04
 
 `src/tfm_lakehouse/comparison/comparison_csv.py` lee CSV UTF-8 con BOM opcional y sintaxis
 estándar de comillas, mediante un iterador de solo lectura. Exige `timestamp` y
@@ -206,14 +205,14 @@ campos vacíos y `NaN` exactos sin pasar por `float`; los valores son los del
 lector CSV, no una copia de su serialización. La validación completa exige
 consumir el iterador entero; el comparador actual materializa los registros.
 
-En H04.14.A4 se han superado 24 casos sintéticos del adaptador y 50 casos de
+En H04.14.A4 (referencia histórica de aprobación) se han superado 24 casos sintéticos del adaptador y 50 casos de
 regresión del comparador y la selección. Una prueba integra el CSV sintético con
 celdas preparadas en memoria; no se comparó ningún libro real. En aquel momento
 `openpyxl` no estaba instalado ni declarado y quedaba pendiente el adaptador XLSX.
 Las aprobaciones conjuntas R5 y R6 y las condiciones de procedencia y
 autorización indicadas arriba continúan vigentes.
 
-### Adaptador XLSX sintético H04.14.A5
+### Adaptador XLSX sintético — H04
 
 `src/tfm_lakehouse/comparison/comparison_xlsx.py` lee una hoja y una lista de edificios
 proporcionadas explícitamente, con `Hoja1` y 17.544 filas como valores por
@@ -234,8 +233,8 @@ normalizaría y celdas tipadas cuya estructura no permite interpretarlas.
 
 Las fechas de texto se conservan como etiquetas nominales. Para fechas Excel se
 aplica el sistema 1900 o 1904 al serial guardado y se rechaza el día ficticio
-1900-02-29. En H04.14.A5 se exigían segundos matemáticamente exactos y se
-rechazaban seriales habituales para horas como las 01:00; H04.14.A5.1 sustituye
+1900-02-29. En H04.14.A5 (referencia histórica de aprobación) se exigían segundos matemáticamente exactos y se
+rechazaban seriales habituales para horas como las 01:00; H04.14.A5.1 (referencia histórica de aprobación) sustituye
 esa restricción por el criterio sintético descrito abajo. Las fechas numéricas
 sin formato de fecha, los instantes con zona y las fechas en celdas de medida
 quedan fuera del alcance. Las fracciones de segundo no quedan verificadas.
@@ -247,12 +246,12 @@ binarias. Se mantiene esta restricción para evitar que el lector procese partes
 que no han pasado la validación XML; no se ha verificado una excepción segura
 para imágenes en este incremento.
 
-La validación H04.14.A5 ha superado 28 casos sintéticos XLSX y 74 pruebas de
+La validación H04.14.A5 (referencia histórica de aprobación) ha superado 28 casos sintéticos XLSX y 74 pruebas de
 regresión de CSV, comparación y selección. La equivalencia del libro real, la
 identidad y hashes de las fuentes y la autorización expresa para procesarlos
-siguen pendientes. Los 16 identificadores se aprobaron después en H04.14.B0.
+siguen pendientes. Los 16 identificadores se aprobaron después en H04.14.B0 (referencia histórica de aprobación).
 
-### Decodificación temporal sintética H04.14.A5.1
+### Decodificación temporal sintética — H04
 
 Un serial de Excel es un número de días; fracciones como 1/24 no tienen
 representación decimal finita. Excel documenta precisión de 15 cifras y uso de
@@ -276,16 +275,16 @@ alguna fecha: un desplazamiento real inferior al margen no puede distinguirse de
 un error de representación. La salida incluye el número de fechas ajustadas y
 ejemplos limitados. Pasar `records` directamente al núcleo omite esta protección;
 el resultado del núcleo por sí solo no certifica el tiempo original. La tolerancia
-temporal no se aplica a los consumos, que se comparan exactamente. H04.14.A5.1 ha
+temporal no se aplica a los consumos, que se comparan exactamente. H04.14.A5.1 (referencia histórica de aprobación) ha
 superado 53 casos sintéticos XLSX y 74 regresiones de CSV, comparación y selección.
-Según la confirmación comunicada para H04.14.B0, ambos autores aprueban recuperar
+Según la confirmación comunicada para H04.14.B0 (referencia histórica de aprobación), ambos autores aprueban recuperar
 la etiqueta horaria nominal mediante diferencias de serialización pequeñas y
 rigurosamente acotadas, registrando cada ajuste y manteniendo exacta la igualdad
 de consumos. Esta confirmación general no prueba por sí sola la semántica de las
 fechas del libro ni la equivalencia de sus datos. La procedencia y la ejecución
 real siguen pendientes de verificación y autorización específicas.
 
-### Preauditoría H04.14.B0
+### Preauditoría — H04
 
 La selección conjunta comprende exactamente los 16 identificadores de la tabla
 4. Las aprobaciones comunicadas no acreditan la equivalencia con los originales
@@ -311,7 +310,7 @@ verificación global son resultados distintos. Los ajustes temporales mantienen
 es un indicador independiente de igualdad de consumos. Hay que conciliar todas
 las posiciones y registrar las ausencias, discrepancias y ambigüedades.
 
-### Perfil estricto sintético H04.14.B1
+### Perfil estricto sintético — H04
 
 `src/tfm_lakehouse/comparison/bdg2_comparison.py` define una única lista ordenada con los
 16 identificadores aprobados. El perfil exige esa lista, la hoja `Hoja1` y el
@@ -340,7 +339,7 @@ autorización explícita para cualquier lectura de fuentes reales.
 La verificación de B1 ha superado 25 casos sintéticos del perfil estricto y 127
 pruebas de regresión de los adaptadores, el comparador y la selección.
 
-### Procedencia y selección sintéticas H04.14.B2
+### Procedencia y selección sintéticas — H04
 
 `source_provenance.py` calcula SHA-256 sobre los bytes que recibe el parser CSV;
 solo devuelve su identidad cuando el parser ha terminado, se ha alcanzado el fin
@@ -381,7 +380,7 @@ La validación de B2 ha superado 183 pruebas sintéticas y regresiones, incluida
 una integración inventada con 17.544 filas y 16 edificios; sus resultados no
 constituyen evidencia de una ejecución sobre BDG2 real.
 
-### Preparación controlada sintética H04.14.B3.A
+### Preparación controlada sintética — H04
 
 `controlled_synthetic_verification.py` ofrece una evaluación en memoria para
 fuentes declaradas sintéticas. Exige tres identificadores de fuente distintos,
@@ -435,7 +434,7 @@ no acreditan su origen; tampoco se ha diseñado ni autorizado todavía un acceso
 real con vínculo de ruta y fuente durante toda la ejecución. **NO-GO para la
 ejecución real** hasta resolver estas condiciones y revisar el procedimiento.
 
-### Entrada controlada H04.14.B3.B1
+### Entrada controlada — H04
 
 La entrada `verify_real_sources` recibe rutas absolutas, tres SHA-256 esperados,
 límites de bytes, versión y variante, hoja, selección y periodo explícitos. Exige
@@ -462,7 +461,7 @@ las rutas y huellas confirmadas, las decisiones académicas aplicables y una
 autorización humana explícita para esa ejecución y sus efectos. La aprobación
 metodológica anterior no autoriza la lectura.
 
-H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
+La caracterización eléctrica registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de
 ausencia usan registros recibidos; los de ceros, lecturas numéricas finitas.
 Una baja ausencia no descarta episodios prolongados de ceros. Las señales y
@@ -493,19 +492,19 @@ extremos del expediente no confirman por sí solos errores de medida.
 
 La persistencia Silver en Delta, la integración meteorológica y Gold son
 decisiones e incrementos posteriores. La aprobación de un método de detección de
-valores atípicos no es requisito para completar el alcance sintético H05.2.
+valores atípicos no es requisito para completar el alcance sintético de interpretación numérica y temporal.
 
 ## Relación con el contrato Silver existente
 
-H05.1 conserva una aparición de fila Bronze por cada columna eléctrica
+La transformación a formato largo conserva una aparición de fila Bronze por cada columna eléctrica
 seleccionada: `filas largas = apariciones Bronze × columnas seleccionadas`.
 Mantiene identificadores originales, texto, null, duplicados y linaje. No aporta
 un identificador original único de fila. El esquema y la lectura de versiones
 publicadas se mantienen en la [guía H05](hitos-5.md#interfaces-y-esquema-provisional)
 y en el [contrato Bronze](hitos-1-2.md#salida-estrategia-de-escritura-y-trazabilidad).
 
-La interpretación decimal y temporal nominal ya están definidas por H05.2 v0.3
-y validadas sintéticamente; este contrato no determina unidades físicas ni su
+La interpretación decimal y temporal nominal ya está definida por el contrato de H05 (versión v0.3)
+y está validada sintéticamente; este contrato no determina unidades físicas ni su
 procedencia. La etiqueta original tampoco fija offsets, `fold` ni el inicio o
 final de un intervalo energético. Siguen pendientes la verificación de la
 selección aprobada y sus fuentes, las reglas de calidad de negocio, la
@@ -517,18 +516,18 @@ UTC implícitas.
 
 ### Política provisional de calidad de lecturas
 
-La tabla separa las capacidades ya implementadas en H05.2 de los tratamientos
+La tabla separa las capacidades ya implementadas para la interpretación numérica y temporal de los tratamientos
 metodológicos propuestos. Las propuestas requieren aprobación conjunta y no
 amplían el contrato ni la implementación actuales.
 
 | Situación | Criterio de detección | Tratamiento propuesto | Estado y decisión pendiente |
 | --- | --- | --- | --- |
-| Ausencia de lectura | Estados `missing_null` o `missing_token` en `value_parse_status`, correspondientes a NULL, `""` o `"NaN"` exactos en el valor recibido. | Conservar el original y señalar `is_missing`; no imputar ni eliminar filas automáticamente. | Clasificación e indicador H05.2 implementados y validados sintéticamente. Acordar conjuntamente la política de conservación. La ausencia usada para seleccionar edificios se calcula sobre sus conteos y 17.544 observaciones nominales; no es el indicador por lectura. |
-| Cero | Valor con estado `finite` e indicador `is_zero = true`. | Conservar la medición y señalarla; frecuencia y persistencia temporal son análisis separados. Un cero no implica error. | Indicador H05.2 implementado y validado sintéticamente. Análisis de frecuencia y rachas no implementado; acordar si procede. |
-| Valor negativo | Valor con estado `finite` e indicador `is_negative = true`. | Conservar y señalar; evaluar el contexto antes de calificarlo como error. No sustituirlo por cero ni eliminarlo automáticamente. | Indicador H05.2 implementado y validado sintéticamente. El tratamiento analítico requiere aprobación conjunta. |
-| Valor inválido o no representable | Estados H05.2 distintos de `finite` y de los estados de ausencia: sintaxis inválida, literal no finito, desbordamiento, subdesbordamiento o escala excedida. | Conservar la cadena original y tratarlo como problema de interpretación, no como medición válida ni como ausencia. | Estados de parseo H05.2 implementados y validados sintéticamente. Acordar el tratamiento analítico y de registros malformados. |
-| Ausencia o etiqueta temporal no válida | Cualquier estado de `timestamp_parse_status` distinto de `valid_nominal`, incluidos `missing_null`, `missing_empty`, `invalid_format`, `invalid_calendar` e `invalid_time`. | Conservar el texto original; no inferir UTC, resolver ambigüedad DST ni construir instantes físicos. | Clasificación nominal H05.2 implementada y validada sintéticamente. Una política de tiempo físico requiere decisión separada. |
-| Etiquetas edificio/tiempo repetidas | Diagnóstico propuesto de combinaciones repetidas de `building_id` y etiqueta nominal temporal. | Preservar todas las apariciones y multiplicidad; no deduplicar automáticamente. La repetición nominal no demuestra duplicación en origen ni equivalencia de tiempo físico. | H05.1 preserva multiplicidad y H05.2 conserva etiquetas; H05.6 cuenta etiquetas nominales repetidas por procedencia. Acordar revisión y posible elegibilidad analítica. |
+| Ausencia de lectura | Estados `missing_null` o `missing_token` en `value_parse_status`, correspondientes a NULL, `""` o `"NaN"` exactos en el valor recibido. | Conservar el original y señalar `is_missing`; no imputar ni eliminar filas automáticamente. | Clasificación e indicador de la etapa de interpretación implementados y validados sintéticamente. Acordar conjuntamente la política de conservación. La ausencia usada para seleccionar edificios se calcula sobre sus conteos y 17.544 observaciones nominales; no es el indicador por lectura. |
+| Cero | Valor con estado `finite` e indicador `is_zero = true`. | Conservar la medición y señalarla; frecuencia y persistencia temporal son análisis separados. Un cero no implica error. | Indicador de la etapa de interpretación implementado y validado sintéticamente. Análisis de frecuencia y rachas no implementado; acordar si procede. |
+| Valor negativo | Valor con estado `finite` e indicador `is_negative = true`. | Conservar y señalar; evaluar el contexto antes de calificarlo como error. No sustituirlo por cero ni eliminarlo automáticamente. | Indicador de la etapa de interpretación implementado y validado sintéticamente. El tratamiento analítico requiere aprobación conjunta. |
+| Valor inválido o no representable | Estados de la etapa de interpretación distintos de `finite` y de los estados de ausencia: sintaxis inválida, literal no finito, desbordamiento, subdesbordamiento o escala excedida. | Conservar la cadena original y tratarlo como problema de interpretación, no como medición válida ni como ausencia. | Estados de parseo de la etapa de interpretación implementados y validados sintéticamente. Acordar el tratamiento analítico y de registros malformados. |
+| Ausencia o etiqueta temporal no válida | Cualquier estado de `timestamp_parse_status` distinto de `valid_nominal`, incluidos `missing_null`, `missing_empty`, `invalid_format`, `invalid_calendar` e `invalid_time`. | Conservar el texto original; no inferir UTC, resolver ambigüedad DST ni construir instantes físicos. | Clasificación nominal de la etapa de interpretación implementada y validada sintéticamente. Una política de tiempo físico requiere decisión separada. |
+| Etiquetas edificio/tiempo repetidas | Diagnóstico propuesto de combinaciones repetidas de `building_id` y etiqueta nominal temporal. | Preservar todas las apariciones y multiplicidad; no deduplicar automáticamente. La repetición nominal no demuestra duplicación en origen ni equivalencia de tiempo físico. | La transformación a formato largo preserva la multiplicidad y la etapa de interpretación conserva las etiquetas; el diagnóstico de calidad cuenta etiquetas nominales repetidas por procedencia. Acordar revisión y posible elegibilidad analítica. |
 | Valores atípicos estadísticos | Método estadístico aún por definir; el EDA documenta señales exploratorias IQR. | Análisis futuro; una señal atípica no confirma un error de medida. No corregir, eliminar, winsorizar ni imputar por este criterio. | No implementado y no aprobado. Definir conjuntamente el método y su uso antes de desarrollarlo. |
 
 Antes de adoptar un análisis IQR u otro método se deben acordar: cálculo por
@@ -538,9 +537,9 @@ ceros y negativos en la referencia; significado y uso de la señal; y necesidad
 de análisis por estacionalidad o patrón operativo. No se autoriza corregir,
 excluir, winsorizar o imputar mediciones como consecuencia de una señal.
 
-### Contrato H05.2 v0.3
+### Contrato de interpretación numérica y temporal (versión v0.3)
 
-El contrato define una transformación posterior a H05.1. Según la comunicación
+El contrato define una transformación posterior a la transformación a formato largo. Según la comunicación
 del primer autor, ambos autores han confirmado conjuntamente el diseño v0.3 y
 el alcance de las pruebas sintéticas. Las entregas autorizadas comprenden la
 interpretación numérica y temporal nominal con pruebas sintéticas.
@@ -548,7 +547,7 @@ interpretación numérica y temporal nominal con pruebas sintéticas.
 | Aspecto | Estado |
 | --- | --- |
 | Diseño v0.3 y pruebas sintéticas | Confirmados por ambos autores, según comunicación del primer autor |
-| Implementación H05.2 | Etapas numérica y temporal nominal implementadas |
+| Implementación interpretación numérica y temporal | Etapas numérica y temporal nominal implementadas |
 | Validación sintética obligatoria | Completada: integración de 10.000 filas largas; detalle y regresiones indicados abajo |
 | Prueba sintética opcional de 100.000 filas | No ejecutada |
 | Validación BDG2 real y persistencia/publicación Delta | Pendientes de aprobación y autorización específicas |
@@ -561,7 +560,7 @@ detección avanzada de anomalías, análisis de rachas de ceros, meteorología y
 cálculos Gold.
 
 Cada aparición de entrada producirá exactamente una aparición de salida. Se
-conservarán todas las columnas recibidas de H05.1: nombres, valores, tipos,
+conservarán todas las columnas recibidas en la transformación a formato largo: nombres, valores, tipos,
 nulabilidad, nulls, duplicados, multiplicidad, linaje y campos de versión de la
 publicación. No se inventarán claves primarias ni se impondrá unicidad por
 edificio y etiqueta temporal. La proyección sobre los campos originales deberá
@@ -638,7 +637,7 @@ ni continuidad física.
 | `nominal_second_of_day` | INTEGER | Sí |
 | `timestamp_parse_status` | STRING | No |
 
-Se aceptará el esquema largo de H05.1 descrito en la guía H05: la salida básica
+Se aceptará el esquema largo de transformación a formato largo descrito en la guía H05: la salida básica
 pasará de siete a quince columnas y la del lector, de once a diecinueve. Se
 preservarán la versión Delta entera y todos los campos adicionales cuyos nombres
 no sean ambiguos ni colisionen. No se aplicará directamente el validador Bronze
@@ -651,7 +650,7 @@ sobrescribirán campos. Los tipos y la nulabilidad declarada de salida se
 comprobarán también con DataFrames vacíos.
 
 **Pruebas y aceptación del contrato.** La verificación sintética obligatoria del
-contrato H05.2 se completó en el incremento H05.2.3: la integración de 10.000
+contrato interpretación numérica y temporal se completó en el incremento integración sintética de 10.000 filas: la integración de 10.000
 filas largas y la selección H05 superaron 127 pruebas; se excluyó
 intencionadamente una prueba de escritura Delta. Otras 65 pruebas sintéticas de
 fuentes y configuración también pasaron. La revisión independiente no dejó
@@ -659,7 +658,7 @@ hallazgos accionables; el detalle consta en `docs/hitos-5.md`. La prueba
 condicional de 100.000 filas no se ejecutó. Esta verificación no comprende
 procesamiento BDG2 real ni publicación Delta, que requieren autorizaciones
 separadas. Los resultados
-históricos de H05.1 no se atribuyen a H05.2. Se establecieron tres niveles:
+históricos de transformación a formato largo no se atribuyen a interpretación numérica y temporal. Se establecieron tres niveles:
 
 - **Nivel 1, desarrollo focalizado:** datos sintéticos para gramática y exactitud
   decimal, ocho estados numéricos, seis temporales, ausencias e indicadores,
@@ -672,9 +671,9 @@ históricos de H05.1 no se atribuyen a H05.2. Se establecieron tres niveles:
   fechas inválidas, errores simultáneos y etiquetas nominales asociadas a DST;
   esquema y nulabilidad completos, incluida entrada vacía; determinismo frente
   a reordenaciones y reparticionados; configuraciones pertinentes de ANSI y
-  zona horaria de sesión Spark; regresiones de H05.1 e integración con
+  zona horaria de sesión Spark; regresiones de transformación a formato largo e integración con
   **10.000 filas largas sintéticas**. El caso propuesto parte de 5.000 filas
-  Bronze y dos columnas de edificio, expandidas mediante H05.1.
+  Bronze y dos columnas de edificio, expandidas mediante transformación a formato largo.
 - **Nivel 3, ampliación condicional:** ejecución separada con 100.000 filas
   largas sintéticas, según recursos disponibles. Los tiempos y consumos serán
   observaciones, sin demostrar escalabilidad ni imponer umbrales arbitrarios.
@@ -688,12 +687,11 @@ El cierre exigirá todas las pruebas obligatorias superadas, conservación exact
 de originales, tipos, nulabilidad y multiplicidad, clasificación numérica y
 temporal correcta, rechazo de errores estructurales y colisiones, determinismo
 y ausencia de persistencia o ejecución real. Estos criterios quedaron
-verificados sintéticamente en H05.2.3; la ejecución BDG2 y la publicación Delta
+verificados sintéticamente en integración sintética de 10.000 filas; la ejecución BDG2 y la publicación Delta
 permanecen pendientes de autorización específica.
 
 **Límites y autorizaciones pendientes.** El escenario hotelero es ficticio y no
-modifica los usos reales documentados en BDG2. H05.2 completó su alcance
-sintético, pero H04 no está cerrado: la selección aprobada conjuntamente debe
+modifica los usos reales documentados en BDG2. La interpretación numérica y temporal completó su alcance sintético, pero H04 no está cerrado: la selección aprobada conjuntamente debe
 contrastarse con los originales. Quedan por verificar su extracción
 y procedencia, la publicación y versiones fuente, así como las unidades
 aplicables y su origen.
@@ -728,7 +726,7 @@ los archivos revisados; no certifican su derivación de los CSV originales.
 La hoja `Hoja1` contiene 17.544 filas de datos, `timestamp` y las 16 columnas
 enumeradas arriba. Sus cabeceras coinciden con las salidas guardadas del
 cuaderno. Los 16 recuentos de ausencia guardados coinciden con el campo
-`missing` del informe histórico H03.2 para esos edificios. Es un contraste
+`missing` del informe histórico caracterización eléctrica y de metadatos para esos edificios. Es un contraste
 agregado; no comprueba identidad celda a celda con los originales ni permite
 verificar los ocho excluidos del conjunto de 24.
 
@@ -787,7 +785,7 @@ cuaderno no acredita aprobación de contratos ni de la selección de edificios.
 
 ## Límites y condición de avance
 
-H05.1 y H05.2 se autorizaron por separado y completaron sus alcances sintéticos;
+La transformación eléctrica a formato largo y la interpretación numérica y temporal se autorizaron por separado y completaron sus alcances sintéticos;
 H05 formal sigue pendiente de los contratos y tareas restantes, incluida la
 persistencia. H04 mantiene pendientes la reproducción de la selección aprobada
 y la verificación de procedencia necesaria para cualquier ejecución

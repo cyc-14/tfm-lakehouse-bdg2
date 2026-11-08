@@ -1,4 +1,4 @@
-# H03.3 — Caracterización meteorológica y diagnóstico temporal
+# Caracterización meteorológica y diagnóstico temporal — H03
 
 ## Alcance y estado
 
@@ -19,7 +19,7 @@ Este entregable no cierra académicamente H03: el contraste con la memoria y la
 aceptación global de las fuentes siguen pendientes. La integración temporal,
 Silver y la selección definitiva de edificios continúan pendientes.
 
-No modifica H03.2, Bronze ni los originales. No integra mediciones eléctricas y
+No modifica la caracterización eléctrica, Bronze ni los originales. No integra mediciones eléctricas y
 meteorológicas, elimina repeticiones, selecciona edificios, convierte series a
 UTC, asigna `fold` a observaciones ni aplica desplazamientos horarios fijos.
 
@@ -28,13 +28,13 @@ El CSV no acredita por sí mismo el número de estaciones físicas. La relación
 con los candidatos se comprueba mediante claves exactas de metadatos, sin
 deducirlas del nombre del edificio ni atribuirles representatividad espacial.
 
-## Reutilización y límites respecto a H03.2
+## Reutilización y límites respecto a la caracterización eléctrica de H03
 
 El módulo importa de `characterization.py` los helpers existentes de SHA-256,
 CSV estricto, clasificación numérica, porcentajes, perfiles de etiquetas y
 serialización CSV. Reutiliza su validador de destinos mediante los mismos
-atributos de configuración, añadiendo la protección del directorio de informes
-H03.2 y de su TOML de contexto. **No modifica ese módulo ni su comportamiento.**
+atributos de configuración, añadiendo la protección del directorio de informes de caracterización eléctrica
+y de su TOML de contexto. **No modifica ese módulo ni su comportamiento.**
 
 La configuración y el publicador propios responden a un esquema distinto:
 emplazamiento, variable y calendario, sin aplicar filtros de superficie ni
@@ -50,12 +50,12 @@ de trabajo.
 | Campo | Contrato |
 | --- | --- |
 | `paths.raw_root` | Raíz de los tres originales locales |
-| `paths.output_root` | Raíz de informes H03.3 separada de originales, Lakehouse y H03.2 |
+| `paths.output_root` | Raíz de informes meteorológicos separada de originales, Lakehouse y caracterización eléctrica y de metadatos |
 | `paths.lakehouse_root` | Directorio protegido; no se escribe en él |
 | `dataset.kind`, `reference` | Declaración `real`/`synthetic` y procedencia |
 | `sources.metadata`, `electricity`, `weather` | Tres CSV distintos dentro de `raw_root` |
 | `expected_sha256` | SHA-256 esperado por fuente; obligatorio para `real` |
-| `context.characterization_config` | TOML H03.2 del mismo tipo de datos; aporta candidatos y raíz protegida |
+| `context.characterization_config` | TOML de caracterización eléctrica del mismo tipo de datos; aporta candidatos y raíz protegida |
 | `analysis.timestamp_format` | Formato de etiquetas locales sin zona |
 | `analysis.nominal_start`, `nominal_end` | Extremos inclusivos de un calendario nominal horario explícito |
 | `analysis.missing_tokens` | Tokens exactos ausentes; vacío y `NaN` por defecto; se rechazan tokens numéricos finitos |
@@ -191,7 +191,7 @@ las de esta revisión. La equivalencia se comprueba comparando el AST de ambos
 archivos Python sin docstrings y el contenido TOML interpretado, además de las
 pruebas de regresión. No se ha repetido la ejecución real para estas correcciones.
 
-Las correcciones AUD-03/AUD-04 posteriores de los helpers H03.2 conservan sus
+Las correcciones AUD-03/AUD-04 posteriores de los helpers de caracterización eléctrica conservan sus
 contratos compartidos; la procedencia v2 no se atribuye retrospectivamente a este
 expediente. Las revisiones de pruebas y documentación AUD-06/AUD-07 tampoco son
 una nueva ejecución meteorológica real.

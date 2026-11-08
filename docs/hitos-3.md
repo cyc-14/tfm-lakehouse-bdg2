@@ -40,9 +40,9 @@ resultados verificados de esta instalación.
 
 - Inventario privado y reproducible, por ejemplo en `data/checks/`, sin
   incluir los originales ni extractos de registros reales en Git.
-- Métodos y herramientas ya implementados en
-  [H03.2](h03-2-characterization.md) y [H03.3](h03-3-weather-timezones.md).
-  La verificación de procedencia H03.1 queda recogida en configuraciones y
+- Métodos y herramientas ya implementados en la
+  [caracterización eléctrica y de metadatos](h03-2-characterization.md) y la [caracterización meteorológica y temporal](h03-3-weather-timezones.md).
+  La verificación de procedencia queda recogida en configuraciones y
   expedientes. La previsión inicial de crear código reutilizable ya tiene
   implementación; no se presenta como trabajo técnico sin iniciar.
 - Resumen publicable de procedencia, cobertura, limitaciones y decisiones
@@ -52,9 +52,9 @@ resultados verificados de esta instalación.
 
 Los criterios originales se mantienen para revisión conjunta. Las casillas no
 marcadas no niegan las comprobaciones técnicas existentes: falta consolidar la
-aceptación global y el contraste académico. El expediente real H03.2 es v1;
+aceptación global y el contraste académico. El expediente real de caracterización eléctrica corresponde a la versión v1;
 el contrato v2 de AUD-03/AUD-04 está probado con sintéticos, sin nueva ejecución
-BDG2. El expediente real H03.3 también es histórico. No se reescriben sus hashes.
+BDG2. El expediente real de caracterización meteorológica también es histórico. No se reescriben sus hashes.
 
 - [ ] Cada fuente utilizada tiene ruta, variante, procedencia, hash,
       estructura y resultado de verificación conocidos.
