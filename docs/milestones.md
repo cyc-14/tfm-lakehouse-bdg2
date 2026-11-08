@@ -92,6 +92,11 @@ los 16 identificadores. Las afirmaciones de esta actualización sobre una
 aprobación pendiente reflejan el estado anterior a esa confirmación; H04 sigue
 sin cerrarse y la reproducción y procedencia siguen pendientes.
 
+**Actualización H05.3:** se ha incorporado la composición de las 16 columnas
+aprobadas con las etapas H05.1 y H05.2, sin lectura automática de snapshots ni
+publicación Silver. El estado y la validación sintética constan en la guía H05;
+el procesamiento real y el cierre formal siguen pendientes.
+
 H01 y H02 están implementados; las evidencias de H01 corresponden a Delta con
 datos sintéticos y las de H02 incluyen regresiones sintéticas y expedientes
 históricos de procedencia. No se infiere de esas pruebas calidad analítica ni una

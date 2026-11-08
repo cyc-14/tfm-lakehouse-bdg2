@@ -296,3 +296,45 @@ La revisión independiente detectó que faltaba materializar y comparar las
 etapas intermedias; se añadieron esas comprobaciones y se repitió la selección.
 Con estos resultados queda verificado el contrato sintético H05.2. Esto no
 autoriza procesar BDG2 real ni publicar tablas Silver.
+
+## H05.3 — Integración de la selección eléctrica
+
+`transform_selected_electricity` recibe un DataFrame Bronze ya suministrado y
+compone H05.1 con las interpretaciones numérica y temporal de H05.2. Exige las
+16 columnas aprobadas, con coincidencia exacta; rechaza las ausentes y los
+esquemas incompatibles del contrato Bronze. Otras columnas eléctricas no
+seleccionadas no se transforman. No busca ni selecciona publicaciones, ejecuta
+conteos, escribe datos o publica tablas. La salida es un plan Spark diferido.
+
+El grano es una aparición de fila de entrada por cada uno de los 16 edificios.
+La salida conserva `building_id`, `timestamp_original`,
+`electricity_value_original` y las cuatro columnas originales `_bronze_*`.
+Añade `electricity_value_numeric` como `DECIMAL(38,18)`, `value_parse_status`,
+`is_missing`, `is_zero`, `is_negative`, `nominal_date`,
+`nominal_second_of_day` y `timestamp_parse_status`. No inventa un identificador
+de fila. Un contexto de publicación facilitado expresamente añade
+`_bronze_source_name`, `_bronze_snapshot_run_id`, `_bronze_delta_version` y
+`_bronze_table_path`; ese contexto declarado no autentica el DataFrame ni
+demuestra que proceda de esa publicación. Si no se facilita, no se inventa.
+
+Los valores y etiquetas originales, nulos y duplicados se conservan. H05.2
+distingue ausencias, finitos, sintaxis inválida, literales no finitos, desborde,
+subdesborde y exceso de escala; el texto original permanece incluso cuando no
+cabe en el decimal. Sus indicadores de cero y negativo son diagnósticos. La
+interpretación temporal es nominal y no resuelve zona, UTC ni DST. No se aplica
+R5 de selección como sustituto de las categorías de H05.2, ni se imputan,
+agregan o eliminan valores por calidad o por IQR.
+
+Siguen pendientes la aceptación de los contratos y decisiones metodológicas
+aplicables, el vínculo verificable entre DataFrame y publicación, y autorización
+separada para procesar Bronze real. La publicación Silver requiere además un
+diseño y pruebas de persistencia, reejecución, recuperación y conciliación.
+H04 mantiene pendiente la comparación entre sus fuentes; esta integración no
+acredita su equivalencia ni constituye ejecución real.
+
+La verificación H05.3 y las regresiones H05 seleccionadas han superado 137
+pruebas con datos sintéticos; se excluyó la prueba del lector que escribe Delta.
+La integración nueva comprueba las 16 columnas, multiplicidad, estados de
+calidad y contexto declarado. El primer intento en el entorno restringido no
+pudo iniciar la pasarela local de Spark; las pruebas se repitieron con sockets
+locales y directorios temporales. No se han procesado datos reales.
