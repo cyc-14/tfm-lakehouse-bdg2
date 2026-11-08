@@ -1,8 +1,8 @@
 # Hito 4 — Selección del caso de estudio y contratos analíticos
 
 **Estado:** metodología de selección contrastada con las tablas de la memoria y
-selección de 16 edificios documentada; cierre de H04 pendiente de aprobación
-conjunta de la selección y verificación de procedencia. H05.2 completó su
+selección de 16 edificios aprobada conjuntamente; cierre de H04 pendiente de
+reproducción y verificación de procedencia. H05.2 completó su
 validación sintética obligatoria. No se ha autorizado la validación con BDG2
 real ni la publicación Silver en Delta. **Responsabilidad:** Irantzu dirige
 las decisiones analíticas; Carlos verifica su viabilidad técnica. **Objetivos:**
@@ -50,8 +50,9 @@ nuevo verificador. La justificación académica concreta de excluir `Hotel`
 sigue pendiente. No se afirma que sus mediciones fueran inadecuadas ni se
 alteran los resultados históricos de H03.2.
 
-El autor informante acepta la selección final de 16 edificios. Según la
-confirmación conjunta recibida para H04.14.A2, ambos autores aprueban el uso de
+Según la confirmación comunicada para H04.14.B0, ambos autores aprueban los 16
+identificadores enumerados en la tabla 4. Según la confirmación conjunta recibida
+para H04.14.A2, ambos autores aprueban el uso de
 `sqm` con el intervalo inclusivo `3500 <= sqm <= 6000`, calculado con
 aritmética decimal exacta. `sqm` es el campo
 de metadatos observado en el código y la documentación H03; la expresión resume
@@ -128,9 +129,9 @@ sí sola su inclusión bajo el criterio comunicado para la memoria.
 
 La zona horaria de la tabla 4 es metadato declarado: por sí sola no demuestra
 la semántica de los timestamps ni resuelve cambios estacionales. La aprobación
-conjunta de R2 y R3 no ratifica por sí sola la selección completa de 16
-edificios ni toda la secuencia. La validación sintética de H05.2 tampoco
-sustituye esa ratificación ni una validación con BDG2 real.
+conjunta comunicada en H04.14.B0 ratifica los 16 identificadores de la tabla;
+la secuencia aplicada y la procedencia todavía deben reproducirse con las fuentes.
+La validación sintética de H05.2 no equivale a una validación con BDG2 real.
 
 ### Verificador sintético H04.14.A2
 
@@ -186,8 +187,8 @@ de cada celda, así como su política de fórmulas y precisión. El núcleo de
 comparación no lee archivos y, por sí solo, no verifica ambos orígenes.
 La comparación real requiere verificar variante, hashes e identidad de las
 fuentes y de la publicación, establecer el periodo y autorizar expresamente la
-ejecución con rutas y efectos revisados. Siguen pendientes el contraste con los
-originales y la ratificación conjunta de la selección final de 16 edificios.
+ejecución con rutas y efectos revisados. Sigue pendiente el contraste con los
+originales; la selección de los 16 identificadores se aprobó después en H04.14.B0.
 
 ### Adaptador CSV sintético H04.14.A4
 
@@ -209,8 +210,8 @@ En H04.14.A4 se han superado 24 casos sintéticos del adaptador y 50 casos de
 regresión del comparador y la selección. Una prueba integra el CSV sintético con
 celdas preparadas en memoria; no se comparó ningún libro real. En aquel momento
 `openpyxl` no estaba instalado ni declarado y quedaba pendiente el adaptador XLSX.
-Las aprobaciones conjuntas R5 y R6, y las condiciones de procedencia,
-autorización y ratificación indicadas arriba, continúan vigentes.
+Las aprobaciones conjuntas R5 y R6 y las condiciones de procedencia y
+autorización indicadas arriba continúan vigentes.
 
 ### Adaptador XLSX sintético H04.14.A5
 
@@ -248,9 +249,8 @@ para imágenes en este incremento.
 
 La validación H04.14.A5 ha superado 28 casos sintéticos XLSX y 74 pruebas de
 regresión de CSV, comparación y selección. La equivalencia del libro real, la
-identidad y hashes de las fuentes, la
-ratificación final de los edificios y la autorización expresa para procesarlos
-siguen pendientes.
+identidad y hashes de las fuentes y la autorización expresa para procesarlos
+siguen pendientes. Los 16 identificadores se aprobaron después en H04.14.B0.
 
 ### Decodificación temporal sintética H04.14.A5.1
 
@@ -278,9 +278,35 @@ ejemplos limitados. Pasar `records` directamente al núcleo omite esta protecci�
 el resultado del núcleo por sí solo no certifica el tiempo original. La tolerancia
 temporal no se aplica a los consumos, que se comparan exactamente. H04.14.A5.1 ha
 superado 53 casos sintéticos XLSX y 74 regresiones de CSV, comparación y selección.
-La procedencia del libro, la semántica de sus fechas y la ejecución real siguen
-pendientes de verificación y autorización; la regla requiere aceptación conjunta
-antes de emplearse para validar datos reales.
+Según la confirmación comunicada para H04.14.B0, ambos autores aprueban recuperar
+la etiqueta horaria nominal mediante diferencias de serialización pequeñas y
+rigurosamente acotadas, registrando cada ajuste y manteniendo exacta la igualdad
+de consumos. Esta confirmación general no prueba por sí sola la semántica de las
+fechas del libro ni la equivalencia de sus datos. La procedencia y la ejecución
+real siguen pendientes de verificación y autorización específicas.
+
+### Preauditoría H04.14.B0
+
+La selección conjunta comprende exactamente los 16 identificadores de la tabla
+4. Las aprobaciones comunicadas no acreditan la equivalencia con los originales
+ni autorizan su lectura. El flujo permanece **no preparado para certificar una
+comparación real reproducible** hasta resolver estos controles:
+
+- Vincular las identidades y hashes esperados a los bytes realmente leídos y
+  verificar su estabilidad. Los adaptadores no aportan ese vínculo por sí solos.
+- Comprobar por separado la rejilla horaria y los 16 identificadores aprobados;
+  el perfil `bdg2` del núcleo identifica dimensiones, no periodo ni lista.
+- Obtener y justificar de forma reproducible los conteos R5 suministrados al
+  verificador de selección y contrastar su salida con los 16 aprobados.
+- Verificar en una fase autorizada la estructura y procedencia del libro. El
+  rechazo actual de partes binarias y los límites del lector pueden impedir su
+  lectura; esta auditoría no comprueba si el libro contiene esas partes.
+
+La igualdad de etiquetas nominales, las posiciones de consumo comparadas y la
+verificación global son resultados distintos. Los ajustes temporales mantienen
+`verified=False`; `nominal_comparison_verified` resume el núcleo completo, no
+es un indicador independiente de igualdad de consumos. Hay que conciliar todas
+las posiciones y registrar las ausencias, discrepancias y ambigüedades.
 
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de
@@ -290,9 +316,8 @@ extremos del expediente no confirman por sí solos errores de medida.
 
 ## Decisiones y verificaciones pendientes
 
-- Reproducir en los CSV originales los criterios de selección documentados en
-  la memoria y ratificar conjuntamente la selección completa de 16 edificios y
-  la secuencia de selección.
+- Reproducir en los CSV originales la secuencia de selección documentada y
+  contrastar su resultado con los 16 identificadores aprobados conjuntamente.
 - Documentar la justificación académica de excluir la subcategoría `Hotel`.
 - Acordar la política conservadora de preservar y señalar lecturas, y el
   tratamiento de registros malformados, etiquetas repetidas y exclusiones
@@ -301,8 +326,8 @@ extremos del expediente no confirman por sí solos errores de medida.
   atípicos y con qué propósito.
 - Verificar variante, publicación, versiones y hashes de las fuentes, unidades
   aplicables y procedencia de la extracción del Excel.
-- Para cerrar H04, aportar reproducción desde las fuentes originales, contraste
-  reproducible de la selección y constancia de aprobación conjunta. Esta
+- Para cerrar H04, aportar reproducción desde las fuentes originales y contraste
+  reproducible de la selección con la aprobación conjunta comunicada. Esta
   evidencia no autoriza por sí sola ejecución real ni publicación Silver.
 - Correspondencia entre edificios BDG2 y establecimientos simulados, sin
   alterar identificadores ni afirmar que constituyen hoteles reales.
@@ -328,8 +353,8 @@ y en el [contrato Bronze](hitos-1-2.md#salida-estrategia-de-escritura-y-trazabil
 La interpretación decimal y temporal nominal ya están definidas por H05.2 v0.3
 y validadas sintéticamente; este contrato no determina unidades físicas ni su
 procedencia. La etiqueta original tampoco fija offsets, `fold` ni el inicio o
-final de un intervalo energético. Siguen pendientes la aprobación de la
-selección de edificios y sus fuentes, las reglas de calidad de negocio, la
+final de un intervalo energético. Siguen pendientes la verificación de la
+selección aprobada y sus fuentes, las reglas de calidad de negocio, la
 integración contextual y un contrato específico para persistir Silver en Delta.
 Los alias académicos y los identificadores ficticios deberán documentarse aparte
 del identificador BDG2, sin reemplazarlo. Las banderas de calidad y la aptitud para un indicador son
@@ -514,8 +539,8 @@ permanecen pendientes de autorización específica.
 
 **Límites y autorizaciones pendientes.** El escenario hotelero es ficticio y no
 modifica los usos reales documentados en BDG2. H05.2 completó su alcance
-sintético, pero H04 no está cerrado: ambos autores deben aprobar conjuntamente
-la selección de edificios. Quedan por verificar con los originales su extracción
+sintético, pero H04 no está cerrado: la selección aprobada conjuntamente debe
+contrastarse con los originales. Quedan por verificar su extracción
 y procedencia, la publicación y versiones fuente, así como las unidades
 aplicables y su origen.
 
@@ -525,9 +550,8 @@ Delta necesita además contrato y autorización propios.
 
 ## Actividades incrementales
 
-1. Reproducir la selección documentada con las fuentes originales y aprobar
-   conjuntamente la selección de edificios, dejando constancia de los elegidos y
-   descartados.
+1. Reproducir la selección documentada con las fuentes originales y contrastar
+   los edificios elegidos y descartados con la selección aprobada conjuntamente.
 2. Aprobar un manifiesto del caso: edificios, medidores, periodo,
    correspondencia ficticia, versiones de origen y limitaciones.
 3. Especificar tablas Silver, atributos, tipos, claves, granularidades,
@@ -611,7 +635,7 @@ cuaderno no acredita aprobación de contratos ni de la selección de edificios.
 
 H05.1 y H05.2 se autorizaron por separado y completaron sus alcances sintéticos;
 H05 formal sigue pendiente de los contratos y tareas restantes, incluida la
-persistencia. H04 mantiene pendiente la aprobación conjunta de la selección de
-edificios y la verificación de procedencia necesaria para cualquier ejecución
+persistencia. H04 mantiene pendientes la reproducción de la selección aprobada
+y la verificación de procedencia necesaria para cualquier ejecución
 real. Esto no autoriza fases posteriores. La integración meteorológica queda para
 [H06](hitos-6.md), con semántica temporal y cardinalidad justificadas.
