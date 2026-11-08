@@ -69,39 +69,7 @@ def read_bronze_snapshot(spark: SparkSession, config: BronzeConfig) -> tuple[dic
         _validate_tables(report, config, path)
         if not isinstance(report.get("run_id"), str) or not report["run_id"]:
             raise SnapshotError(f"El informe satisfactorio carece de run_id: {path}")
-        frames = {}
-        for item in report["tables"]:
-            name = item["name"]
-            version = item.get("delta_version")
-            if type(version) is not int or version < 0 or item.get("status") != "verified":
-                raise SnapshotError(f"Versión o estado inválido para {name} en {path}")
-            try:
-                expected_schema = StructType.fromJson(item["output_schema"])
-                expected_metadata = json.dumps({
-                    "run_id": report["run_id"], "table_name": name,
-                    "source_sha256": item["source_sha256"],
-                    "data_kind": config.data_kind,
-                    "dataset_reference": config.dataset_reference,
-                }, sort_keys=True)
-                # A recreated table can reuse a version, schema, and row count.
-                commits = (DeltaTable.forPath(spark, str(config.table_path(name))).history()
-                           .where(F.col("version") == F.lit(version))
-                           .select("userMetadata").limit(2).collect())
-                if len(commits) != 1 or commits[0]["userMetadata"] != expected_metadata:
-                    raise SnapshotError(
-                        f"El commit de {name} no pertenece a la ejecución publicada {report['run_id']}."
-                    )
-                frame = (spark.read.format("delta").option("versionAsOf", version)
-                         .load(str(config.table_path(name))))
-                if frame.schema != expected_schema or frame.count() != item["output_rows"]:
-                    raise SnapshotError(f"No coincide el snapshot publicado de {name}")
-            except SnapshotError:
-                raise
-            except Exception as exc:
-                raise SnapshotError(
-                    f"No se puede recuperar {name} en la versión {version}; no se usará la última versión."
-                ) from exc
-            frames[name] = frame
+        frames = _read_verified_tables(spark, config, report, path)
         selection = {
             "run_id": report["run_id"], "report_path": str(path),
             "finished_at_utc": report.get("finished_at_utc"), "tables": report["tables"],
@@ -113,3 +81,43 @@ def read_bronze_snapshot(spark: SparkSession, config: BronzeConfig) -> tuple[dic
         "No existe una ejecución completa compatible con esta configuración. "
         "Ejecute ingest-bronze; los informes antiguos sin contrato de publicación no son válidos."
     )
+
+
+def _read_verified_tables(
+    spark: SparkSession, config: BronzeConfig, report: dict, path: Path,
+) -> dict[str, DataFrame]:
+    """Read each published table at its recorded version under the H02 checks."""
+    frames = {}
+    for item in report["tables"]:
+        name = item["name"]
+        version = item.get("delta_version")
+        if type(version) is not int or version < 0 or item.get("status") != "verified":
+            raise SnapshotError(f"Versión o estado inválido para {name} en {path}")
+        try:
+            expected_schema = StructType.fromJson(item["output_schema"])
+            expected_metadata = json.dumps({
+                "run_id": report["run_id"], "table_name": name,
+                "source_sha256": item["source_sha256"],
+                "data_kind": config.data_kind,
+                "dataset_reference": config.dataset_reference,
+            }, sort_keys=True)
+            # A recreated table can reuse a version, schema, and row count.
+            commits = (DeltaTable.forPath(spark, str(config.table_path(name))).history()
+                       .where(F.col("version") == F.lit(version))
+                       .select("userMetadata").limit(2).collect())
+            if len(commits) != 1 or commits[0]["userMetadata"] != expected_metadata:
+                raise SnapshotError(
+                    f"El commit de {name} no pertenece a la ejecución publicada {report['run_id']}."
+                )
+            frame = (spark.read.format("delta").option("versionAsOf", version)
+                     .load(str(config.table_path(name))))
+            if frame.schema != expected_schema or frame.count() != item["output_rows"]:
+                raise SnapshotError(f"No coincide el snapshot publicado de {name}")
+        except SnapshotError:
+            raise
+        except Exception as exc:
+            raise SnapshotError(
+                f"No se puede recuperar {name} en la versión {version}; no se usará la última versión."
+            ) from exc
+        frames[name] = frame
+    return frames

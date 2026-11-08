@@ -338,3 +338,42 @@ La integración nueva comprueba las 16 columnas, multiplicidad, estados de
 calidad y contexto declarado. El primer intento en el entorno restringido no
 pudo iniciar la pasarela local de Spark; las pruebas se repitieron con sockets
 locales y directorios temporales. No se han procesado datos reales.
+
+## H05.4 — Vínculo con una publicación Bronze sintética
+
+`transform_published_synthetic_electricity` exige un `run_id` explícito y
+consulta únicamente su informe `<run_id>.json` en el directorio de ejecuciones
+de la configuración. Rechaza informes ausentes, fallidos, incompatibles o con
+otra identidad, tablas incompletas y metadatos inválidos; no busca otra ejecución
+ni recurre a la versión más reciente. Esta interfaz solo admite configuraciones
+declaradas `synthetic`; la declaración por sí sola no demuestra el origen de
+los bytes y las pruebas utilizan exclusivamente recursos temporales sintéticos.
+
+El informe H02 identifica las fuentes y la versión Delta de cada tabla. Se
+reutilizan sus controles de configuración, rutas, estado, metadatos del commit,
+esquema, recuento y lectura mediante `versionAsOf`. Sobre electricidad se exige
+además el esquema H05.3 y que las cuatro columnas de linaje de todas las filas
+coincidan con los datos declarados en el informe y la configuración, sin nulos.
+El DataFrame leído y su contexto pasan juntos a H05.3; no se acepta un DataFrame
+externo como prueba de pertenencia. La comparación de linaje y metadatos no
+demuestra por sí sola la autenticidad de la fuente externa.
+
+El lector comprueba los recuentos y el linaje durante la ejecución, pero la
+transformación Silver devuelta es diferida. Su evaluación posterior depende de
+que el snapshot y sus archivos sigan disponibles y no hayan sido alterados; no
+se garantiza retención ni protección frente a manipulación coordinada. La
+evaluación informa por separado la compatibilidad, el vínculo, la propagación y
+las garantías no establecidas; no certifica automáticamente la corrección de
+cada resultado Silver. Las pruebas con lectores simulados comprueban la
+orquestación y las versiones solicitadas, no autentican una tabla Delta real.
+
+La selección H05.4 y las regresiones H05 y H02 ejecutadas han superado 172
+pruebas sintéticas; se excluyó una prueba del lector que escribe Delta. La
+revisión independiente detectó y verificó la corrección de los controles de
+linaje discordante o nulo y de informes con recuento vacío.
+
+El procesamiento de Bronze real sigue sin autorizarse y requiere una extensión
+y revisión específicas de esta interfaz sintética, además de las decisiones
+metodológicas y autorizaciones correspondientes. Persistir Silver requiere otro
+diseño de publicación, conciliación, recuperación y reejecución; H04 mantiene
+aparte su comparación Excel–BDG2 pendiente.
