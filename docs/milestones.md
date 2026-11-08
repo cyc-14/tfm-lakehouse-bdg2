@@ -137,6 +137,15 @@ Los estados reflejan la evidencia disponible en el repositorio, **no** el
 estado de GitHub. El cierre de H01 y H02 deberá revisarse antes de darlos por
 completados en la herramienta de seguimiento.
 
+### Motor estadístico IQR — H05
+
+El incremento autorizado incorpora un motor sin persistencia para las 16 series
+eléctricas, con cuartiles lineales exactos, señales conservativas y controles
+separados de cobertura de observaciones y horas nominales. El contrato y la
+verificación sintética se recogen en la [guía H05](hitos-5.md#motor-estadístico-iqr-y-controles-de-aceptación--h05).
+Quedan pendientes la persistencia IQR versionada y su vinculación con Silver.
+No constituye validación con BDG2 real ni cierre formal de H05.
+
 ## Riesgo técnico transversal AUD-09
 
 `AUD-09 — Evaluado; tratamiento propuesto; aceptación del riesgo residual pendiente.`

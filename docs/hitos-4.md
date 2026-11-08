@@ -475,8 +475,8 @@ extremos del expediente no confirman por sí solos errores de medida.
 - Acordar la política conservadora de preservar y señalar lecturas, y el
   tratamiento de registros malformados, etiquetas repetidas y exclusiones
   analíticas.
-- Decidir conjuntamente si se adopta un análisis estadístico de valores
-  atípicos y con qué propósito.
+- Acordar el uso analítico posterior de las señales estadísticas del contrato
+  IQR; su cálculo no confirma errores de medida.
 - Verificar variante, publicación, versiones y hashes de las fuentes, unidades
   aplicables y procedencia de la extracción del Excel.
 - Para cerrar H04, aportar reproducción desde las fuentes originales y contraste
@@ -528,14 +528,14 @@ amplían el contrato ni la implementación actuales.
 | Valor inválido o no representable | Estados de la etapa de interpretación distintos de `finite` y de los estados de ausencia: sintaxis inválida, literal no finito, desbordamiento, subdesbordamiento o escala excedida. | Conservar la cadena original y tratarlo como problema de interpretación, no como medición válida ni como ausencia. | Estados de parseo de la etapa de interpretación implementados y validados sintéticamente. Acordar el tratamiento analítico y de registros malformados. |
 | Ausencia o etiqueta temporal no válida | Cualquier estado de `timestamp_parse_status` distinto de `valid_nominal`, incluidos `missing_null`, `missing_empty`, `invalid_format`, `invalid_calendar` e `invalid_time`. | Conservar el texto original; no inferir UTC, resolver ambigüedad DST ni construir instantes físicos. | Clasificación nominal de la etapa de interpretación implementada y validada sintéticamente. Una política de tiempo físico requiere decisión separada. |
 | Etiquetas edificio/tiempo repetidas | Diagnóstico propuesto de combinaciones repetidas de `building_id` y etiqueta nominal temporal. | Preservar todas las apariciones y multiplicidad; no deduplicar automáticamente. La repetición nominal no demuestra duplicación en origen ni equivalencia de tiempo físico. | La transformación a formato largo preserva la multiplicidad y la etapa de interpretación conserva las etiquetas; el diagnóstico de calidad cuenta etiquetas nominales repetidas por procedencia. Acordar revisión y posible elegibilidad analítica. |
-| Valores atípicos estadísticos | Método estadístico aún por definir; el EDA documenta señales exploratorias IQR. | Análisis futuro; una señal atípica no confirma un error de medida. No corregir, eliminar, winsorizar ni imputar por este criterio. | No implementado y no aprobado. Definir conjuntamente el método y su uso antes de desarrollarlo. |
+| Valores atípicos estadísticos | IQR independiente por edificio sobre observaciones elegibles de 2016–2017; cuartiles lineales exactos y límites a 1,5 × IQR. | Señalar sin corregir, eliminar, winsorizar ni imputar. Una señal no confirma un error de medida. | El incremento sintético autorizado se describe en el [contrato del motor IQR de H05](hitos-5.md#motor-estadístico-iqr-y-controles-de-aceptación--h05). La persistencia y la ejecución real siguen pendientes. |
 
-Antes de adoptar un análisis IQR u otro método se deben acordar: cálculo por
-edificio o agrupado; periodo y población de referencia; método exacto de
-cuantiles; multiplicador (por ejemplo, 1,5 × IQR); inclusión de ausencias,
-ceros y negativos en la referencia; significado y uso de la señal; y necesidad
-de análisis por estacionalidad o patrón operativo. No se autoriza corregir,
-excluir, winsorizar o imputar mediciones como consecuencia de una señal.
+El contrato autorizado del motor IQR concreta población por edificio, periodo,
+interpolación, límites, mínimo de observaciones y dos controles independientes
+de cobertura. Incluye ceros, negativos y repeticiones elegibles y excluye del
+cálculo los valores numéricos o temporales inválidos. No divide las distribuciones
+por estación o patrón operativo. La señal no autoriza corregir, excluir,
+winsorizar o imputar mediciones; otros métodos requieren decisiones específicas.
 
 ### Contrato de interpretación numérica y temporal (versión v0.3)
 

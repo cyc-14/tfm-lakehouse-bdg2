@@ -470,12 +470,9 @@ calcula ese número. Tampoco demuestra errores de origen o instantes físicos
 idénticos. No se resuelven zona ni DST y no se crean identificadores de fila,
 imputaciones, exclusiones o correcciones de lecturas.
 
-No se implementa IQR: además del multiplicador mencionado en la memoria, faltan
-acuerdos sobre población por edificio, agrupación temporal, ausencias y valores
-inválidos, ceros y negativos, algoritmo e interpolación de cuartiles, límites
-estrictos o inclusivos, poblaciones insuficientes y uso de la señal. Los autores
-deben decidirlos antes de incorporar ese análisis. Una señal no confirma un
-error ni autoriza sustituir o eliminar observaciones.
+Este diagnóstico no calcula IQR. El motor independiente descrito a continuación
+aplica el contrato autorizado para ese análisis. Una señal estadística no confirma
+un error ni autoriza sustituir o eliminar observaciones.
 
 Los edificios representan el caso de una cadena hotelera ficticia; las futuras
 observaciones BDG2 reales no son datos sintéticos. H04 y H05 formal siguen
@@ -490,3 +487,129 @@ superó 858 pruebas y excluyó la prueba real y una prueba de política que cons
 rutas protegidas. Se usaron JAR locales y destinos temporales; no se procesaron
 mediciones BDG2 reales ni se publicaron tablas reales. La revisión técnica
 independiente no identificó defectos bloqueantes dentro del contrato descrito.
+
+## Motor estadístico IQR y controles de aceptación — H05
+
+`src/tfm_lakehouse/silver/silver_iqr.py` ofrece dos operaciones sin persistencia:
+
+- `summarize_electricity_iqr(frame)` devuelve exactamente una fila por cada uno
+  de los 16 edificios aprobados, incluso si no tiene observaciones elegibles.
+- `annotate_electricity_iqr(frame)` conserva todas las columnas y apariciones de
+  entrada y añade `is_iqr_outlier`, `iqr_evaluation_status` e `iqr_accepted`.
+
+El esquema debe ser el de electricidad Silver integrada: valores
+`DECIMAL(38,18)`, fechas nominales, segundos del día, estados, banderas y linaje.
+Se rechazan edificios desconocidos o nulos, columnas ambiguas, tipos
+incompatibles y colisiones con los nombres de salida o el prefijo `__iqr_`.
+Los campos de contexto de publicación son opcionales, pero deben aparecer
+completos y con sus tipos actuales. Los parsers numérico y temporal existentes
+comprueban que las interpretaciones coinciden con los textos recibidos. Esta
+validación ejecuta una acción Spark; no autentica una publicación ni su origen.
+
+**Población.** Cada edificio tiene una distribución para el periodo nominal
+completo del 01/01/2016 al 31/12/2017, sin separar años, meses, emplazamientos ni
+procedencias. Participan todas las apariciones con estado numérico `finite`,
+timestamp `valid_nominal` y fecha dentro del periodo: ceros, negativos, extremos
+y repeticiones incluidos. Se excluyen del cálculo las ausencias, los valores
+numéricos no interpretables, las etiquetas temporales inválidas y las fechas
+fuera del periodo; esas filas siguen presentes en la vista anotada.
+
+**Cuartiles y precisión.** Se usa la interpolación lineal de posición
+`h = (n - 1) × p`, con `p = 0,25` y `p = 0,75`, equivalente al método lineal
+por defecto de [pandas](https://pandas.pydata.org/docs/reference/api/pandas.Series.quantile.html).
+Spark ordena los decimales y selecciona los cuatro valores de orden necesarios
+mediante ventanas y posiciones enteras; no recoge poblaciones en el driver.
+Una UDF interpola esos valores con `Decimal`, precisión 80 y rechazo de cualquier
+redondeo inexacto. Los empates no requieren un identificador de fila: sus valores
+son iguales y todas sus apariciones cuentan.
+
+El [percentil nativo de Spark 3.5.7](https://github.com/apache/spark/blob/v3.5.7/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/percentiles.scala)
+interpola en `Double`, por lo que puede perder diferencias entre decimales
+grandes. Además, los cuartiles pueden necesitar escala 20 y los límites escala
+21 y hasta 42 dígitos totales. Por ello `q1`, `q3`, `iqr`, `lower_limit` y
+`upper_limit` son **cadenas decimales exactas**, sin notación exponencial, no
+`Double` ni un nuevo `Decimal(38,18)`. Las comparaciones también usan `Decimal`
+exacto. Los porcentajes son `Double`; sus numeradores y denominadores enteros
+se conservan y los umbrales de aceptación se comparan con enteros.
+
+**Evaluación.** Con menos de cuatro observaciones elegibles, el estado es
+`insufficient_population`; cuartiles, límites, aviso de dispersión, denominador
+evaluado, recuento de atípicos y porcentaje son nulos. Con cuatro o más se
+calculan `IQR = Q3 - Q1`, `lower_limit = Q1 - 1,5 × IQR` y
+`upper_limit = Q3 + 1,5 × IQR`. La señal exige `valor < lower_limit` o
+`valor > upper_limit`: los límites exactos están incluidos entre los no atípicos.
+Un IQR cero mantiene esas comparaciones y activa `iqr_zero_spread`; no impide
+por sí solo la aceptación. Los errores de validación o cálculo interrumpen la
+operación en lugar de producir un resultado aceptado.
+
+**Cobertura.** La malla esperada contiene 17.544 etiquetas horarias nominales.
+Los dos controles exigen al menos 16.667, equivalentes al techo del 95 %:
+
+- `valid_observation_count` cuenta todas las apariciones elegibles, incluidas
+  las repetidas y las que no coinciden con la malla. Coincide con
+  `eligible_observation_count`; su porcentaje puede superar el 100 %.
+- `covered_nominal_hours` cuenta pares distintos de fecha y segundo del día
+  elegibles cuyo segundo es divisible por 3.600. Una repetición aporta una sola
+  hora. Una lectura a las 11:37 participa en el IQR, pero no cubre las 11:00 ni
+  se redondea. `off_grid_observation_count` permite diagnosticar esos casos.
+
+La salida incluye `expected_nominal_hours`, `minimum_coverage_count`,
+`valid_observation_coverage_percentage`, `nominal_hour_coverage_percentage` y
+los booleanos `valid_observation_coverage_accepted` y
+`nominal_hour_coverage_accepted`. Los recuentos de observaciones son `LongType`;
+las dos constantes de cobertura son `IntegerType`. `iqr_accepted` solo es verdadero
+si el cálculo se completa y ambos controles pasan. Una cobertura insuficiente
+conserva los cuartiles y las señales calculadas.
+
+**Señales y resultados.** `iqr_calculation_status` distingue `calculated` de
+`insufficient_population`. Para un cálculo completado, `iqr_evaluable_count`
+es el tamaño de la población elegible, `iqr_outlier_count` su número de señales y
+`iqr_outlier_percentage = 100 × iqr_outlier_count / iqr_evaluable_count`.
+`iqr_method = electricity-iqr-linear-decimal-v1` identifica el algoritmo; no
+representa una publicación verificada ni una identidad persistida.
+
+La anotación calcula internamente una tabla única por edificio y usa una unión
+izquierda por esa clave; no admite resúmenes externos que puedan multiplicar
+filas. `is_iqr_outlier` es booleano nullable: verdadero o falso solo cuando la
+observación se evalúa; nulo en los demás casos. `iqr_evaluation_status` informa
+`evaluated`, `numeric_not_eligible`, `invalid_nominal_timestamp`,
+`outside_study_period` o `insufficient_population`; `calculation_error` protege
+la rama inesperada sin resultado utilizable. `iqr_accepted` pertenece al edificio,
+incluso en filas que individualmente no pueden evaluarse.
+
+Ambas operaciones devuelven planes diferidos: la entrada debe seguir disponible
+y estable hasta evaluarlos. No almacenan resultados ni crean cachés. Conservan texto,
+linaje, nulos y multiplicidad; no crean claves de fila, instantes UTC ni
+resoluciones DST. Tampoco modifican las interfaces existentes de publicación
+Silver o diagnóstico de calidad.
+
+La verificación usa exclusivamente poblaciones inventadas y Spark real, con un
+oráculo independiente de cuartiles inclusivos sobre fracciones racionales.
+Incluye extremos decimales, comparaciones estrictas, poblaciones insuficientes,
+fechas nominales, repeticiones, conservación del multiconjunto y ambas fronteras
+de cobertura. La persistencia IQR versionada, la vinculación física con Silver,
+la orquestación y los reintentos quedan pendientes. Este incremento no valida
+BDG2 real ni cierra formalmente H05.
+
+Verificación del 08/11/2026, sobre la base `8a17e6720b89814941cf4332eb16350d3575bff0`
+y este incremento local, con el perfil de JAR locales y recursos temporales
+descrito en esta guía. Todos los resultados finales siguientes tienen cero
+fallos y cero pruebas omitidas durante la ejecución:
+
+| Selección ejecutada | Superadas | Excluidas |
+| --- | ---: | ---: |
+| Base previa: Silver, integración eléctrica y compatibilidad de módulos | 181 | 0 |
+| Nueva selección `tests/silver/test_silver_iqr.py` | 33 | 0 |
+| Silver, integración eléctrica y compatibilidad tras el incremento | 214 | 0 |
+| Bronze, configuración y Spark | 228 | 1 |
+| Suite sintética general | 891 | 2 |
+
+La primera ejecución focal tuvo un fallo en la expectativa de una prueba de
+extremos; se corrigió la población inventada para que sus límites excedieran
+realmente el rango original. Las selecciones finales incluyen esa corrección
+y el refuerzo de aceptación y cardinalidad indicado en la revisión independiente.
+Se excluyeron `real_data`, `performance` y, mediante
+`-k "not test_checkout_excludes_private_data_without_hiding_synthetic_fixtures"`,
+la comprobación que inspecciona rutas protegidas. Se mantuvo `TFM_REAL_CONFIG`
+ausente al arrancar los procesos, sin caché pytest ni bytecode. Las revisiones
+técnica y documental independientes finalizaron sin observaciones abiertas.
