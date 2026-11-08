@@ -214,6 +214,26 @@ def read_xlsx_electricity(
     path: str | Path, building_ids: Sequence[str], *, worksheet: str = "Hoja1",
     expected_rows: int = 17_544,
 ) -> XlsxInput:
+    """Read an XLSX path; provenance-aware callers can supply an immutable snapshot."""
+    return _read_xlsx_electricity(path, building_ids, worksheet=worksheet,
+                                  expected_rows=expected_rows)
+
+
+def read_xlsx_snapshot(
+    snapshot: bytes, building_ids: Sequence[str], *, worksheet: str = "Hoja1",
+    expected_rows: int = 17_544,
+) -> XlsxInput:
+    """Parse exactly the supplied immutable workbook bytes."""
+    if type(snapshot) is not bytes:
+        raise XlsxAdapterError("Workbook snapshot must be immutable bytes")
+    return _read_xlsx_electricity(snapshot, building_ids, worksheet=worksheet,
+                                  expected_rows=expected_rows)
+
+
+def _read_xlsx_electricity(
+    source: str | Path | bytes, building_ids: Sequence[str], *, worksheet: str,
+    expected_rows: int,
+) -> XlsxInput:
     """Read one worksheet; exact measurement values refer to stored OOXML tokens.
 
     Formula caches are ignored. A workbook's saved tokens cannot prove that the
@@ -229,8 +249,11 @@ def read_xlsx_electricity(
             or not isinstance(worksheet, str) or not worksheet
             or type(expected_rows) is not int or not 0 < expected_rows < _MAX_ROWS):
         raise XlsxAdapterError("Invalid worksheet or expected dimensions")
-    with open(path, "rb") as source:
-        data = source.read(_MAX_FILE + 1)
+    if type(source) is bytes:
+        data = source
+    else:
+        with open(source, "rb") as handle:
+            data = handle.read(_MAX_FILE + 1)
     if len(data) > _MAX_FILE:
         raise XlsxAdapterError("Workbook exceeds the resource limit")
     parts = _xml_parts(data)

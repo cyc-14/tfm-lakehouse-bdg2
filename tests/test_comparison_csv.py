@@ -91,6 +91,11 @@ def test_invalid_building_identifiers_are_rejected(tmp_path, building_ids):
         list(iter_csv_electricity(path, building_ids))
 
 
+def test_invalid_identifiers_are_rejected_before_opening_path(tmp_path):
+    with pytest.raises(CsvAdapterError):
+        list(iter_csv_electricity(tmp_path / "nonexistent.csv", []))
+
+
 def test_csv_quoted_newlines_are_parsed_without_modifying_text(tmp_path):
     path = source(tmp_path, b'timestamp,a\n"2020-01-01 00:00:00","1\n2"\n')
     assert list(iter_csv_electricity(path, ["a"])) == [

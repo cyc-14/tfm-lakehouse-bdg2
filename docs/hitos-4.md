@@ -293,12 +293,14 @@ ni autorizan su lectura. El flujo permanece **no preparado para certificar una
 comparación real reproducible** hasta resolver estos controles:
 
 - Vincular las identidades y hashes esperados a los bytes realmente leídos y
-  verificar su estabilidad. Los adaptadores no aportan ese vínculo por sí solos.
+  verificar su estabilidad. B2 implementa un vínculo sintético con los bytes
+  parseados; la procedencia y estabilidad posteriores siguen sin verificarse.
 - Comprobar por separado la rejilla horaria y los 16 identificadores aprobados;
   el perfil `bdg2` del núcleo identifica dimensiones, no periodo ni lista. B1
   implementa estos controles sintéticamente; falta aplicarlos a fuentes reales.
 - Obtener y justificar de forma reproducible los conteos R5 suministrados al
-  verificador de selección y contrastar su salida con los 16 aprobados.
+  verificador de selección y contrastar su salida con los 16 aprobados. B2
+  implementa y prueba ese cálculo con fuentes sintéticas.
 - Verificar en una fase autorizada la estructura y procedencia del libro. El
   rechazo actual de partes binarias y los límites del lector pueden impedir su
   lectura; esta auditoría no comprueba si el libro contiene esas partes.
@@ -337,6 +339,47 @@ autorización explícita para cualquier lectura de fuentes reales.
 
 La verificación de B1 ha superado 25 casos sintéticos del perfil estricto y 127
 pruebas de regresión de los adaptadores, el comparador y la selección.
+
+### Procedencia y selección sintéticas H04.14.B2
+
+`source_provenance.py` calcula SHA-256 sobre los bytes que recibe el parser CSV;
+solo devuelve su identidad cuando el parser ha terminado, se ha alcanzado el fin
+del flujo y coincide la huella esperada suministrada por quien llama. El tamaño
+máximo es explícito y la lectura es por bloques. El cálculo eléctrico hace dos
+pasadas sobre el mismo flujo: primero valida la rejilla completa y después cuenta
+las celdas; ambas pasadas deben consumir bytes con la misma huella esperada. Un
+error, lectura incompleta o huella distinta impide devolver el resultado.
+
+Para XLSX se comprueba el SHA-256 de una instantánea inmutable y acotada, y el
+adaptador interpreta esos mismos bytes. Estas garantías identifican el contenido
+parseado: no demuestran por sí solas el origen declarado ni que una ruta o archivo
+permanezcan inalterados después de la lectura. El parser facilitado debe procesar
+completamente el flujo y no publicar resultados provisionales. No se han obtenido
+huellas nuevas de fuentes reales ni se han creado copias persistentes de ellas.
+
+`selection_reproduction.py` reutiliza los filtros R1–R3 y, tras validar la
+rejilla, clasifica con R5 las celdas de los edificios que superan esos filtros;
+no evalúa la calidad de las demás columnas eléctricas. Conserva conteos de
+ausencias, inválidos, ambiguos, ceros y negativos; compara el umbral R4 con
+aritmética entera: 1.403 ausencias pasan y 1.404 excluyen. Los valores inválidos
+o ambiguos no se convierten en ausencias y bloquean la elegibilidad. El resultado
+registra cada etapa, exclusiones y diferencias de conjunto y orden frente a los
+16 aprobados.
+El embudo histórico 168 → 107 → 24 → 16 es una referencia, no un resultado
+atribuido a las fuentes sintéticas.
+
+`synthetic_selection_workflow.py` integra identidades, selección y comparación
+estricta para flujos suministrados expresamente. Conserva una traza completa de
+ajustes temporales, separada de los ejemplos limitados, y deja `verified=False`:
+una coincidencia de huellas suministradas y un resultado sintético elegible no
+acreditan procedencia real ni equivalencia de los originales. La vía no constituye
+una autorización ni un comando de ejecución real. Siguen pendientes la identidad
+y procedencia reales, la compatibilidad del libro, el contraste de las fuentes y
+la autorización específica antes de procesarlas.
+
+La validación de B2 ha superado 183 pruebas sintéticas y regresiones, incluida
+una integración inventada con 17.544 filas y 16 edificios; sus resultados no
+constituyen evidencia de una ejecución sobre BDG2 real.
 
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de

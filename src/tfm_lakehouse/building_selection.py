@@ -21,26 +21,12 @@ _DECIMAL_TEXT = re.compile(
 )
 
 
-def verify_building_selection(
-    metadata: Sequence[Mapping[str, object]],
-    measurement_summaries: Sequence[Mapping[str, object]],
-) -> dict:
-    """Apply the approved selection to supplied records without reading files.
-
-    Area values must be strings, integers, or Decimals. Floats are rejected to
-    keep boundary decisions exact. Missingness summaries must cover exactly
-    the buildings reaching the area-qualified stage.
-    """
+def qualify_buildings(metadata: Sequence[Mapping[str, object]]) -> dict:
+    """Validate metadata and apply the exact usage, subcategory and area rules."""
     rows = _validated_records(metadata, _METADATA_FIELDS, "metadata")
-    summaries = _validated_records(measurement_summaries, _SUMMARY_FIELDS, "summary")
-    summary_by_id = {row["building_id"]: row for row in summaries}
-    if len(summary_by_id) != len(summaries):
-        raise SelectionError("Duplicate building_id in measurement summaries")
-
     staged = {"metadata": len(rows), "main_use": 0, "subcategory": 0,
               "area": 0, "selected": 0}
     exclusions: list[dict[str, str]] = []
-    selected: list[str] = []
     area_ids: list[str] = []
     for row in rows:
         building_id = row["building_id"]
@@ -65,6 +51,28 @@ def verify_building_selection(
             continue
         staged["area"] += 1
         area_ids.append(building_id)
+
+    return {"stage_counts": staged, "area_qualified_building_ids": area_ids,
+            "exclusions": exclusions}
+
+
+def verify_building_selection(
+    metadata: Sequence[Mapping[str, object]],
+    measurement_summaries: Sequence[Mapping[str, object]],
+) -> dict:
+    """Apply the approved selection to supplied records without reading files.
+
+    Area values must be strings, integers, or Decimals. Floats are rejected to
+    keep boundary decisions exact. Missingness summaries must cover exactly
+    the buildings reaching the area-qualified stage.
+    """
+    qualification = qualify_buildings(metadata)
+    staged = qualification["stage_counts"]
+    exclusions = qualification["exclusions"]
+    area_ids = qualification["area_qualified_building_ids"]
+    summaries = _validated_records(measurement_summaries, _SUMMARY_FIELDS, "summary")
+    summary_by_id = {row["building_id"]: row for row in summaries}
+    selected: list[str] = []
 
     if set(summary_by_id) != set(area_ids):
         raise SelectionError(
