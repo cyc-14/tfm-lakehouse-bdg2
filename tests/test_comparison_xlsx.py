@@ -1,5 +1,7 @@
 """Synthetic XLSX fixtures for the read-only comparison adapter."""
 from datetime import datetime
+from copy import deepcopy
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -9,7 +11,9 @@ from openpyxl import Workbook
 from openpyxl.utils.datetime import MAC_EPOCH
 
 from tfm_lakehouse.comparison_csv import iter_csv_electricity
-from tfm_lakehouse.comparison_xlsx import XlsxAdapterError, read_xlsx_electricity
+from tfm_lakehouse.comparison_xlsx import (
+    XlsxAdapterError, compare_xlsx_electricity, read_xlsx_electricity,
+)
 from tfm_lakehouse.excel_bdg2_comparison import Cell, compare_electricity
 
 
@@ -124,11 +128,124 @@ def test_1900_fake_leap_day_and_fractional_second_are_rejected(tmp_path):
         read(path, expected_rows=1)
 
 
-def test_ordinary_hour_with_inexact_stored_serial_is_rejected(tmp_path):
+def test_ordinary_hour_with_inexact_stored_serial_is_recorded(tmp_path):
     path = workbook_file(tmp_path, [["timestamp", "a", "b"],
                                    [datetime(2020, 1, 1, 1, 0), 1, 2]])
-    with pytest.raises(XlsxAdapterError, match="second"):
+    result = read(path, expected_rows=1)
+    assert result.records[0]["timestamp"] == "2020-01-01 01:00:00"
+    assert result.representations[0]["timestamp"]["decoding"] == "rounded_within_bound"
+    assert result.representations[0]["timestamp"]["raw"]
+
+
+@pytest.mark.parametrize("epoch", [None, MAC_EPOCH])
+@pytest.mark.parametrize("hour", [0, 1, 2, 12, 23])
+def test_hourly_dates_for_both_excel_date_systems(tmp_path, epoch, hour):
+    path = workbook_file(tmp_path, [["timestamp", "a", "b"],
+                                   [datetime(2020, 2, 29, hour), 1, 2]], epoch=epoch)
+    result = read(path, expected_rows=1)
+    assert result.records[0]["timestamp"] == f"2020-02-29 {hour:02}:00:00"
+
+
+@pytest.mark.parametrize("token,accepted", [
+    ("43831.00000000005", True), ("43831.00000000006", False),
+    ("43830.99999999995", True), ("43830.99999999994", False),
+    ("43831.000001", False),
+])
+def test_boundaries_and_genuine_subsecond_values(tmp_path, token, accepted):
+    path = workbook_file(tmp_path, [["timestamp", "a", "b"],
+                                   [datetime(2020, 1, 1), 1, 2]])
+    rewrite_sheet(path, b"<v>43831</v>", f"<v>{token}</v>".encode())
+    if accepted:
+        result = read(path, expected_rows=1)
+        assert result.records[0]["timestamp"] == "2020-01-01 00:00:00"
+        observed = result.representations[0]["timestamp"]
+        assert observed["raw"] == token and observed["decoding"] == "rounded_within_bound"
+    else:
+        with pytest.raises(XlsxAdapterError, match="bound"):
+            read(path, expected_rows=1)
+
+
+@pytest.mark.parametrize("token", ["59.99999999999999", "60.99999999999999"])
+def test_rounding_cannot_enter_or_leave_excel_fictitious_day(tmp_path, token):
+    path = workbook_file(tmp_path, [["timestamp", "a", "b"],
+                                   [datetime(1900, 2, 28), 1, 2]])
+    rewrite_sheet(path, b"<v>59</v>", f"<v>{token}</v>".encode())
+    with pytest.raises(XlsxAdapterError, match="fictitious"):
         read(path, expected_rows=1)
+
+
+def test_hourly_serial_decoding_does_not_round_consumption(tmp_path):
+    path = workbook_file(tmp_path, [["timestamp", "a", "b"],
+                                   [datetime(2020, 1, 1, 1), 1, 0]])
+    rewrite_sheet(path, b'<c r="B2" t="n"><v>1</v></c>',
+                  b'<c r="B2" t="n"><v>1.00000000000000000001</v></c>')
+    result = read(path, expected_rows=1)
+    csv_rows = ({"timestamp": "2020-01-01 01:00:00", "a": Cell("text", "1"),
+                 "b": Cell("text", "0")},)
+    comparison = compare_electricity(csv_rows, result.records, ["a", "b"],
+                                     expected_rows=1, expected_buildings=2)
+    assert comparison["outcomes"]["numeric_mismatch"] == 1
+    assert not comparison["verified"]
+
+
+def test_integrated_comparison_cannot_verify_subsecond_value_within_bound(tmp_path):
+    path = workbook_file(tmp_path, [["timestamp", "a", "b"],
+                                   [datetime(2020, 1, 1), 1, 2]])
+    rewrite_sheet(path, b"<v>43831</v>", b"<v>43831.00000000005</v>")
+    xlsx = read(path, expected_rows=1)
+    csv_rows = ({"timestamp": "2020-01-01 00:00:00", "a": Cell("text", "1"),
+                 "b": Cell("text", "2")},)
+    result = compare_xlsx_electricity(csv_rows, xlsx, ["a", "b"],
+                                      expected_rows=1, expected_buildings=2)
+    assert result["nominal_comparison_verified"]
+    assert not result["verified"]
+    assert result["timestamp_decoding"]["adjusted_rows"] == 1
+    assert result["timestamp_decoding"]["examples"][0]["raw"] == "43831.00000000005"
+
+
+def test_integrated_comparison_allows_verified_exact_timestamp(tmp_path):
+    path = workbook_file(tmp_path, [["timestamp", "a", "b"],
+                                   [datetime(2020, 1, 1), 1, 2]])
+    xlsx = read(path, expected_rows=1)
+    csv_rows = ({"timestamp": "2020-01-01 00:00:00", "a": Cell("text", "1"),
+                 "b": Cell("text", "2")},)
+    result = compare_xlsx_electricity(csv_rows, xlsx, ["a", "b"],
+                                      expected_rows=1, expected_buildings=2)
+    assert result["verified"] and result["timestamp_decoding"]["adjusted_rows"] == 0
+
+
+@pytest.mark.parametrize("change", ["missing", "unknown", "error", "label"])
+def test_integrated_comparison_rejects_inconsistent_timestamp_metadata(tmp_path, change):
+    path = workbook_file(tmp_path, [["timestamp", "a", "b"],
+                                   [datetime(2020, 1, 1, 1), 1, 2]])
+    xlsx = read(path, expected_rows=1)
+    records = deepcopy(xlsx.records)
+    observed = deepcopy(xlsx.representations)
+    if change == "missing":
+        del observed[0]["timestamp"]["decoding"]
+    elif change == "unknown":
+        observed[0]["timestamp"]["decoding"] = "unknown"
+    elif change == "error":
+        observed[0]["timestamp"]["error_seconds"] = "0"
+    else:
+        records[0]["timestamp"] = "2020-01-01 02:00:00"
+    modified = replace(xlsx, records=records, representations=observed)
+    with pytest.raises(XlsxAdapterError, match="inconsistent"):
+        compare_xlsx_electricity(records, modified, ["a", "b"],
+                                 expected_rows=1, expected_buildings=2)
+
+
+def test_duplicate_hourly_serials_preserve_multiplicity(tmp_path):
+    path = workbook_file(tmp_path, [["timestamp", "a", "b"],
+                                   [datetime(2020, 1, 1, 1), 1, 2],
+                                   [datetime(2020, 1, 1, 1), 3, 4]])
+    result = read(path)
+    assert [row["timestamp"] for row in result.records] == [
+        "2020-01-01 01:00:00", "2020-01-01 01:00:00"]
+    comparison = compare_electricity(result.records, result.records, ["a", "b"],
+                                     expected_rows=2, expected_buildings=2)
+    assert comparison["duplicate_alignment_ambiguities"] == 1
+    assert not comparison["verified"]
 
 
 @pytest.mark.parametrize("token", ["2020-01-01", "2020-01-01T00:00"])

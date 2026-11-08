@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 from io import BytesIO
 from pathlib import Path
 import re
@@ -18,7 +19,7 @@ from openpyxl.utils.cell import (
     coordinate_from_string, column_index_from_string, get_column_letter,
 )
 
-from tfm_lakehouse.excel_bdg2_comparison import Cell
+from tfm_lakehouse.excel_bdg2_comparison import Cell, compare_electricity
 
 
 class XlsxAdapterError(ValueError):
@@ -27,7 +28,7 @@ class XlsxAdapterError(ValueError):
 
 @dataclass(frozen=True)
 class XlsxInput:
-    """Comparison rows and the observed workbook representations for each row."""
+    """Rows and representations; use the integrated comparison for verification."""
 
     records: tuple[dict, ...]
     representations: tuple[dict, ...]
@@ -151,7 +152,12 @@ def _check_shared_strings(parts: dict[str, bytes]) -> None:
         raise XlsxAdapterError("Invalid shared string table or content types") from exc
 
 
-def _serial_timestamp(token: str, date_system: str) -> str:
+def _serial_timestamp(token: str, date_system: str) -> tuple[str, dict[str, str]]:
+    """Decode seconds within a bounded 15-digit decimal and binary64 envelope.
+
+    This is a conservative interpretation policy, not proof that the source had
+    no genuine subsecond component. Both the adjustment and bound are retained.
+    """
     if not _NUMERIC.fullmatch(token):
         raise XlsxAdapterError("Invalid date serial")
     try:
@@ -160,16 +166,42 @@ def _serial_timestamp(token: str, date_system: str) -> str:
                 or value > 2_958_465 or value.as_tuple().exponent < -32):
             raise XlsxAdapterError("Unsupported date serial")
         numerator, denominator = value.as_integer_ratio()
+        if date_system == "1900" and 60 * denominator <= numerator < 61 * denominator:
+            raise XlsxAdapterError("Excel's fictitious 1900-02-29 is unsupported")
         seconds, remainder = divmod(numerator * 86_400, denominator)
-        if remainder:
-            raise XlsxAdapterError("Date serial is not exact to a second")
+        if 2 * remainder > denominator:
+            seconds += 1
+        error_seconds = Fraction(abs(seconds * denominator - numerator * 86_400), denominator)
+        # Excel documents 15-digit precision and binary64. The acceptance
+        # envelope allows half a 15-digit decimal quantum and one binary ULP.
+        decimal_power = value.adjusted() - 14
+        decimal_unit = (Fraction(10 ** decimal_power) if decimal_power >= 0
+                        else Fraction(1, 10 ** -decimal_power))
+        if numerator:
+            binary_exponent = numerator.bit_length() - denominator.bit_length()
+            if (numerator < denominator << binary_exponent if binary_exponent >= 0
+                    else numerator << -binary_exponent < denominator):
+                binary_exponent -= 1
+            ulp_power = binary_exponent - 52
+        else:
+            ulp_power = -1074
+        binary_ulp = (Fraction(2 ** ulp_power) if ulp_power >= 0
+                      else Fraction(1, 2 ** -ulp_power))
+        bound_seconds = (decimal_unit / 2 + binary_ulp) * 86_400
+        if error_seconds > bound_seconds:
+            raise XlsxAdapterError("Date serial exceeds the second-decoding bound")
         day = seconds // 86_400
         if date_system == "1900" and day == 60:
             raise XlsxAdapterError("Excel's fictitious 1900-02-29 is unsupported")
         base = datetime(1904, 1, 1) if date_system == "1904" else datetime(1899, 12, 31)
         if date_system == "1900" and day > 60:
             seconds -= 86_400
-        return (base + timedelta(seconds=seconds)).isoformat(sep=" ")
+        timestamp = (base + timedelta(seconds=seconds)).isoformat(sep=" ")
+        return timestamp, {
+            "decoding": "exact" if not error_seconds else "rounded_within_bound",
+            "error_seconds": str(error_seconds),
+            "bound_seconds": str(bound_seconds),
+        }
     except XlsxAdapterError:
         raise
     except (InvalidOperation, OverflowError, ValueError) as exc:
@@ -233,10 +265,11 @@ def read_xlsx_electricity(
             timestamp_cell = row[positions["timestamp"]]
             timestamp_coordinate = f'{get_column_letter(positions["timestamp"] + 1)}{row_number}'
             timestamp_raw = raw_cells.get(timestamp_coordinate, (None, None))
+            decoding = {}
             if timestamp_cell.data_type == "s" and isinstance(timestamp_cell.value, str):
                 timestamp = timestamp_cell.value
             elif timestamp_cell.data_type == "d" and timestamp_raw[0] == "n" and timestamp_raw[1]:
-                timestamp = _serial_timestamp(timestamp_raw[1], date_system)
+                timestamp, decoding = _serial_timestamp(timestamp_raw[1], date_system)
             elif timestamp_cell.data_type == "d" and timestamp_raw[0] == "d" and timestamp_raw[1]:
                 try:
                     if not _ISO_TIMESTAMP.fullmatch(timestamp_raw[1]):
@@ -250,7 +283,9 @@ def read_xlsx_electricity(
             else:
                 raise XlsxAdapterError("Unsupported timestamp cell")
             record = {"timestamp": timestamp}
-            observed = {"timestamp": {"kind": timestamp_cell.data_type, "raw": timestamp_raw[1]}}
+            observed = {"timestamp": {"kind": timestamp_cell.data_type,
+                                      "raw_type": timestamp_raw[0],
+                                      "raw": timestamp_raw[1], **decoding}}
             for bid in ids:
                 cell = row[positions[bid]]
                 coordinate = f"{get_column_letter(positions[bid] + 1)}{row_number}"
@@ -294,3 +329,58 @@ def read_xlsx_electricity(
                 rows.close()
         finally:
             workbook.close()
+
+
+def compare_xlsx_electricity(
+    csv_records: Sequence[dict], xlsx: XlsxInput, building_ids: Sequence[str], *,
+    expected_rows: int = 17_544, expected_buildings: int = 16, example_limit: int = 20,
+) -> dict:
+    """Compare decoded labels, keeping adjusted timestamps globally unverified.
+
+    The core operates on strings and cannot see the original XLSX serials. A
+    caller bypassing this wrapper must independently inspect representations.
+    """
+    if not isinstance(xlsx, XlsxInput) or len(xlsx.records) != len(xlsx.representations):
+        raise XlsxAdapterError("Invalid XLSX comparison input")
+    if xlsx.date_system not in {"1900", "1904"}:
+        raise XlsxAdapterError("Invalid XLSX date system")
+    for record, observed in zip(xlsx.records, xlsx.representations):
+        try:
+            metadata = observed["timestamp"]
+            kind, raw_type, raw = metadata["kind"], metadata["raw_type"], metadata["raw"]
+            if kind == "d" and raw_type == "n" and isinstance(raw, str):
+                timestamp, decoding = _serial_timestamp(raw, xlsx.date_system)
+                if (record["timestamp"] != timestamp
+                        or any(metadata.get(key) != value for key, value in decoding.items())):
+                    raise XlsxAdapterError("Timestamp decoding metadata is inconsistent")
+            elif kind == "d" and raw_type == "d" and isinstance(raw, str):
+                if (not _ISO_TIMESTAMP.fullmatch(raw)
+                        or record["timestamp"] != datetime.fromisoformat(raw).isoformat(sep=" ")
+                        or "decoding" in metadata):
+                    raise XlsxAdapterError("ISO timestamp metadata is inconsistent")
+            elif kind == "s" and raw_type in {"s", "str", "inlineStr"}:
+                if not isinstance(record["timestamp"], str) or "decoding" in metadata:
+                    raise XlsxAdapterError("Text timestamp metadata is inconsistent")
+            else:
+                raise XlsxAdapterError("Unsupported timestamp metadata")
+        except XlsxAdapterError:
+            raise
+        except (KeyError, TypeError, ValueError) as exc:
+            raise XlsxAdapterError("Invalid timestamp metadata") from exc
+    result = compare_electricity(
+        csv_records, xlsx.records, building_ids, expected_rows=expected_rows,
+        expected_buildings=expected_buildings, example_limit=example_limit,
+    )
+    adjusted = [
+        {"row": index + 2, **observed["timestamp"]}
+        for index, observed in enumerate(xlsx.representations)
+        if observed["timestamp"].get("decoding") == "rounded_within_bound"
+    ]
+    result["nominal_comparison_verified"] = result["verified"]
+    result["timestamp_decoding"] = {
+        "adjusted_rows": len(adjusted),
+        "examples": adjusted[:example_limit],
+    }
+    if adjusted:
+        result["verified"] = False
+    return result

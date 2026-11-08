@@ -233,21 +233,54 @@ normalizaría y celdas tipadas cuya estructura no permite interpretarlas.
 
 Las fechas de texto se conservan como etiquetas nominales. Para fechas Excel se
 aplica el sistema 1900 o 1904 al serial guardado y se rechaza el día ficticio
-1900-02-29. Solo se convierten seriales que expresan un número entero exacto de
-segundos; sin redondeo, esto también rechaza seriales decimales habituales para
-horas completas como las 01:00. Las fechas numéricas sin formato de fecha,
-instantes con zona, fracciones de segundo y fechas en celdas de medida quedan
-fuera del alcance. Las fechas ISO tipadas deben incluir fecha y hora con segundos
+1900-02-29. En H04.14.A5 se exigían segundos matemáticamente exactos y se
+rechazaban seriales habituales para horas como las 01:00; H04.14.A5.1 sustituye
+esa restricción por el criterio sintético descrito abajo. Las fechas numéricas
+sin formato de fecha, los instantes con zona y las fechas en celdas de medida
+quedan fuera del alcance. Las fracciones de segundo no quedan verificadas.
+Las fechas ISO tipadas deben incluir fecha y hora con segundos
 completos. No se deduce UTC ni se resuelve DST. El lector limita tamaño
 y expansión ZIP, rechaza declaraciones de entidades XML y solo admite partes
 XML y RELS; por ello tampoco acepta libros con imágenes, macros u otras partes
-binarias.
+binarias. Se mantiene esta restricción para evitar que el lector procese partes
+que no han pasado la validación XML; no se ha verificado una excepción segura
+para imágenes en este incremento.
 
 La validación H04.14.A5 ha superado 28 casos sintéticos XLSX y 74 pruebas de
 regresión de CSV, comparación y selección. La equivalencia del libro real, la
 identidad y hashes de las fuentes, la
 ratificación final de los edificios y la autorización expresa para procesarlos
 siguen pendientes.
+
+### Decodificación temporal sintética H04.14.A5.1
+
+Un serial de Excel es un número de días; fracciones como 1/24 no tienen
+representación decimal finita. Excel documenta precisión de 15 cifras y uso de
+doble precisión binaria ([Microsoft](https://learn.microsoft.com/en-us/troubleshoot/microsoft-365-apps/excel/floating-point-arithmetic-inaccurate-result)).
+Como criterio técnico conservador para este incremento, se acepta el segundo
+nominal más cercano solo cuando la diferencia absoluta, calculada con fracciones
+exactas, no supera `86400 × (0,5 × 10^(e10 − 14) + 2^(e2 − 52))` segundos,
+donde `e10 = suelo(log10(serial))` y `e2 = suelo(log2(serial))` para un serial
+positivo. El primer término cubre media unidad decimal de 15 cifras; el segundo,
+una unidad de precisión binaria64. El serial cero exacto no necesita ajuste.
+Por ejemplo, para un serial cercano a 43.831 el límite es aproximadamente
+4,95 microsegundos. Este margen es una política de interpretación, no una prueba
+de que el valor original careciera de fracciones de segundo.
+
+El adaptador conserva el token y registra si hubo ajuste, junto con el error y el
+límite como fracciones exactas de segundo. Los casos fuera del margen se rechazan;
+no se convierten seriales que pertenecen al día ficticio ni ajustes que entren en
+él. `compare_xlsx_electricity` compara las etiquetas nominales y conserva ese
+resultado por separado, pero deja la verificación global en falso si se ajustó
+alguna fecha: un desplazamiento real inferior al margen no puede distinguirse de
+un error de representación. La salida incluye el número de fechas ajustadas y
+ejemplos limitados. Pasar `records` directamente al núcleo omite esta protección;
+el resultado del núcleo por sí solo no certifica el tiempo original. La tolerancia
+temporal no se aplica a los consumos, que se comparan exactamente. H04.14.A5.1 ha
+superado 53 casos sintéticos XLSX y 74 regresiones de CSV, comparación y selección.
+La procedencia del libro, la semántica de sus fechas y la ejecución real siguen
+pendientes de verificación y autorización; la regla requiere aceptación conjunta
+antes de emplearse para validar datos reales.
 
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de
