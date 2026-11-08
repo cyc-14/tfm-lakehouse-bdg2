@@ -19,12 +19,11 @@ sintéticos, sin nueva ejecución BDG2. El cierre académico global de H03 sigue
 pendiente. El [registro de hitos](docs/milestones.md) mantiene el estado principal
 y separa las revisiones técnicas de las decisiones académicas.
 
-H04 documenta el conjunto final propuesto de 16 edificios BDG2. El autor
-informante confirma la selección con límites inclusivos
-(3.500 ≤ superficie ≤ 6.000 m²),
-exclusión de los tres edificios con subcategoría `Hotel` y exclusión por ausencia
-estrictamente superior al 8 %. Sigue pendiente la ratificación conjunta y la
-verificación reproducible de la procedencia y selección desde las fuentes.
+H04 documenta los 16 edificios BDG2 aprobados conjuntamente. La selección utiliza
+límites inclusivos de 3.500–6.000 m², excluye los tres edificios de subcategoría
+`Hotel` y aplica un umbral de ausencia estrictamente superior al 8 %. Siguen
+pendientes la verificación reproducible de la procedencia y la reproducción de
+la selección desde las fuentes originales.
 
 [H05.1](docs/hitos-5.md#h051--transformación-técnica-preliminar) transforma
 electricidad a formato largo y está validado sintéticamente. H05.2 implementa la

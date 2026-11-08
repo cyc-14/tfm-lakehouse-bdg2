@@ -295,7 +295,8 @@ comparación real reproducible** hasta resolver estos controles:
 - Vincular las identidades y hashes esperados a los bytes realmente leídos y
   verificar su estabilidad. Los adaptadores no aportan ese vínculo por sí solos.
 - Comprobar por separado la rejilla horaria y los 16 identificadores aprobados;
-  el perfil `bdg2` del núcleo identifica dimensiones, no periodo ni lista.
+  el perfil `bdg2` del núcleo identifica dimensiones, no periodo ni lista. B1
+  implementa estos controles sintéticamente; falta aplicarlos a fuentes reales.
 - Obtener y justificar de forma reproducible los conteos R5 suministrados al
   verificador de selección y contrastar su salida con los 16 aprobados.
 - Verificar en una fase autorizada la estructura y procedencia del libro. El
@@ -307,6 +308,35 @@ verificación global son resultados distintos. Los ajustes temporales mantienen
 `verified=False`; `nominal_comparison_verified` resume el núcleo completo, no
 es un indicador independiente de igualdad de consumos. Hay que conciliar todas
 las posiciones y registrar las ausencias, discrepancias y ambigüedades.
+
+### Perfil estricto sintético H04.14.B1
+
+`src/tfm_lakehouse/bdg2_comparison.py` define una única lista ordenada con los
+16 identificadores aprobados. El perfil exige esa lista, la hoja `Hoja1` y el
+orden original de su cabecera; el CSV ancho puede contener otras columnas, que
+el adaptador proyecta sin incorporarlas a la selección. La rejilla nominal va
+del 01/01/2016 00:00:00 al 31/12/2017 23:00:00, incluye el 29 de febrero y
+contiene 17.544 etiquetas y 280.704 posiciones para los 16 edificios.
+
+El perfil comprueba cada fuente frente a la rejilla y comunica por separado
+ausencias, etiquetas adicionales, duplicados y diferencias de orden, con
+recuentos exactos y ejemplos limitados. Distingue estructura, acuerdo temporal
+nominal, equivalencia de valores en posiciones emparejadas y ajustes Excel;
+informa el número y el máximo error de estos ajustes. Los grupos duplicados se
+comparan como multiconjuntos de filas completas, sin inventar parejas de celdas.
+Los valores eléctricos mantienen la comparación decimal exacta y R5.
+
+La elegibilidad de los registros suministrados es distinta de la verificación
+final: esta permanece en falso porque el perfil no vincula los datos a hashes ni
+acredita la identidad de las fuentes. También permanece en falso si existen
+ajustes temporales, discrepancias o ambigüedades. Los controles se han probado
+exclusivamente con datos sintéticos; no reproducen la selección BDG2 ni prueban
+equivalencia con el libro real. Siguen pendientes el vínculo con los hashes, la
+derivación reproducible de conteos R5, la compatibilidad del XLSX real y la
+autorización explícita para cualquier lectura de fuentes reales.
+
+La verificación de B1 ha superado 25 casos sintéticos del perfil estricto y 127
+pruebas de regresión de los adaptadores, el comparador y la selección.
 
 H03.2 registra 17.544 etiquetas horarias nominales de 2016–2017. Su regularidad
 no demuestra instantes físicos inequívocos ni resuelve DST. Los porcentajes de

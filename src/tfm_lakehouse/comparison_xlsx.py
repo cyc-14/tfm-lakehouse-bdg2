@@ -33,6 +33,8 @@ class XlsxInput:
     records: tuple[dict, ...]
     representations: tuple[dict, ...]
     date_system: str
+    source_columns: tuple[str, ...] | None = None
+    worksheet: str | None = None
 
 
 _NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -318,7 +320,7 @@ def read_xlsx_electricity(
                 observed[bid] = {"kind": cell.data_type, "raw": token}
             records.append(record)
             representations.append(observed)
-        return XlsxInput(tuple(records), tuple(representations), date_system)
+        return XlsxInput(tuple(records), tuple(representations), date_system, tuple(header), worksheet)
     except XlsxAdapterError:
         raise
     except Exception as exc:
