@@ -16,8 +16,9 @@ permanecen fuera de Git.
 La revisión documental posterior a la ejecución preparó el entregable que ya
 está versionado. El [registro principal](milestones.md) mantiene el estado actual.
 Este entregable no cierra académicamente H03: el contraste con la memoria y la
-aceptación global de las fuentes siguen pendientes. La integración temporal,
-Silver y la selección definitiva de edificios continúan pendientes.
+aceptación global de las fuentes siguen pendientes. La integración temporal no
+está implementada; la selección H04 y la evolución Silver se describen en el
+registro principal, sin atribuirlas a esta caracterización histórica.
 
 No modifica la caracterización eléctrica, Bronze ni los originales. No integra mediciones eléctricas y
 meteorológicas, elimina repeticiones, selecciona edificios, convierte series a

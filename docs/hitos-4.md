@@ -3,7 +3,8 @@
 **Estado:** metodología de selección contrastada con las tablas de la memoria y
 selección de 16 edificios aprobada conjuntamente; cierre de H04 pendiente de
 reproducción y verificación de procedencia. La interpretación numérica y temporal ha completado su validación sintética obligatoria. No se ha autorizado la validación con BDG2
-real ni la publicación Silver en Delta. **Responsabilidad:** Irantzu dirige
+real ni la publicación Silver real en Delta. La publicación Silver e IQR
+sintética ya está implementada en [H05](hitos-5.md). **Responsabilidad:** Irantzu dirige
 las decisiones analíticas; Carlos verifica su viabilidad técnica. **Objetivos:**
 OE1, OE2, OE4. **Requisito previo:** caracterización aceptada en H03.
 
@@ -24,7 +25,7 @@ expedientes privados. Esta revisión documental no reanaliza los CSV.
 | --- | --- | --- |
 | [caracterización eléctrica y de metadatos](h03-2-characterization.md) | Expediente `data/checks/h03_2/real/2026-10-30-h03-2/`, contrato histórico `h03.2-v1`. | Utilizó 3.000–7.000 m² y obtuvo 65 candidatos por superficie; no verifica el nuevo intervalo ni la selección final de 16 edificios. |
 | [caracterización meteorológica y temporal](h03-3-weather-timezones.md) | Expediente `data/checks/h03_3/real/2026-10-30-h03-3/`, contrato histórico `h03.3-v1`. | Diagnóstico meteorológico y temporal, sin unión horaria validada. |
-| [H05](hitos-5.md) | La transformación eléctrica a formato largo y la interpretación de valores decimales y fechas nominales cuentan con validación sintética. | No aprueba la selección H04 ni acredita validación con BDG2 real o publicación Silver en Delta. |
+| [H05](hitos-5.md) | Transformación, interpretación, publicación Silver, calidad y publicación IQR con verificación sintética documentada. | No cierra H04 ni acredita validación o publicación con BDG2 real. |
 
 ### Selección final: contraste visual con la memoria
 
@@ -292,14 +293,14 @@ ni autorizan su lectura. El flujo permanece **no preparado para certificar una
 comparación real reproducible** hasta resolver estos controles:
 
 - Vincular las identidades y hashes esperados a los bytes realmente leídos y
-  verificar su estabilidad. B2 implementa un vínculo sintético con los bytes
+  verificar su estabilidad. El flujo de procedencia vincula sintéticamente los bytes
   parseados; la procedencia y estabilidad posteriores siguen sin verificarse.
 - Comprobar por separado la rejilla horaria y los 16 identificadores aprobados;
-  el perfil `bdg2` del núcleo identifica dimensiones, no periodo ni lista. B1
-  implementa estos controles sintéticamente; falta aplicarlos a fuentes reales.
+  el perfil `bdg2` del núcleo identifica dimensiones, no periodo ni lista. El
+  comparador estricto prueba estos controles; falta aplicarlos a fuentes reales.
 - Obtener y justificar de forma reproducible los conteos R5 suministrados al
-  verificador de selección y contrastar su salida con los 16 aprobados. B2
-  implementa y prueba ese cálculo con fuentes sintéticas.
+  verificador de selección y contrastar su salida con los 16 aprobados. El
+  módulo de reproducción de selección prueba ese cálculo con fuentes sintéticas.
 - Verificar en una fase autorizada la estructura y procedencia del libro. El
   rechazo actual de partes binarias y los límites del lector pueden impedir su
   lectura; esta auditoría no comprueba si el libro contiene esas partes.
@@ -336,7 +337,7 @@ equivalencia con el libro real. Siguen pendientes el vínculo con los hashes, la
 derivación reproducible de conteos R5, la compatibilidad del XLSX real y la
 autorización explícita para cualquier lectura de fuentes reales.
 
-La verificación de B1 ha superado 25 casos sintéticos del perfil estricto y 127
+La verificación del comparador estricto ha superado 25 casos sintéticos y 127
 pruebas de regresión de los adaptadores, el comparador y la selección.
 
 ### Procedencia y selección sintéticas — H04
@@ -376,7 +377,7 @@ una autorización ni un comando de ejecución real. Siguen pendientes la identid
 y procedencia reales, la compatibilidad del libro, el contraste de las fuentes y
 la autorización específica antes de procesarlas.
 
-La validación de B2 ha superado 183 pruebas sintéticas y regresiones, incluida
+La validación de procedencia y selección ha superado 183 pruebas sintéticas y regresiones, incluida
 una integración inventada con 17.544 filas y 16 edificios; sus resultados no
 constituyen evidencia de una ejecución sobre BDG2 real.
 
@@ -406,7 +407,7 @@ posterior de las rutas no quedan acreditados. La verificación completa permanec
 en falso, incluso si los datos sintéticos coinciden. Se validan la hoja y el orden
 de cabecera XLSX también cuando falla la conciliación de edificios.
 
-La validación de B3.A ha superado 203 pruebas y regresiones sintéticas, incluida
+La preparación controlada ha superado 203 pruebas y regresiones sintéticas, incluida
 la comparación completa de 280.704 posiciones inventadas. No se han procesado
 fuentes reales.
 
@@ -490,8 +491,9 @@ extremos del expediente no confirman por sí solos errores de medida.
 - Reglas de integración de metadatos y meteorología, cardinalidades válidas
   y tratamiento de correspondencias no resueltas.
 
-La persistencia Silver en Delta, la integración meteorológica y Gold son
-decisiones e incrementos posteriores. La aprobación de un método de detección de
+La persistencia Silver con datos reales, la integración meteorológica y Gold
+requieren decisiones e incrementos posteriores. El contrato sintético Silver/IQR
+está descrito en [H05](hitos-5.md). La aprobación de un método de detección de
 valores atípicos no es requisito para completar el alcance sintético de interpretación numérica y temporal.
 
 ## Relación con el contrato Silver existente
@@ -508,7 +510,7 @@ y está validada sintéticamente; este contrato no determina unidades físicas n
 procedencia. La etiqueta original tampoco fija offsets, `fold` ni el inicio o
 final de un intervalo energético. Siguen pendientes la verificación de la
 selección aprobada y sus fuentes, las reglas de calidad de negocio, la
-integración contextual y un contrato específico para persistir Silver en Delta.
+integración contextual y un contrato específico para persistir Silver real en Delta.
 Los alias académicos y los identificadores ficticios deberán documentarse aparte
 del identificador BDG2, sin reemplazarlo. Las banderas de calidad y la aptitud para un indicador son
 decisiones distintas; no se autorizan exclusiones, imputaciones ni conversiones
@@ -528,7 +530,7 @@ amplían el contrato ni la implementación actuales.
 | Valor inválido o no representable | Estados de la etapa de interpretación distintos de `finite` y de los estados de ausencia: sintaxis inválida, literal no finito, desbordamiento, subdesbordamiento o escala excedida. | Conservar la cadena original y tratarlo como problema de interpretación, no como medición válida ni como ausencia. | Estados de parseo de la etapa de interpretación implementados y validados sintéticamente. Acordar el tratamiento analítico y de registros malformados. |
 | Ausencia o etiqueta temporal no válida | Cualquier estado de `timestamp_parse_status` distinto de `valid_nominal`, incluidos `missing_null`, `missing_empty`, `invalid_format`, `invalid_calendar` e `invalid_time`. | Conservar el texto original; no inferir UTC, resolver ambigüedad DST ni construir instantes físicos. | Clasificación nominal de la etapa de interpretación implementada y validada sintéticamente. Una política de tiempo físico requiere decisión separada. |
 | Etiquetas edificio/tiempo repetidas | Diagnóstico propuesto de combinaciones repetidas de `building_id` y etiqueta nominal temporal. | Preservar todas las apariciones y multiplicidad; no deduplicar automáticamente. La repetición nominal no demuestra duplicación en origen ni equivalencia de tiempo físico. | La transformación a formato largo preserva la multiplicidad y la etapa de interpretación conserva las etiquetas; el diagnóstico de calidad cuenta etiquetas nominales repetidas por procedencia. Acordar revisión y posible elegibilidad analítica. |
-| Valores atípicos estadísticos | IQR independiente por edificio sobre observaciones elegibles de 2016–2017; cuartiles lineales exactos y límites a 1,5 × IQR. | Señalar sin corregir, eliminar, winsorizar ni imputar. Una señal no confirma un error de medida. | El incremento sintético autorizado se describe en el [contrato del motor IQR de H05](hitos-5.md#motor-estadístico-iqr-y-controles-de-aceptación--h05). La persistencia y la ejecución real siguen pendientes. |
+| Valores atípicos estadísticos | IQR independiente por edificio sobre observaciones elegibles de 2016–2017; cuartiles lineales exactos y límites a 1,5 × IQR. | Señalar sin corregir, eliminar, winsorizar ni imputar. Una señal no confirma un error de medida. | El método y la [publicación IQR sintética](hitos-5.md#publicación-versionada-iqr--h05) se describen en la guía H05. La ejecución real sigue pendiente. |
 
 El contrato autorizado del motor IQR concreta población por edificio, periodo,
 interpolación, límites, mínimo de observaciones y dos controles independientes
@@ -697,8 +699,8 @@ y procedencia, la publicación y versiones fuente, así como las unidades
 aplicables y su origen.
 
 La ejecución real requiere autorización específica. No se autorizan la
-integración meteorológica ni el desarrollo Gold; la persistencia Silver en
-Delta necesita además contrato y autorización propios.
+integración meteorológica ni el desarrollo Gold; la persistencia Silver real
+en Delta necesita además contrato y autorización propios.
 
 ## Actividades incrementales
 
@@ -785,9 +787,10 @@ cuaderno no acredita aprobación de contratos ni de la selección de edificios.
 
 ## Límites y condición de avance
 
-La transformación eléctrica a formato largo y la interpretación numérica y temporal se autorizaron por separado y completaron sus alcances sintéticos;
-H05 formal sigue pendiente de los contratos y tareas restantes, incluida la
-persistencia. H04 mantiene pendientes la reproducción de la selección aprobada
+Los incrementos eléctricos, incluida la publicación Silver/IQR, se implementaron
+y verificaron con sintéticos según [H05](hitos-5.md). Su cierre formal, la
+orquestación y la validación real siguen pendientes. H04 mantiene pendientes
+la reproducción de la selección aprobada
 y la verificación de procedencia necesaria para cualquier ejecución
 real. Esto no autoriza fases posteriores. La integración meteorológica queda para
 [H06](hitos-6.md), con semántica temporal y cardinalidad justificadas.

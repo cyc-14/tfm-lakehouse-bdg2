@@ -1,7 +1,11 @@
 # Hito 5 — Silver de electricidad y controles de calidad
 
-**Estado:** H05 formal pendiente; transformación eléctrica a formato largo implementada de forma preliminar, con verificación
-sintética registrada al final de esta guía. **Responsabilidad:** Carlos implementa el flujo;
+**Estado:** implementados y verificados con sintéticos la transformación,
+interpretación numérica y temporal, vínculo Bronze, publicación Silver,
+diagnóstico de calidad, motor IQR y publicación IQR versionada. La orquestación
+Silver → IQR, la validación real y el cierre formal siguen pendientes; el
+[registro de hitos](milestones.md) mantiene el resumen actual.
+**Responsabilidad:** Carlos implementa el flujo;
 Irantzu define y valida las reglas analíticas. **Objetivos:** OE3, OE4.
 **Requisito previo para H05 formal:** contratos aceptados en H04.
 
@@ -9,10 +13,12 @@ Irantzu define y valida las reglas analíticas. **Objetivos:** OE3, OE4.
 
 Implementar un flujo mínimo desde una **publicación Bronze coherente** hasta
 electricidad Silver en formato largo, con trazabilidad y anotaciones de
-calidad explícitas. Se comenzará por una transformación acotada; las reglas
-adicionales se introducirán mediante incrementos verificables.
+calidad explícitas, mediante los componentes y contratos descritos a continuación.
 
-## Actividades incrementales
+## Plan inicial de actividades
+
+La lista y los issues iniciales describen la descomposición del trabajo, no su
+estado actual. Las casillas de aceptación global no certifican el cierre formal.
 
 1. Definir la configuración de Silver y consumir las versiones Bronze
    seleccionadas mediante `read_bronze_snapshot(...)`.
@@ -62,11 +68,9 @@ mínimo cumpla su contrato y haya superado una revisión técnica.
 ## Transformación eléctrica a formato largo — H05
 
 Incremento autorizado por separado el 01/11/2026, exclusivamente con datos
-sintéticos. No aprueba H04 ni completa H05: la selección definitiva y los
-contratos analíticos siguen pendientes. La lista de columnas es un parámetro
-técnico, no un manifiesto académico de edificios seleccionados. La actualización
-del plan general quedó fuera de aquel incremento; su estado se consulta en el
-[registro de hitos](milestones.md).
+sintéticos. En aquel incremento la selección definitiva y los contratos
+analíticos seguían pendientes. Su interfaz genérica recibe una lista técnica
+de columnas; no sustituye el manifiesto académico de selección H04.
 
 ### Interfaces y esquema provisional
 
@@ -124,14 +128,13 @@ entre tablas. El contexto conserva también las versiones de las demás fuentes,
 la referencia del informe y la indicación de recuperación de una publicación
 anterior cuando corresponda. El lector existente efectúa sus comprobaciones de
 conteo; la transformación posterior sigue siendo una proyección diferida.
-No se atribuye atomicidad entre Bronze y una futura capa Silver. Las rutas del
+No se atribuye atomicidad entre Bronze y Silver. Las rutas del
 linaje son información privada si describen una ejecución real; la herramienta
 no publica informes ni extrae datos reales para Git.
 
 ### Conservación, multiplicidad y ejecución
 
-Se construye por fila un array de estructuras `(building_id, valor)` y se aplica
-`explode`. Cada estructura existe incluso cuando su valor es null. Por tanto:
+La expansión conserva una salida por celda solicitada, incluso si es null:
 
 ```text
 filas largas = apariciones Bronze × columnas eléctricas solicitadas
@@ -142,12 +145,10 @@ La función básica no ejecuta conteos adicionales ni materializa el conjunto en
 el driver. No impone orden físico. Las pruebas comparan multiconjuntos, no
 secuencias ordenadas. No hay filtros, agregaciones, joins ni deduplicaciones.
 
-Los nombres se pasan como literales para `building_id` y como referencias
-completas de columna entre backticks, escapando los backticks internos. No se
-concatenan expresiones SQL ejecutables. Se prueban puntos, espacios, comillas,
-backticks, Unicode y texto con apariencia de SQL; algunos de esos nombres no
-son admitidos por el lector CSV Bronze actual para persistir Delta, pero sí
-sirven para probar la transformación genérica sobre DataFrames sintéticos.
+Los nombres de columna se tratan como identificadores literales, sin ejecutar
+su contenido como SQL. La transformación genérica admite nombres especiales
+que el lector CSV Bronze puede rechazar al persistir Delta; ambos contratos
+se prueban por separado.
 
 Se conservan null, `""`, `"NaN"`, códigos especiales, ceros, negativos, extremos
 y espacios sin conversión numérica. Una cadena vacía ya interpretada como null
@@ -159,10 +160,9 @@ repetidas y ejemplos asociados a cambios DST. No hay conversión UTC, deducción
 de zona, resolución de ambigüedades ni asignación de `fold`. No se interpreta
 la etiqueta como instante físico ni se atribuyen unidades al valor eléctrico.
 
-El plan utiliza expresiones Spark, sin UDF de Python, `collect`, `toPandas`,
-persistencia ni caché. La expansión produce necesariamente N×K filas y un array
-de K estructuras por aparición de entrada; el plan crece con la selección de
-columnas. No se han medido rendimiento, escalabilidad ni umbrales de anchura.
+El plan usa expresiones Spark, sin UDF de Python ni recogida de datos en el
+driver, persistencia o caché. Produce N×K filas; el plan y el array por fila
+crecen con K. No se han medido rendimiento, escalabilidad ni límites de anchura.
 
 ### Verificación sintética y límites
 
@@ -171,7 +171,7 @@ columnas. No se han medido rendimiento, escalabilidad ni umbrales de anchura.
 publicación Bronze temporal válida y después una versión eléctrica física
 divergente sin publicación completa. Verifica que la interfaz consume la versión
 publicada, conserva el linaje y concilia 4×2=8 filas, incluidos los duplicados.
-Solo se escriben tablas Bronze sintéticas temporales; no se persiste Silver.
+Esta prueba del transformador escribe solo Bronze sintética temporal.
 
 Selección focal: `tests/silver/test_silver_electricity.py`; regresión general:
 `-m "not real_data and not performance"`, con `TFM_REAL_CONFIG` ausente. Para
@@ -201,72 +201,20 @@ pruebas, no constituyen un benchmark. La suite general incluye las regresiones
 de Bronze, Spark, caracterización eléctrica y de metadatos y caracterización meteorológica y temporal. No se ejecutaron ingestas ni caracterizaciones
 BDG2 reales, ni se modificaron dependencias o los archivos de Git.
 
-El procedimiento siguiente reproduce el perfil utilizado. Ejecutarlo primero
-tal como aparece para la selección focal y, en un proceso nuevo, omitir el
-argumento `"tests/silver/test_silver_electricity.py"` para la suite general. Requiere
-los JAR ya disponibles y un entorno que permita los sockets locales de Spark;
-si falta un artefacto, termina sin descargarlo.
+El [perfil sintético canónico](hitos-1-2.md#perfil-temporal-sin-resolución-maven)
+centraliza el procedimiento actual; admite la ruta focal como argumento. El
+bloque exacto utilizado el 01/11/2026 se conserva en
+`7d491f4cca156c05f7a8bba9eaad8f3f7f51c449:docs/hitos-5.md`
+(consulta con `git --no-optional-locks show`). El perfil actual incorpora
+además aislamiento de `TMPDIR`, desactivación de plugins externos y la exclusión
+explícita de la comprobación de política que inspecciona rutas protegidas; no
+se atribuyen estas diferencias a las 498 pruebas históricas.
 
-```bash
-env -u TFM_REAL_CONFIG .venv/bin/python -B - <<'PY'
-import hashlib
-import os
-from pathlib import Path
-import shutil
-from tempfile import TemporaryDirectory
-
-import pytest
-from tfm_lakehouse import spark as manager
-
-os.environ["GIT_OPTIONAL_LOCKS"] = "0"
-os.environ["SPARK_LOCAL_IP"] = "127.0.0.1"
-os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
-names = (
-    "io.delta_delta-spark_2.12-3.3.3.jar",
-    "io.delta_delta-storage-3.3.3.jar",
-    "org.antlr_antlr4-runtime-4.9.3.jar",
-)
-cache = Path.home() / ".ivy2" / "jars"
-for name in names:
-    source = cache / name
-    if source.is_symlink() or not source.is_file():
-        raise RuntimeError(f"Required local JAR unavailable: {name}")
-
-with TemporaryDirectory(prefix="tfm-h051-tests-") as temporary:
-    root = Path(temporary)
-    os.environ["SPARK_LOCAL_DIRS"] = str(root / "spark-local")
-    copies = []
-    for name in names:
-        source, target = cache / name, root / name
-        shutil.copyfile(source, target)
-        with source.open("rb") as handle:
-            before = hashlib.file_digest(handle, "sha256").digest()
-        with target.open("rb") as handle:
-            assert before == hashlib.file_digest(handle, "sha256").digest()
-        copies.append(str(target))
-
-    def local_jars(builder):
-        return (builder.config("spark.jars", ",".join(copies))
-                .config("spark.jars.packages", "")
-                .config("spark.jars.ivy", str(root / "ivy"))
-                .config("spark.sql.warehouse.dir", (root / "warehouse").as_uri()))
-
-    manager.configure_spark_with_delta_pip = local_jars
-    status = pytest.main([
-        "-q", "-p", "no:cacheprovider",
-        "tests/silver/test_silver_electricity.py",
-        "-m", "not real_data and not performance",
-        "--basetemp", str(root / "pytest"),
-    ])
-    raise SystemExit(status)
-PY
-```
-
-Quedan fuera: CLI y configuración Silver, selección de edificios reales,
+El alcance de aquel transformador excluía: CLI y configuración Silver, selección de edificios reales,
 persistencia Silver, reglas de calidad de negocio, interpretación numérica o
 temporal, unidades verificadas por fuente, integración meteorológica,
-imputación e indicadores Gold. Su aprobación corresponde a H04 y a incrementos
-posteriores expresamente autorizados. Este componente no se ha validado con
+imputación e indicadores Gold. Los componentes siguientes documentan los incrementos sintéticos posteriores;
+las decisiones aplicables siguen correspondiendo a H04. No se ha validado con
 BDG2 real ni modifica el riesgo residual JVM documentado en AUD-09.
 
 ## Interpretación numérica y temporal — H05
@@ -293,8 +241,8 @@ pasaron. La selección H05 cubre opciones ANSI, zonas UTC y con DST, y política
 de análisis temporal. La prueba condicional de 100.000 filas no se ha ejecutado.
 La revisión independiente detectó que faltaba materializar y comparar las
 etapas intermedias; se añadieron esas comprobaciones y se repitió la selección.
-Con estos resultados queda verificado sintéticamente el contrato de interpretación numérica y temporal. Esto no
-autoriza procesar BDG2 real ni publicar tablas Silver.
+Con estos resultados queda verificado sintéticamente el contrato de interpretación
+numérica y temporal. Esto no autoriza procesar ni publicar Silver con BDG2 real.
 
 ## Integración Silver eléctrica — H05
 
@@ -324,12 +272,10 @@ interpretación temporal es nominal y no resuelve zona, UTC ni DST. No se aplica
 R5 de selección como sustituto de las categorías de interpretación, ni se imputan,
 agregan o eliminan valores por calidad o por IQR.
 
-Siguen pendientes la aceptación de los contratos y decisiones metodológicas
-aplicables, el vínculo verificable entre DataFrame y publicación, y autorización
-separada para procesar Bronze real. La publicación Silver requiere además un
-diseño y pruebas de persistencia, reejecución, recuperación y conciliación.
-H04 mantiene pendiente la comparación entre sus fuentes; esta integración no
-acredita su equivalencia ni constituye ejecución real.
+El vínculo verificable y la publicación sintética se incorporaron en los
+componentes siguientes; esta transformación aislada no los acredita. Procesar
+Bronze real requiere autorización separada y las decisiones metodológicas
+aplicables. La comparación de fuentes H04 sigue pendiente.
 
 La verificación de la integración eléctrica en Silver y las regresiones H05 seleccionadas han superado 137
 pruebas con datos sintéticos; se excluyó la prueba del lector que escribe Delta.
@@ -373,9 +319,8 @@ linaje discordante o nulo y de informes con recuento vacío.
 
 El procesamiento de Bronze real sigue sin autorizarse y requiere una extensión
 y revisión específicas de esta interfaz sintética, además de las decisiones
-metodológicas y autorizaciones correspondientes. Persistir Silver requiere otro
-diseño de publicación, conciliación, recuperación y reejecución; H04 mantiene
-aparte su comparación Excel–BDG2 pendiente.
+metodológicas y autorizaciones correspondientes. La publicación sintética
+descrita a continuación no resuelve la comparación Excel–BDG2 pendiente en H04.
 
 ## Publicación Silver sintética y recuperación conservadora — H05
 
@@ -588,7 +533,7 @@ oráculo independiente de cuartiles inclusivos sobre fracciones racionales.
 Incluye extremos decimales, comparaciones estrictas, poblaciones insuficientes,
 fechas nominales, repeticiones, conservación del multiconjunto y ambas fronteras
 de cobertura. La persistencia IQR versionada, la vinculación física con Silver,
-la orquestación y los reintentos quedan pendientes. Este incremento no valida
+la orquestación y los reintentos quedaron pendientes en ese incremento. Este incremento no valida
 BDG2 real ni cierra formalmente H05.
 
 Verificación del 08/11/2026, sobre la base `8a17e6720b89814941cf4332eb16350d3575bff0`
@@ -613,3 +558,125 @@ Se excluyeron `real_data`, `performance` y, mediante
 la comprobación que inspecciona rutas protegidas. Se mantuvo `TFM_REAL_CONFIG`
 ausente al arrancar los procesos, sin caché pytest ni bytecode. Las revisiones
 técnica y documental independientes finalizaron sin observaciones abiertas.
+
+## Publicación versionada IQR — H05
+
+`src/tfm_lakehouse/silver/silver_iqr_publication.py` mantiene separado el cálculo
+del publicador Silver y ofrece:
+
+- `publish_synthetic_iqr(spark, config, silver_publication_id, publication_id, workspace)`:
+  publica o reconcilia los resultados IQR de una Silver explícita con el método
+  `electricity-iqr-linear-decimal-v1`.
+- `read_synthetic_iqr_pair(spark, config, workspace, *, silver_publication_id=None,
+  iqr_publication_id=None)`: devuelve el estado de compatibilidad, la Silver y
+  sus límites persistidos; sin IQR devuelve `None` y estado `pending`.
+  No inicia un cálculo IQR para completar ese estado pendiente.
+- `annotate_synthetic_iqr_pair(...)`: devuelve el estado y una vista derivada de
+  una pareja verificada con las tres columnas de anotación existentes. Si falta
+  IQR, rechaza la operación; no busca límites de otra Silver.
+
+**Identidad de origen.** Solo admite configuración `synthetic` y workspace
+absoluto bajo `/tmp`, con Bronze, Silver e IQR separados y las guardas de rutas,
+enlaces y archivos especiales del publicador Silver. Sin leer CSV originales,
+reconstruye el resultado desde las versiones Bronze registradas y verifica
+intención y finalización Silver, identidad física Delta, versión, esquema,
+recuento y multiconjunto. Las fuentes y sus informes deben seguir disponibles;
+la declaración sintética no autentica procedencia externa.
+
+La identidad incluye el contexto Silver/Bronze y SHA-256 de evidencia final,
+commit y directorio Silver. El snapshot se materializa temporalmente; sus
+huellas se contrastan antes y después del cálculo y antes de finalizar. Un
+cambio interrumpe la operación y conserva evidencia parcial. Las cachés propias
+se liberan al terminar.
+
+**Recencia aprobada — decisión 29.** Solo participan publicaciones finalizadas y verificadas.
+Se lee una única acción `commitInfo` del JSON del commit Delta exacto y se
+contrasta su `userMetadata`, versión e identidad física con la evidencia. Su
+`timestamp` persistido se compara como un entero de milisegundos desde época,
+independiente de la zona horaria de la sesión. No se usa `history().timestamp`:
+en Delta 3.3.3 puede proceder de la fecha de modificación del fichero del log.
+Tampoco se usan nombres, orden de directorios ni números de versión entre tablas.
+Esta versión del lector admite los commits originales del perfil local y
+rechaza expresamente tablas con `inCommitTimestamp` activado.
+
+La recuperación conserva el timestamp original. Fechas ausentes, inválidas o
+ambiguas y empates en el máximo causan error. Se elige primero la Silver más
+reciente y después el IQR compatible más reciente de esa identidad exacta.
+La lectura histórica exige
+indicar Silver; un ID IQR explícito debe pertenecerle. La evidencia final
+corrupta se rechaza, sin recurrir a una publicación anterior. Un resultado
+reciente no aceptado sigue visible con `iqr_status = not_accepted`, aviso
+`iqr_not_accepted` y edificios afectados: no se reemplaza por otro aceptado ni
+habilita Gold.
+
+**Persistencia.** Cada ID IQR reserva
+`iqr-publications/<publication_id>/intent.json` y publica una tabla Delta
+independiente en `silver_iqr_limits`, con un único commit de versión cero.
+Conserva exactamente las 16 filas y todos los campos estadísticos del motor,
+incluidos edificios no evaluables o no aceptados y cadenas decimales extremas.
+Añade `_iqr_publication_id`, `_silver_publication_id`, `_silver_delta_table_id`,
+`_silver_delta_version` y `_silver_identity_sha256`. No convierte los límites
+a `Double` ni modifica los valores Silver.
+
+La intención (contrato versión 1) registra padre Silver, método, parámetros,
+edificios y huella determinista de las 16 filas; el commit la incluye en
+`userMetadata`. `completed.json` añade identidad física y versión IQR, timestamp
+y huella del commit, esquema, recuento y conciliación. Solo se crea tras releer
+y comparar esquema, 16 edificios, cadenas decimales y multiconjunto. No existe
+atomicidad entre Delta y JSON.
+
+**Replay y recuperación.** Un cerrojo coordina escritores locales cooperativos.
+El mismo ID y contrato verifica y devuelve el resultado sin otro commit; otro
+origen, método, parámetros o contenido se rechaza. Distintos IDs pueden conservar
+ejecuciones compatibles con la misma Silver, ordenadas por su propio commit.
+Los parámetros devueltos no comparten estado mutable con solicitudes posteriores.
+
+Una invocación explícita puede continuar una reserva válida sin tabla o
+reconciliar un commit completo sin marcador final. Tabla parcial, intención
+ausente, evidencia ilegible o incompatible, identidad distinta o contenido ajeno
+bloquean el destino sin borrarlo ni sobrescribirlo. No hay reintentos automáticos
+ni publicación Silver en este módulo.
+
+**Anotación y límites.** La vista utiliza los límites persistidos verificados y
+la lógica existente del motor; comprueba cardinalidad y proyección multiconjunto
+sobre las columnas Silver. Conserva nulos, repeticiones, textos y linaje. Las
+salidas son planes diferidos: los archivos deben permanecer disponibles y sin
+cambios después de devolverlos. No se garantiza retención histórica ni protección
+frente a escritores externos, alteración coordinada del almacenamiento o relojes
+desajustados. El timestamp establece un orden operativo, no un reloj global
+autenticado. La orquestación Silver → IQR, H06, Gold y BDG2 real siguen fuera
+del alcance; H05 no queda cerrado.
+
+Verificación del 09/11/2026 sobre la base
+`7d491f4cca156c05f7a8bba9eaad8f3f7f51c449` y este incremento local, con Python
+3.11.17, PySpark 3.5.7, Delta 3.3.3 y pytest 8.4.2. Se utilizaron JAR locales,
+directorios temporales aislados, `TFM_REAL_CONFIG` ausente, caché pytest
+desactivada y ningún bytecode. Las selecciones finales no tuvieron fallos ni
+pruebas omitidas durante la ejecución.
+
+| Comprobación | Superadas | Excluidas |
+| --- | ---: | ---: |
+| Base previa de H05, integración eléctrica y compatibilidad | 214 | 0 |
+| Publicador Silver y motor IQR existentes | 44 | 0 |
+| Regresión H05 existente, sin repetir la batería nueva | 214 | 0 |
+| Bronze, configuración y Spark | 228 | 1 |
+| Suite sintética general, incluidos los 38 casos nuevos | 929 | 2 |
+
+La batería nueva reúne 17 pruebas unitarias y 21 integraciones Spark/Delta
+sintéticas. Historial focal: 36 superadas y un fallo de configuración de rutas
+de la fixture; tras corregirla, 37 superadas; refuerzos posteriores de cuatro,
+dos y una pruebas superados. La selección general incluye los 38 casos finales.
+
+[Las pruebas de publicación](../tests/silver/test_silver_iqr_publication.py)
+cubren T16–T23: identidad, anotación, método, replay, conflictos, ocho puntos de
+interrupción, historia incompatible, estados pendientes y no aceptados. Los
+commits, lecturas y conciliaciones usan Delta real; los fallos se inyectan.
+La recuperación conserva un commit o bloquea sin borrar. También se verifica
+el rechazo de contenido falsificado con igual esquema y recuento y la
+independencia de la selección frente a cambios de `mtime`.
+
+Se excluyeron los marcadores `real_data` y `performance` y la prueba de política
+que inspecciona rutas protegidas. Las dos exclusiones de la suite general son
+la prueba real y esa comprobación de política; no son pruebas superadas.
+Las revisiones técnica y documental independientes no identificaron defectos
+bloqueantes abiertos. No se ha ejecutado BDG2 real ni se ha medido rendimiento.

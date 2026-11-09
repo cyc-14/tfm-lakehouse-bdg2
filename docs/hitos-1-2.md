@@ -2,15 +2,14 @@
 
 ## Alcance y responsabilidades
 
-Implementación local de la base Spark/Delta y de tres fuentes Bronze
-(electricidad, metadatos y meteorología opcional). Carlos dispone
-de módulos separados para configuración, sesión, ingesta, ejecución y pruebas.
-Las decisiones de Irantzu sobre selección de edificios, calidad, tipos analíticos,
-integración, indicadores y validación del caso real quedan pendientes de acuerdo conjunto.
+Implementación local de Spark/Delta y de tres fuentes Bronze: electricidad,
+metadatos y meteorología opcional. Carlos mantiene los módulos técnicos; las
+decisiones analíticas corresponden al acuerdo de ambos autores.
 
-El contrato Bronze no selecciona edificios ni fija un esquema analítico. La estructura
-de carpetas futuras de processing, quality y analytics se creará cuando haya código
-verificado que alojar. No se han añadido módulos vacíos.
+Bronze conserva las fuentes sin seleccionar edificios ni fijar un esquema
+analítico. La evolución posterior de selección y Silver se recoge en
+[H04](hitos-4.md) y [H05](hitos-5.md); el [registro de hitos](milestones.md)
+resume el estado actual y la aceptación pendiente.
 
 ## Arquitectura implementada
 
@@ -612,6 +611,10 @@ Spark solo pueden producir el registro CLI.
 
 ## Incorporación de BDG2
 
+Estas plantillas no autorizan una ejecución real. Antes de usarlas se requieren
+aprobación expresa, revisión de procedencia y de las rutas exactas de entrada
+y salida y acuerdo sobre los efectos esperados.
+
 1. Obtener los archivos seleccionados de la
    [publicación de autores en Zenodo v1.0](https://zenodo.org/records/3887306)
    o del [repositorio oficial](https://github.com/buds-lab/building-data-genome-project-2).
@@ -709,7 +712,7 @@ No modifica las cifras históricas anteriores ni acredita una ejecución BDG2.
 | Dos casos corregidos y política Git del checkout | 3 | 0 | 0 |
 | caracterización eléctrica y de metadatos + caracterización meteorológica y temporal completos | 163 | 0 | 0 |
 | Selección completa `unit` | 426 | 0 | 27, fuera del marcador seleccionado |
-| Suite general con el perfil temporal siguiente | 452 | 0 | 1, `real_data` |
+| Suite general con el perfil temporal de aquella fecha | 452 | 0 | 1, `real_data` |
 
 No hay pruebas `performance` implementadas. Las dos pruebas corregidas se
 ejecutaron sin exclusiones específicas; la suite general tardó 48,12 segundos,
@@ -718,21 +721,31 @@ lectura; la revisión de tests añadió 20 sondeos de los dobles en memoria.
 
 ### Perfil temporal sin resolución Maven
 
-Desde la raíz del repositorio en WSL, con Java y los tres JAR ya disponibles,
-el siguiente procedimiento ejecuta la suite sintética sin descargar dependencias
-ni escribir en la caché Ivy histórica. Si falta un JAR, termina antes de pytest;
-no intenta instalarlo. El cambio del helper existe solo en ese proceso Python,
-no en el código de producción. Las copias de JAR y tablas viven en un directorio
-temporal; el gestor Spark real conserva sus validaciones y bloqueos. La prueba
-unitaria del helper original comprueba por separado la coordenada Delta fijada.
-Este perfil verifica ejecución con JAR locales, no resolución Maven.
+Desde la raíz en WSL, con Java y los tres JAR ya disponibles, este perfil
+actual ejecuta la selección sintética sin resolver Maven ni escribir en Ivy
+histórica. Copia los JAR a temporales y sustituye solo el helper de resolución
+en el proceso Python; conserva el gestor Spark real, sus controles y bloqueos.
+Si falta un JAR, termina sin descargarlo. No prueba resolución Maven.
+
+Usa recursos temporales para pytest, Spark, Ivy y el almacén local, sin caché
+pytest ni bytecode. Se excluyen `real_data`, `performance` y la comprobación de
+política que inspecciona rutas protegidas; los dos casos corregidos de AUD-06
+siguen incluidos. Antes de ejecutar, revisar los efectos de la selección actual.
+Para una selección focal, añadir sus rutas tras `-`; sin rutas se selecciona la
+suite general. Este bloque es un procedimiento, no una nueva ejecución.
+
+Los comandos exactos del 31/10/2026 se conservan en
+`7d491f4cca156c05f7a8bba9eaad8f3f7f51c449:docs/hitos-1-2.md`
+(consulta con `git --no-optional-locks show`). No se atribuyen a las 449/452
+pruebas históricas las opciones de aislamiento o exclusión añadidas después.
 
 ```bash
-env -u TFM_REAL_CONFIG .venv/bin/python -B - <<'PY'
+env -u TFM_REAL_CONFIG PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B - <<'PY'
 import hashlib
 import os
 from pathlib import Path
 import shutil
+import sys
 from tempfile import TemporaryDirectory
 
 import pytest
@@ -740,6 +753,7 @@ from tfm_lakehouse import spark as manager
 
 os.environ["GIT_OPTIONAL_LOCKS"] = "0"
 os.environ["SPARK_LOCAL_IP"] = "127.0.0.1"
+os.environ["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
 names = (
     "io.delta_delta-spark_2.12-3.3.3.jar",
     "io.delta_delta-storage-3.3.3.jar",
@@ -751,8 +765,10 @@ for name in names:
     if source.is_symlink() or not source.is_file():
         raise RuntimeError(f"Required local JAR unavailable: {name}")
 
-with TemporaryDirectory(prefix="tfm-synthetic-tests-") as temporary:
+with TemporaryDirectory(prefix="tfm-synthetic-tests-", dir="/tmp") as temporary:
     root = Path(temporary)
+    os.environ["TMPDIR"] = str(root)
+    os.environ["SPARK_LOCAL_DIRS"] = str(root / "spark-local")
     copies = []
     for name in names:
         source, target = cache / name, root / name
@@ -761,11 +777,17 @@ with TemporaryDirectory(prefix="tfm-synthetic-tests-") as temporary:
         copies.append(str(target))
 
     def local_jars(builder):
-        return builder.config("spark.jars", ",".join(copies)).config("spark.jars.packages", "")
+        return (builder.config("spark.jars", ",".join(copies))
+                .config("spark.jars.packages", "")
+                .config("spark.jars.ivy", str(root / "ivy"))
+                .config("spark.sql.warehouse.dir", (root / "warehouse").as_uri()))
 
     manager.configure_spark_with_delta_pip = local_jars
     status = pytest.main([
-        "-q", "-m", "not real_data and not performance",
+        "-q", "-p", "no:cacheprovider",
+        "-m", "not real_data and not performance",
+        "-k", "not test_checkout_excludes_private_data_without_hiding_synthetic_fixtures",
+        *sys.argv[1:],
         "--basetemp", str(root / "pytest"),
     ])
     raise SystemExit(status)
@@ -789,10 +811,8 @@ pruebas y documentación sí se versionan. Los informes JSON/XML y logs de ejecu
 se guardan localmente bajo data/checks o data/lakehouse/<kind>/_runs y están ignorados.
 El historial y la publicación del repositorio los gestionan los autores.
 
-La [transformación preliminar de electricidad a formato largo — H05](hitos-5.md#transformación-eléctrica-a-formato-largo--h05)
-ya conserva la electricidad en formato largo y está probada con datos sintéticos;
-no interpreta valores o tiempos ni persiste Silver. Siguen pendientes la aprobación
-conjunta de selección y contratos, la interpretación y validación analítica,
-unidades y zonas verificadas por fuente, persistencia Silver, reglas de calidad,
-integración meteorológica, Gold, explotación mínima y evaluación de rendimiento.
+Los contratos de las capas posteriores están en [H04](hitos-4.md) y
+[H05](hitos-5.md); su implementación sintética no autoriza procesamiento real.
+Siguen fuera de Bronze la interpretación analítica, las unidades y zonas por
+fuente, la integración meteorológica, Gold y la evaluación de rendimiento.
 No hay streaming, predicción, cloud ni control operativo de instalaciones.

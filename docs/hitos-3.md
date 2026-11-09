@@ -74,6 +74,7 @@ BDG2. El expediente real de caracterización meteorológica también es históri
 
 ## Límites y condición de avance
 
-No crear Silver, seleccionar definitivamente edificios, imputar observaciones
-ni sobrescribir tablas existentes. H04 comenzará cuando ambos autores
-acepten el inventario y las cuestiones abiertas.
+Las herramientas H03 no crean Silver, seleccionan definitivamente edificios,
+imputan observaciones ni sobrescriben tablas existentes. El avance de H04/H05
+y las aprobaciones pendientes se consultan en el [registro de hitos](milestones.md);
+no se deducen del cierre técnico de una caracterización histórica.

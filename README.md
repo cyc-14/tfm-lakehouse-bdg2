@@ -8,28 +8,24 @@ BDG2 no representa una cadena hotelera y sus edificios no se reclasifican como h
 
 ## Estado
 
-Hito 1 verificado mediante escritura y lectura Delta con datos sintéticos.
-Hito 2 implementa Bronze para electricidad en formato ancho, metadatos y
-meteorología opcional. La suite habitual usa fixtures **exclusivamente
-sintéticos**; las pruebas con datos reales requieren autorización expresa.
-Los originales BDG2 y sus salidas se conservan localmente, fuera de Git.
-H03 incluye la verificación de procedencia y las caracterizaciones eléctrica y meteorológica, con herramientas, pruebas y ejecuciones reales históricas contrastadas. La versión 2 de la caracterización eléctrica está probada con
-sintéticos, sin nueva ejecución BDG2. El cierre académico global de H03 sigue
-pendiente. El [registro de hitos](docs/milestones.md) mantiene el estado principal
-y separa las revisiones técnicas de las decisiones académicas.
+H01 verifica escritura y lectura Delta; H02 implementa Bronze para electricidad
+en formato ancho, metadatos y meteorología opcional. H03 dispone de herramientas
+de caracterización y ejecuciones reales históricas contrastadas. Su evolución
+eléctrica v2 solo se ha probado con datos sintéticos; el cierre académico global
+de H03 sigue pendiente.
 
-H04 documenta los 16 edificios BDG2 aprobados conjuntamente. La selección utiliza
-límites inclusivos de 3.500–6.000 m², excluye los tres edificios de subcategoría
-`Hotel` y aplica un umbral de ausencia estrictamente superior al 8 %. Siguen
-pendientes la verificación reproducible de la procedencia y la reproducción de
-la selección desde las fuentes originales.
+[H04](docs/hitos-4.md) documenta los 16 edificios aprobados conjuntamente;
+siguen pendientes la reproducción de la selección y su procedencia.
+[H05](docs/hitos-5.md) implementa transformación eléctrica, interpretación numérica
+y temporal nominal, vínculo Bronze, publicación Silver, diagnóstico de calidad,
+motor IQR y publicación IQR versionada, con verificación sintética documentada.
+La orquestación Silver → IQR y el cierre formal de H05 están pendientes.
+La integración meteorológica y Gold quedan fuera del alcance implementado.
 
-La [transformación eléctrica a formato largo — H05](docs/hitos-5.md#transformación-eléctrica-a-formato-largo--h05) está validada con datos sintéticos. H05 incluye la
-interpretación numérica y temporal, también validada sintéticamente según la
-evidencia histórica documentada. No se ha autorizado validar Silver con BDG2
-real ni publicar Silver en Delta. Gold y la integración meteorológica quedan
-fuera del alcance implementado. Una carga Bronze no demuestra calidad ni
-resultados energéticos.
+El [registro de hitos](docs/milestones.md) es la referencia del estado actual.
+Las pruebas habituales usan datos sintéticos. No se ha autorizado validar ni
+publicar Silver/IQR con BDG2 real. Los originales y sus salidas permanecen
+locales, fuera de Git; una carga Bronze no demuestra resultados energéticos.
 
 ## Organización del código
 
@@ -95,6 +91,8 @@ Delta siguen siendo transaccionales por tabla, no por el conjunto.
 Los datos originales no se incluyen ni se descargan automáticamente. Consultar la
 [guía técnica](docs/hitos-1-2.md) y adaptar
 [config/bronze.example.toml](config/bronze.example.toml) a la procedencia real.
+Los comandos siguientes son plantillas: una ejecución real requiere autorización
+expresa y revisión previa de las rutas de entrada, salida y sus efectos.
 La configuración espera electricidad, metadatos y meteorología en su disposición
 original bajo `data/raw/bdg2/data/`. Para usar solo las dos primeras fuentes, omitir
 `sources.weather` en el TOML.
@@ -118,6 +116,6 @@ Fuentes: [repositorio oficial](https://github.com/buds-lab/building-data-genome-
 - [Plan de hitos técnicos y *milestones* de GitHub](docs/milestones.md).
 - [Caracterización eléctrica y metadatos — H03](docs/h03-2-characterization.md).
 - [Meteorología y diagnóstico temporal — H03](docs/h03-3-weather-timezones.md).
-- [Electricidad Silver: alcance y transformación preliminar — H05](docs/hitos-5.md).
+- [Electricidad Silver, calidad e IQR versionado — H05](docs/hitos-5.md).
 - [Definiciones preparadas para los 12 *milestones*](docs/github-milestones.json).
 - [Fixtures sintéticos](tests/fixtures/README.md).

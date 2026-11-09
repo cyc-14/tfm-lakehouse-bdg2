@@ -14,7 +14,7 @@ validado mediante pruebas sintéticas, **sin nueva ejecución sobre BDG2 real**.
 El cierre académico global de H03 continúa pendiente.
 
 No modifica fuentes, Bronze ni tablas Delta. No limpia, imputa, convierte a UTC
-ni selecciona definitivamente edificios. Meteorología queda fuera de este hito.
+ni selecciona definitivamente edificios. Meteorología queda fuera de esta herramienta.
 Los grupos A y B reproducen la solicitud de los autores: inicialmente
 seleccionados y descartados en su EDA, respectivamente. La herramienta no ha
 consultado la memoria y no certifica documentalmente esa clasificación.
