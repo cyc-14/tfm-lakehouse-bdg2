@@ -575,6 +575,57 @@ del publicador Silver y ofrece:
   una pareja verificada con las tres columnas de anotación existentes. Si falta
   IQR, rechaza la operación; no busca límites de otra Silver.
 
+### Uso de la API de publicación
+
+La secuencia es: crear una publicación Bronze finalizada, publicar Silver con
+su `run_id`, publicar IQR para el ID Silver devuelto y leer la pareja explícita.
+Las publicaciones Silver e IQR requieren llamadas separadas; no hay un comando
+CLI u orquestador que las encadene:
+
+```python
+silver = publish_synthetic_silver(
+    spark, config, bronze_run_id, "silver-demo", workspace
+)
+iqr = publish_synthetic_iqr(
+    spark, config, silver["publication_id"], "iqr-demo", workspace
+)
+state, silver_frame, limits = read_synthetic_iqr_pair(
+    spark, config, workspace,
+    silver_publication_id=silver["publication_id"],
+)
+state, annotated = annotate_synthetic_iqr_pair(
+    spark, config, workspace,
+    silver_publication_id=silver["publication_id"],
+)
+```
+
+Es un fragmento de uso, no una demostración ejecutable aislada: `config` debe
+ser una configuración `synthetic` con todas sus rutas dentro de `workspace`,
+un directorio absoluto nuevo bajo `/tmp`. `bronze_run_id` debe proceder del
+informe de una publicación Bronze finalizada que contenga las 16 columnas
+eléctricas aprobadas. `publish_synthetic_silver` verifica ese informe y sus
+versiones; no elige un `run_id` por su cuenta. La configuración pública
+`bronze.synthetic.toml` y sus fixtures solo tienen dos columnas eléctricas, por
+lo que sirven para la demostración Bronze del README, pero no para publicar
+Silver/IQR. No hay actualmente un fixture público completo de 16 columnas que
+permita un recorrido Silver/IQR autocontenido sin preparar otra entrada.
+
+`read_synthetic_iqr_pair` devuelve el estado, el DataFrame Silver verificado y
+los límites persistidos o `None`. Antes de publicar IQR, el estado es `pending`;
+después, `available` significa que todos los edificios pasan, y `not_accepted`
+que el resultado se publicó, pero algún edificio no cumple la aceptación por
+población insuficiente o cobertura. No es un fallo de publicación. Los límites
+exponen `iqr_calculation_status`, `valid_observation_coverage_accepted`,
+`nominal_hour_coverage_accepted` e `iqr_accepted`; la vista anotada añade
+`is_iqr_outlier` e `iqr_evaluation_status`. Una señal es diagnóstica y no altera
+el valor original. La API conserva la identidad de la Silver exacta para la que
+se publicó IQR. La lectura actual puede elegir la pareja más reciente según la
+Decisión 29; la lectura histórica exige identificar la Silver y, opcionalmente,
+su publicación IQR compatible. El informe Silver identifica `publication_id`,
+`source_run_id` y versión Delta; el IQR conserva la identidad padre en su
+intención. Las lecturas devuelven DataFrames diferidos, sujetos a que sus archivos permanezcan
+disponibles y sin cambios.
+
 **Identidad de origen.** Solo admite configuración `synthetic` y workspace
 absoluto bajo `/tmp`, con Bronze, Silver e IQR separados y las guardas de rutas,
 enlaces y archivos especiales del publicador Silver. Sin leer CSV originales,

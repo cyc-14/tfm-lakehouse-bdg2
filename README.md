@@ -86,6 +86,25 @@ Cada ejecución satisfactoria publica las versiones Delta exactas de sus tablas.
 la ejecución compatible anterior e indica esta circunstancia. Las escrituras
 Delta siguen siendo transaccionales por tabla, no por el conjunto.
 
+## Uso del prototipo con datos sintéticos
+
+1. Prepara el [entorno local](#entorno-verificado) y comprueba Java, Spark y
+   Delta con `check-environment`; elige un nombre de informe nuevo.
+2. Ejecuta los comandos de ingesta e inspección anteriores con
+   `config/bronze.synthetic.toml`. El informe identifica el `run_id` Bronze y
+   las versiones Delta publicadas.
+3. La CLI ofrece `check-environment`, `ingest-bronze` e `inspect-bronze`.
+   Silver e IQR se publican mediante llamadas Python separadas; no existe un
+   orquestador Silver → IQR. La guía [H05](docs/hitos-5.md#uso-de-la-api-de-publicación)
+   muestra las llamadas y sus requisitos. El fixture público tiene dos columnas
+   eléctricas y no cumple el requisito Silver de 16 edificios; por eso no se
+   presenta como un ejemplo ejecutable de Silver/IQR.
+4. Al leer una pareja compatible, `pending` significa que aún no hay IQR;
+   `not_accepted` indica que se publicó, pero algún edificio no superó la
+   aceptación por población o cobertura. No equivale a un fallo de publicación.
+   Consulta las coberturas y
+   señales por edificio en la guía H05. Ninguna anotación cambia las mediciones.
+
 ## Incorporar BDG2
 
 Los datos originales no se incluyen ni se descargan automáticamente. Consultar la

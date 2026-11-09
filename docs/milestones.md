@@ -39,7 +39,7 @@ técnica de un hito.
 
 ## Estado actual y nivel de evidencia — 09/11/2026
 
-Esta tabla resume el árbol local, incluido el incremento IQR aún no incorporado
+Esta tabla resume el árbol local, incluido el incremento IQR incorporado
 al HEAD inspeccionado. Las verificaciones citadas son evidencia histórica;
 esta revisión documental no ejecuta pruebas ni datos.
 
