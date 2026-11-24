@@ -1,6 +1,7 @@
 # Hito 6 — Integración de metadatos y meteorología
 
-**Estado:** planificado. **Responsabilidad:** Irantzu valida significados y
+**Estado:** diagnóstico sintético de metadatos implementado; enriquecimiento
+pendiente. **Responsabilidad:** Irantzu valida significados y
 uniones; Carlos implementa y verifica la integración. **Objetivos:** OE3,
 OE4. **Requisito previo:** Silver eléctrica aceptada en H05.
 
@@ -12,6 +13,31 @@ mediciones sin información contextual válida deben conservarse o tratarse
 según reglas explícitas y quedar contabilizadas.
 
 ## Actividades incrementales
+
+`diagnose_synthetic_metadata(spark, config, silver_publication_id, workspace)`,
+en `tfm_lakehouse.silver.metadata_diagnostics`, verifica la Silver explícita y
+lee la versión de metadatos del manifiesto Bronze asociado. Comprueba versión,
+metadatos del commit, esquema, recuento y linaje por fila; no selecciona la
+última publicación Bronze ni une datos eléctricos. El contrato histórico Bronze
+no registra un UUID físico de tabla para compararlo con uno anterior.
+
+El resultado distingue columnas ausentes, valores nulos y vacíos, edificios
+aprobados sin metadatos y claves duplicadas idénticas o conflictivas. Los
+duplicados cuentan claves y se separan entre edificios aprobados y otros; las
+claves nulas o vacías se cuentan aparte y no intervienen en los recuentos por
+campo. La igualdad de duplicados considera todas las columnas, incluido el
+linaje. La cardinalidad esperada es como máximo una fila de metadatos por
+edificio; el diagnóstico no resuelve duplicados ni decide una unión.
+Las huellas detectan cambios durante las acciones, pero no autentican el
+almacenamiento ni garantizan protección frente a modificaciones externas
+coordinadas. Una nueva versión Bronze concurrente también detiene el diagnóstico
+de forma conservadora. La interpretación de campos y el tratamiento de conflictos
+siguen pendientes de aprobación.
+
+La selección sintética de este diagnóstico y las regresiones de vínculo y
+publicación Silver superaron 43 pruebas. La distinción entre cadena vacía y
+`null` se comprobó con un DataFrame modificado en prueba; Bronze representa
+como `null` los campos CSV sin valor según su contrato.
 
 1. Validar claves de metadatos, relación edificio-emplazamiento, superficie
    y zona horaria frente a las fuentes y contratos aprobados.

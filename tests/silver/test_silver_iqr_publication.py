@@ -20,6 +20,7 @@ from tfm_lakehouse.ingestion.snapshot import SnapshotError
 from tfm_lakehouse.silver import silver_iqr_publication as iqr
 from tfm_lakehouse.silver import silver_synthetic_publication as silver
 from tfm_lakehouse.silver import silver_iqr_orchestration as orchestration
+from tfm_lakehouse.silver import metadata_diagnostics as diagnostics
 from tfm_lakehouse.silver.silver_iqr import IQR_METHOD, summarize_electricity_iqr
 
 
@@ -67,6 +68,95 @@ def _create_silver(spark, root, name="silver", *, interrupt=False):
 def published(spark, tmp_path):
     config, bronze, result = _create_silver(spark, tmp_path)
     return tmp_path, config, bronze, result
+
+
+@pytest.mark.integration
+def test_metadata_diagnostics_bind_historical_version_and_preserve_evidence(spark, published):
+    root, config, bronze, silver_result = published
+    before = iqr._fingerprint(root / "silver-publications" / "silver")
+    config.metadata.write_text("building_id,site_id\nnew-building,new-site\n")
+    newer = run_bronze(spark, config)
+    assert newer["run_id"] != bronze["run_id"]
+    result = diagnostics.diagnose_synthetic_metadata(spark, config, "silver", root)
+    assert result["bronze_run_id"] == bronze["run_id"]
+    assert result["metadata_version"] == next(t["delta_version"] for t in bronze["tables"]
+                                               if t["name"] == "metadata")
+    assert result["counts"]["selected"]["rows"] == 16
+    assert not result["missing_buildings"] and not result["available_columns"]["site_id"]
+    assert result["silver"]["delta_table_id"] == silver_result["delta_table_id"]
+    assert iqr._fingerprint(root / "silver-publications" / "silver") == before
+
+
+@pytest.mark.integration
+def test_metadata_diagnostics_classify_duplicates_and_empty_fields(spark, tmp_path):
+    root = tmp_path
+    config, bronze, _ = _create_silver(spark, root)
+    selected = APPROVED_BUILDINGS[0]
+    config.metadata.write_text("building_id,site_id,sqm,timezone,primaryspaceusage,sub_primaryspaceusage\n"
+                               f"{selected},A,,UTC,Lodging,Dormitory\n"
+                               f"{selected},A,,UTC,Lodging,Dormitory\n"
+                               f"{selected},B,10,UTC,Lodging,Dormitory\n"
+                               "other,A,1,UTC,Lodging,Dormitory\n"
+                               "other,A,1,UTC,Lodging,Dormitory\n"
+                               ",A,1,UTC,Lodging,Dormitory\n")
+    (root / "silver-publications" / "silver").rename(root / "original-silver")
+    next_bronze = run_bronze(spark, config)
+    spark._jvm.org.apache.spark.sql.delta.DeltaLog.clearCache()
+    silver.publish_synthetic_silver(spark, config, next_bronze["run_id"], "silver", root)
+    result = diagnostics.diagnose_synthetic_metadata(spark, config, "silver", root)
+    assert result["duplicates"]["selected"] == {"identical": 0, "conflicting": 1}
+    assert result["duplicates"]["unrelated"] == {"identical": 1, "conflicting": 0}
+    assert result["counts"]["null_building_id"] == 1
+    assert result["counts"]["selected"]["fields"]["sqm"]["null"] == 2
+    assert len(result["missing_buildings"]) == 15
+
+
+@pytest.mark.integration
+def test_metadata_diagnostics_reject_changed_manifest_and_bad_lineage(spark, published, monkeypatch):
+    root, config, bronze, _ = published
+    metadata = config.table_path("metadata")
+    before = iqr._fingerprint(metadata)
+    original_reader = diagnostics._read_verified_tables
+    def wrong_lineage(*args):
+        frames = original_reader(*args)
+        frames["metadata"] = frames["metadata"].withColumn("_bronze_source_sha256", F.lit("wrong"))
+        return frames
+    with monkeypatch.context() as fault:
+        fault.setattr(diagnostics, "_read_verified_tables", wrong_lineage)
+        with pytest.raises(iqr.IQRPublicationError, match="lineage differs"):
+            diagnostics.diagnose_synthetic_metadata(spark, config, "silver", root)
+    manifest = config.namespace / "_runs" / (bronze["run_id"] + ".json")
+    manifest.write_bytes(manifest.read_bytes() + b" ")
+    with pytest.raises(silver.SilverPublicationError):
+        diagnostics.diagnose_synthetic_metadata(spark, config, "silver", root)
+    assert iqr._fingerprint(metadata) == before
+
+
+@pytest.mark.unit
+def test_metadata_diagnostics_reject_real_config(tmp_path):
+    from types import SimpleNamespace
+    with pytest.raises(silver.SilverPublicationError, match="synthetic"):
+        diagnostics.diagnose_synthetic_metadata(None, SimpleNamespace(data_kind="real"), "silver", tmp_path)
+
+
+@pytest.mark.integration
+def test_metadata_diagnostics_distinguish_empty_from_null(spark, published, monkeypatch):
+    root, config, _, _ = published
+    original = diagnostics._read_verified_tables
+    def with_empty_values(*args):
+        frames = original(*args)
+        base = frames["metadata"].withColumn(
+            "site_id", F.when(F.col("building_id") == APPROVED_BUILDINGS[0], F.lit(""))
+            .otherwise(F.lit(None).cast("string")))
+        extra = (base.limit(1).withColumn("building_id", F.lit(""))
+                 .withColumn("site_id", F.lit("")))
+        frames["metadata"] = base.unionByName(extra)
+        return frames
+    monkeypatch.setattr(diagnostics, "_read_verified_tables", with_empty_values)
+    result = diagnostics.diagnose_synthetic_metadata(spark, config, "silver", root)
+    assert result["counts"]["empty_building_id"] == 1
+    assert result["counts"]["null_building_id"] == 0
+    assert result["counts"]["selected"]["fields"]["site_id"] == {"null": 15, "empty": 1}
 
 
 @pytest.mark.integration
