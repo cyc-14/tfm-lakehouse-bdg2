@@ -1,10 +1,12 @@
 """Invented fixtures for IQR Delta identity, ordering and failure recovery."""
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import replace
 import json
 import os
 from pathlib import Path
+from threading import Event
 
 from delta.tables import DeltaTable
 import pytest
@@ -17,6 +19,7 @@ from tfm_lakehouse.ingestion.bronze import run_bronze
 from tfm_lakehouse.ingestion.snapshot import SnapshotError
 from tfm_lakehouse.silver import silver_iqr_publication as iqr
 from tfm_lakehouse.silver import silver_synthetic_publication as silver
+from tfm_lakehouse.silver import silver_iqr_orchestration as orchestration
 from tfm_lakehouse.silver.silver_iqr import IQR_METHOD, summarize_electricity_iqr
 
 
@@ -64,6 +67,203 @@ def _create_silver(spark, root, name="silver", *, interrupt=False):
 def published(spark, tmp_path):
     config, bronze, result = _create_silver(spark, tmp_path)
     return tmp_path, config, bronze, result
+
+
+@pytest.mark.integration
+def test_orchestrated_transient_retry_preserves_silver_and_replays(spark, published, monkeypatch):
+    root, config, bronze, original = published
+    checkpoint = iqr._destination_checkpoint
+    calls = []
+
+    def interrupt_once(folder):
+        calls.append(folder)
+        if len(calls) == 1:
+            with monkeypatch.context() as fault:
+                def interrupted(_):
+                    raise OSError(11, "injected")
+                fault.setattr(iqr.os, "lstat", interrupted)
+                checkpoint(folder)
+        checkpoint(folder)
+
+    monkeypatch.setattr(iqr, "_destination_checkpoint", interrupt_once)
+    result = orchestration.publish_synthetic_silver_iqr(
+        spark, config, bronze["run_id"], "silver", "orchestrated", root)
+    assert result["status"] == "not_accepted"
+    assert result["iqr_attempts"] == 2
+    assert result["silver"] == original
+    replay = orchestration.publish_synthetic_silver_iqr(
+        spark, config, bronze["run_id"], "silver", "orchestrated", root)
+    assert replay["iqr_attempts"] == 1
+    assert replay["iqr"]["delta_table_id"] == result["iqr"]["delta_table_id"]
+    assert DeltaTable.forPath(spark, result["iqr"]["table_path"]).history().count() == 1
+
+
+@pytest.mark.integration
+def test_orchestrated_recovery_of_verified_commit_without_marker(spark, published, monkeypatch):
+    root, config, bronze, original = published
+    write_json = silver._exclusive_json
+    def interrupt_final(path, value):
+        if path.name == "completed.json" and path.parent.name == "recover":
+            raise OSError("injected")
+        return write_json(path, value)
+    with monkeypatch.context() as fault:
+        fault.setattr(silver, "_exclusive_json", interrupt_final)
+        with pytest.raises(OSError):
+            iqr.publish_synthetic_iqr(spark, config, "silver", "recover", root)
+    folder = root / "iqr-publications" / "recover"
+    log = folder / "silver_iqr_limits" / "_delta_log" / "00000000000000000000.json"
+    before = log.read_bytes()
+    def transient(_):
+        raise iqr._RetryCandidate("injected") from OSError(11, "injected")
+    monkeypatch.setattr(iqr, "_destination_checkpoint", transient)
+    result = orchestration.publish_synthetic_silver_iqr(
+        spark, config, bronze["run_id"], "silver", "recover", root)
+    assert result["status"] == "not_accepted"
+    assert result["iqr_attempts"] == 2 and result["silver"] == original
+    assert (folder / "completed.json").is_file() and log.read_bytes() == before
+
+
+@pytest.mark.integration
+def test_orchestrated_recovery_rejects_partial_delta(spark, published, monkeypatch):
+    root, config, bronze, original = published
+    def partial_write(writer, path=None, *args, **kwargs):
+        target = Path(path)
+        target.mkdir()
+        (target / "partial").write_text("incomplete")
+        raise OSError("interrupted")
+    with monkeypatch.context() as fault:
+        fault.setattr(DataFrameWriter, "save", partial_write)
+        with pytest.raises(OSError):
+            iqr.publish_synthetic_iqr(spark, config, "silver", "partial", root)
+    folder = root / "iqr-publications" / "partial"
+    before = iqr._fingerprint(folder)
+    def transient(_):
+        raise iqr._RetryCandidate("injected") from OSError(11, "injected")
+    monkeypatch.setattr(iqr, "_destination_checkpoint", transient)
+    result = orchestration.publish_synthetic_silver_iqr(
+        spark, config, bronze["run_id"], "silver", "partial", root)
+    assert result["status"] == "partial_success" and result["silver"] == original
+    assert result["iqr_attempts"] == 1
+    assert iqr._fingerprint(folder) == before
+
+
+@pytest.mark.integration
+def test_orchestrated_recovery_of_reservation_without_delta(spark, published, monkeypatch):
+    root, config, bronze, original = published
+    def interrupted(*args, **kwargs):
+        raise OSError("before Delta")
+    with monkeypatch.context() as fault:
+        fault.setattr(DataFrameWriter, "save", interrupted)
+        with pytest.raises(OSError):
+            iqr.publish_synthetic_iqr(spark, config, "silver", "reserved", root)
+    folder = root / "iqr-publications" / "reserved"
+    assert (folder / "intent.json").is_file() and not (folder / "silver_iqr_limits").exists()
+    def transient(_):
+        raise iqr._RetryCandidate("injected") from OSError(11, "injected")
+    monkeypatch.setattr(iqr, "_destination_checkpoint", transient)
+    result = orchestration.publish_synthetic_silver_iqr(
+        spark, config, bronze["run_id"], "silver", "reserved", root)
+    assert result["status"] == "not_accepted" and result["iqr_attempts"] == 2
+    assert result["silver"] == original and (folder / "completed.json").is_file()
+
+
+@pytest.mark.integration
+def test_orchestrated_recovery_rejects_changed_silver(spark, published, monkeypatch):
+    root, config, bronze, _ = published
+    marker = root / "silver-publications" / "silver" / "completed.json"
+    def mutate(_):
+        marker.write_text('{}')
+        raise iqr._RetryCandidate("injected") from OSError(11, "injected")
+    monkeypatch.setattr(iqr, "_destination_checkpoint", mutate)
+    result = orchestration.publish_synthetic_silver_iqr(
+        spark, config, bronze["run_id"], "silver", "changed", root)
+    assert result["status"] == "partial_success"
+    assert result["iqr_attempts"] == 1
+    assert not (root / "iqr-publications" / "changed").exists()
+
+
+@pytest.mark.integration
+def test_recovery_rejects_changed_bronze_manifest(spark, published, monkeypatch):
+    root, config, bronze, original = published
+    marker = config.namespace / "_runs" / (bronze["run_id"] + ".json")
+    calls = []
+    publisher = orchestration.publish_synthetic_silver
+    def publish_silver(*args, **kwargs):
+        calls.append(1)
+        return publisher(*args, **kwargs)
+    def mutate(_):
+        marker.write_bytes(marker.read_bytes() + b" ")
+        raise iqr._RetryCandidate("injected") from OSError(11, "injected")
+    monkeypatch.setattr(orchestration, "publish_synthetic_silver", publish_silver)
+    monkeypatch.setattr(iqr, "_destination_checkpoint", mutate)
+    before = iqr._fingerprint(root / "silver-publications" / "silver")
+    result = orchestration.publish_synthetic_silver_iqr(
+        spark, config, bronze["run_id"], "silver", "changed_bronze", root)
+    assert result["status"] == "partial_success" and result["silver"] == original
+    assert result["iqr_attempts"] == 1
+    assert isinstance(result["error"], iqr.IQRPublicationError)
+    assert "Silver intent or Bronze provenance differs" in str(result["error"])
+    assert len(calls) == 1 and iqr._fingerprint(root / "silver-publications" / "silver") == before
+    assert not (root / "iqr-publications" / "changed_bronze").exists()
+
+
+@pytest.mark.integration
+def test_recovery_rejects_coherent_replacement_silver_identity(spark, published, monkeypatch):
+    root, config, bronze, _ = published
+    _, replacement_bronze, _ = _create_silver(spark, root, "other")
+    namespace = root / "silver-publications"
+    calls, fingerprints = [], []
+    publisher = orchestration.publish_synthetic_silver
+    def publish_silver(*args, **kwargs):
+        calls.append(1)
+        return publisher(*args, **kwargs)
+    def replace_source(_):
+        (namespace / "silver").rename(root / "original-silver")
+        (namespace / "other").rename(root / "other-silver")
+        spark._jvm.org.apache.spark.sql.delta.DeltaLog.clearCache()
+        replacement = silver.publish_synthetic_silver(
+            spark, config, replacement_bronze["run_id"], "silver", root)
+        identity, _ = iqr._verify_silver(spark, config, root, "silver")
+        assert identity["delta_table_id"] == replacement["delta_table_id"]
+        fingerprints.append(iqr._fingerprint(namespace / "silver"))
+        raise iqr._RetryCandidate("injected") from OSError(11, "injected")
+    monkeypatch.setattr(orchestration, "publish_synthetic_silver", publish_silver)
+    monkeypatch.setattr(iqr, "_destination_checkpoint", replace_source)
+    result = orchestration.publish_synthetic_silver_iqr(
+        spark, config, bronze["run_id"], "silver", "replaced", root)
+    assert result["status"] == "partial_success" and len(calls) == 1
+    assert result["iqr_attempts"] == 1
+    assert "identity changed" in str(result["error"])
+    assert not (root / "iqr-publications" / "replaced").exists()
+    assert (root / "original-silver" / "completed.json").is_file()
+    assert iqr._fingerprint(namespace / "silver") == fingerprints[0]
+
+
+@pytest.mark.integration
+def test_concurrent_orchestrators_do_not_duplicate_iqr(spark, published, monkeypatch):
+    root, config, bronze, _ = published
+    entered, release = Event(), Event()
+    checkpoint = iqr._destination_checkpoint
+    def hold(folder):
+        entered.set()
+        if not release.wait(90):
+            raise RuntimeError("timed out waiting for competing orchestrator")
+        checkpoint(folder)
+    monkeypatch.setattr(iqr, "_destination_checkpoint", hold)
+    def publish():
+        return orchestration.publish_synthetic_silver_iqr(
+            spark, config, bronze["run_id"], "silver", "concurrent", root)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(publish)
+        try:
+            assert entered.wait(90)
+            second = executor.submit(publish).result(timeout=90)
+        finally:
+            release.set()
+        first_result = first.result(timeout=90)
+    assert second["status"] == "partial_success" and second["iqr_attempts"] == 1
+    assert first_result["status"] == "not_accepted"
+    assert DeltaTable.forPath(spark, first_result["iqr"]["table_path"]).history().count() == 1
 
 
 def _log(actions):

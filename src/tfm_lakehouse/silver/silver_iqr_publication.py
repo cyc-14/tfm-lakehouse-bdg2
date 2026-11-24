@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from copy import deepcopy
 import fcntl
+import errno
 import hashlib
 import json
 import os
@@ -294,31 +295,92 @@ def publish_synthetic_iqr(spark: SparkSession, config: BronzeConfig, silver_publ
     _require(method_version == IQR_METHOD, "Unsupported IQR method version")
     root = _workspace(workspace, config)
     with _lock(root) as namespace, _calculation(spark, config, root, silver_publication_id) as data:
-        identity, _, expected, records = data
-        intent = _intent(identity, publication_id, records)
-        folder = namespace / publication_id
-        silver._no_links(folder)
-        if not folder.exists():
-            folder.mkdir()
-            silver._exclusive_json(folder / "intent.json", intent)
-        else:
-            silver._check_tree(folder)
-            _folder_layout(folder, "silver_iqr_limits")
-            _require(_read(folder / "intent.json") == intent, "IQR publication ID conflicts with intent")
-        target, completed = folder / "silver_iqr_limits", folder / "completed.json"
-        output = _publication_frame(expected, intent)
-        if not target.exists():
-            _require(not completed.exists(), "IQR evidence exists without a Delta table")
-            (output.write.format("delta").mode("errorifexists")
-             .option("userMetadata", _canonical(intent)).save(str(target)))
-        result, _ = _verify_output(spark, target, output, intent)
-        _stable_silver(identity, config)
-        if completed.exists():
-            _require(_read(completed) == result, "IQR completion evidence conflicts with Delta")
-        else:
-            silver._exclusive_json(completed, result)
-        _stable_silver(identity, config)
-        return result
+        return _publish_locked(spark, config, root, namespace, publication_id, data)
+
+
+def _publish_locked(spark, config, root, namespace, publication_id, data, *, checkpoint=None,
+                    expected_identity=None):
+    identity, _, expected, records = data
+    if expected_identity is not None:
+        _require(identity == expected_identity, "Silver identity changed")
+    intent = _intent(identity, publication_id, records)
+    folder = namespace / publication_id
+    silver._no_links(folder)
+    if checkpoint is not None:
+        checkpoint(folder)
+    if not folder.exists():
+        folder.mkdir()
+        silver._exclusive_json(folder / "intent.json", intent)
+    else:
+        silver._check_tree(folder)
+        _folder_layout(folder, "silver_iqr_limits")
+        _require(_read(folder / "intent.json") == intent, "IQR publication ID conflicts with intent")
+    target, completed = folder / "silver_iqr_limits", folder / "completed.json"
+    output = _publication_frame(expected, intent)
+    if not target.exists():
+        _require(not completed.exists(), "IQR evidence exists without a Delta table")
+        (output.write.format("delta").mode("errorifexists")
+         .option("userMetadata", _canonical(intent)).save(str(target)))
+    result, _ = _verify_output(spark, target, output, intent)
+    _stable_silver(identity, config)
+    if completed.exists():
+        _require(_read(completed) == result, "IQR completion evidence conflicts with Delta")
+    else:
+        silver._exclusive_json(completed, result)
+    _stable_silver(identity, config)
+    return result
+
+
+class _RetryCandidate(IQRPublicationError):
+    """A transient failure at the explicitly instrumented destination check."""
+
+
+def _destination_checkpoint(folder):
+    try:
+        os.lstat(folder)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        if exc.errno in (errno.EINTR, errno.EAGAIN):
+            raise _RetryCandidate("Transient IQR destination inspection failure") from exc
+        raise
+
+
+def _orchestrated_iqr(spark, config, root, silver_id, publication_id, identity, *, recover=False,
+                      on_recovery_start=None):
+    """Publish under one lock; recovery checks the complete state before writing."""
+    _identifier(silver_id)
+    _identifier(publication_id)
+    with _lock(root) as namespace, _calculation(spark, config, root, silver_id) as data:
+        current, _, expected, records = data
+        _require(current == identity, "Silver identity changed")
+        if recover:
+            folder = namespace / publication_id
+            silver._no_links(folder)
+            try:
+                os.lstat(folder)
+            except FileNotFoundError:
+                pass
+            else:
+                silver._check_tree(folder)
+                _folder_layout(folder, "silver_iqr_limits")
+                intent = _intent(current, publication_id, records)
+                _require(_read(folder / "intent.json") == intent, "IQR intent differs")
+                target, completed = folder / "silver_iqr_limits", folder / "completed.json"
+                if target.exists():
+                    result, _ = _verify_output(spark, target, _publication_frame(expected, intent), intent)
+                    _stable_silver(current, config)
+                    if completed.exists():
+                        _require(_read(completed) == result, "IQR completion evidence differs")
+                        return result, False
+                else:
+                    _require(not completed.exists(), "IQR evidence exists without a Delta table")
+        if recover and on_recovery_start is not None:
+            on_recovery_start()
+        result = _publish_locked(spark, config, root, namespace, publication_id, data,
+                                 checkpoint=None if recover else _destination_checkpoint,
+                                 expected_identity=identity)
+        return result, True
 
 
 def _candidates(namespace):

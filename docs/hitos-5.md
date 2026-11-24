@@ -2,8 +2,8 @@
 
 **Estado:** implementados y verificados con sintéticos la transformación,
 interpretación numérica y temporal, vínculo Bronze, publicación Silver,
-diagnóstico de calidad, motor IQR y publicación IQR versionada. La orquestación
-Silver → IQR, la validación real y el cierre formal siguen pendientes; el
+diagnóstico de calidad, motor IQR, publicación IQR versionada y orquestación
+Silver → IQR. La validación real y el cierre formal siguen pendientes; el
 [registro de hitos](milestones.md) mantiene el resumen actual.
 **Responsabilidad:** Carlos implementa el flujo;
 Irantzu define y valida las reglas analíticas. **Objetivos:** OE3, OE4.
@@ -561,6 +561,73 @@ técnica y documental independientes finalizaron sin observaciones abiertas.
 
 ## Publicación versionada IQR — H05
 
+La función `publish_synthetic_silver_iqr(spark, config, run_id,
+silver_publication_id, iqr_publication_id, workspace)` del módulo
+`silver_iqr_orchestration` es el punto de entrada oficial del flujo sintético:
+publica Silver y verifica su identidad antes de IQR.
+Devuelve `success`, `not_accepted`, `partial_success` o `technical_failure`,
+junto con las publicaciones disponibles, los intentos IQR y el error, si existe.
+Solo admite un reintento tras `EINTR` o `EAGAIN` en la inspección explícita del
+destino IQR. La recuperación comprueba la identidad Silver y el estado IQR bajo
+el mismo cerrojo que protege la escritura; los estados inciertos se rechazan.
+Un commit completo se verifica antes de conciliarlo; no se reescribe Silver.
+`iqr_attempts` cuenta el intento inicial de IQR y añade un segundo solo cuando
+comienza la publicación o conciliación en recuperación. Una inspección
+rechazada o la lectura de una publicación completada no añade otro intento.
+
+Con una configuración sintética y una publicación Bronze ya verificadas, el
+orquestador se invoca así:
+
+```python
+from tfm_lakehouse.silver.silver_iqr_orchestration import publish_synthetic_silver_iqr
+
+result = publish_synthetic_silver_iqr(
+    spark, config, bronze_run_id, "silver-demo", "iqr-demo", workspace
+)
+print(result["status"], result["silver_verified"], result["iqr_attempts"])
+if result["error"] is not None:
+    print(result["error"])
+if "pair_state" in result:
+    print(result["pair_state"]["iqr_status"])
+```
+
+`spark`, `config`, `bronze_run_id` y `workspace` deben proceder de una sesión y
+publicación sintéticas preparadas en directorios temporales aislados. Bronze
+debe contener las 16 columnas eléctricas aprobadas; el fixture público de dos
+columnas no satisface ese requisito. `silver` e `iqr` contienen los informes
+disponibles; `pair_state` solo aparece tras verificar la pareja.
+
+Las selecciones sintéticas de publicadores y motor pasaron 90 pruebas; otra
+selección de la orquestación y tres estados de recuperación pasó 14 pruebas.
+Una selección posterior de mutación Silver, concurrencia y recencia pasó tres
+pruebas. La regresión sintética general terminó con 943 pruebas superadas y dos
+fallidas: recencia IQR, que pasó al repetirla aisladamente, y entorno Delta,
+cuyo lanzador local no configuró `spark.jars.packages`. La causa del primer
+fallo en la ejecución general queda pendiente de investigación.
+La comprobación de entorno pasó posteriormente con la coordenada Maven de
+Delta resuelta desde una caché Ivy aislada y un resolvedor solo local. También
+pasaron las pruebas de mutación del manifiesto Bronze y sustitución Silver
+coherente durante la recuperación. Una nueva regresión general obtuvo 942
+pruebas superadas, cuatro fallidas y cinco excluidas; las cuatro fallaron por
+la configuración del lanzador de pruebas y pasaron al repetirlas tras corregirlo.
+La causa exacta del fallo de recencia de la batería anterior sigue sin determinarse.
+Con el lanzador local corregido, la regresión sintética final completó 946
+pruebas sin fallos y excluyó cinco por las restricciones de datos reales y
+rutas protegidas. La recencia pasó también junto a pruebas vecinas en una
+misma sesión; el incidente histórico no se reprodujo y su causa sigue sin
+identificarse.
+Tras corregir el contador de intentos, la regresión sintética general superó
+947 pruebas, con cinco exclusiones de seguridad. Las huellas del código,
+pruebas, configuración y lanzador coincidieron antes y después de la ejecución.
+El oráculo racional independiente verifica la interpolación. El contraste
+sintético posterior con `pandas.Series.quantile(interpolation="linear")`
+utilizó siete poblaciones y 43 clasificaciones: todas coincidieron. La mayor
+diferencia en cuartiles y límites fue 2,23 × 10⁻¹⁶, dentro de las tolerancias
+absoluta y relativa de 10⁻¹² fijadas previamente; las poblaciones exactamente
+representables en binario coincidieron sin diferencia. Se usaron pandas 2.2.3
+y NumPy 1.26.4 en un entorno temporal, sin añadir dependencias al proyecto.
+Este contraste no acredita resultados con BDG2 real.
+
 `src/tfm_lakehouse/silver/silver_iqr_publication.py` mantiene separado el cálculo
 del publicador Silver y ofrece:
 
@@ -579,8 +646,8 @@ del publicador Silver y ofrece:
 
 La secuencia es: crear una publicación Bronze finalizada, publicar Silver con
 su `run_id`, publicar IQR para el ID Silver devuelto y leer la pareja explícita.
-Las publicaciones Silver e IQR requieren llamadas separadas; no hay un comando
-CLI u orquestador que las encadene:
+Las publicaciones Silver e IQR también pueden ejecutarse mediante llamadas
+separadas; el ejemplo siguiente no utiliza el orquestador:
 
 ```python
 silver = publish_synthetic_silver(
@@ -695,7 +762,7 @@ salidas son planes diferidos: los archivos deben permanecer disponibles y sin
 cambios después de devolverlos. No se garantiza retención histórica ni protección
 frente a escritores externos, alteración coordinada del almacenamiento o relojes
 desajustados. El timestamp establece un orden operativo, no un reloj global
-autenticado. La orquestación Silver → IQR, H06, Gold y BDG2 real siguen fuera
+autenticado. H06, Gold y BDG2 real siguen fuera
 del alcance; H05 no queda cerrado.
 
 Verificación del 09/11/2026 sobre la base

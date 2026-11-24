@@ -19,7 +19,8 @@ siguen pendientes la reproducción de la selección y su procedencia.
 [H05](docs/hitos-5.md) implementa transformación eléctrica, interpretación numérica
 y temporal nominal, vínculo Bronze, publicación Silver, diagnóstico de calidad,
 motor IQR y publicación IQR versionada, con verificación sintética documentada.
-La orquestación Silver → IQR y el cierre formal de H05 están pendientes.
+La orquestación Silver → IQR está implementada con verificación sintética
+parcial; el cierre formal de H05 está pendiente.
 La integración meteorológica y Gold quedan fuera del alcance implementado.
 
 El [registro de hitos](docs/milestones.md) es la referencia del estado actual.
@@ -94,8 +95,8 @@ Delta siguen siendo transaccionales por tabla, no por el conjunto.
    `config/bronze.synthetic.toml`. El informe identifica el `run_id` Bronze y
    las versiones Delta publicadas.
 3. La CLI ofrece `check-environment`, `ingest-bronze` e `inspect-bronze`.
-   Silver e IQR se publican mediante llamadas Python separadas; no existe un
-   orquestador Silver → IQR. La guía [H05](docs/hitos-5.md#uso-de-la-api-de-publicación)
+   El orquestador sintético es el punto de entrada oficial Silver → IQR; las
+   publicaciones también admiten llamadas separadas. La guía [H05](docs/hitos-5.md#uso-de-la-api-de-publicación)
    muestra las llamadas y sus requisitos. El fixture público tiene dos columnas
    eléctricas y no cumple el requisito Silver de 16 edificios; por eso no se
    presenta como un ejemplo ejecutable de Silver/IQR.

@@ -49,7 +49,7 @@ esta revisión documental no ejecuta pruebas ni datos.
 | H02 | Bronze, versiones publicadas y recuperación; regresiones sintéticas y expediente real histórico | No acredita calidad analítica; conservar trazabilidad y restricciones reales |
 | H03 | Caracterización eléctrica y meteorológica; ejecuciones reales del 30/10/2026. Evolución eléctrica v2 probada solo con sintéticos | Cierre académico global y contraste con la memoria |
 | H04 | Selección conjunta de 16 edificios y contratos documentados; herramientas de contraste sintéticas | Reproducir selección y procedencia desde las fuentes; cierre formal |
-| H05 | Transformación, interpretación numérica/temporal, vínculo Bronze, publicación Silver, calidad, motor y publicación IQR versionada; pruebas sintéticas documentadas en su guía | Orquestación Silver → IQR, validación real separadamente autorizada y cierre formal |
+| H05 | Transformación, publicación Silver e IQR y orquestación verificadas con sintéticos; contraste sintético con pandas | Validación real separadamente autorizada y cierre formal |
 | H06 | Planificado; sin integración contextual implementada | Semántica temporal, cardinalidad y procedencia |
 | H07 | Planificado; sin Gold implementado | Fórmulas, cobertura y comparabilidad |
 | H08 | Planificado; sin explotación implementada | Tareas y visualizaciones analíticas |
@@ -182,7 +182,8 @@ padre Silver, replay, recuperación controlada y lectura histórica compatible.
 La recencia utiliza el timestamp persistido del commit Delta verificado, según
 el criterio aprobado; no la fecha de finalización o de modificación de archivos.
 El contrato y las comprobaciones se recogen en la [guía H05](hitos-5.md#publicación-versionada-iqr--h05).
-La orquestación, la ejecución BDG2 real y el cierre formal de H05 siguen pendientes.
+En ese incremento quedaron pendientes la orquestación, la ejecución BDG2 real
+y el cierre formal de H05.
 
 ## Riesgo técnico transversal AUD-09
 
