@@ -86,6 +86,7 @@ def diagnose_synthetic_metadata(spark, config, silver_publication_id, workspace)
         iqr._stable_silver(identity, config)
         return {"silver": identity, "bronze_run_id": run_id, "manifest_sha256": digest,
                 "metadata_version": item["delta_version"], "metadata_source_sha256": item["source_sha256"],
+                "metadata_files_sha256": metadata_fingerprint,
                 "available_columns": available, "counts": counts, "duplicates": duplicate_counts,
                 "missing_buildings": [name for name in APPROVED_BUILDINGS if name not in present],
                 "expected_join_cardinality": "at_most_one_metadata_row_per_building",

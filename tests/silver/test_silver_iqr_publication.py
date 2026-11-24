@@ -2,6 +2,7 @@
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from datetime import datetime, timedelta
 from dataclasses import replace
 import json
 import os
@@ -21,6 +22,8 @@ from tfm_lakehouse.silver import silver_iqr_publication as iqr
 from tfm_lakehouse.silver import silver_synthetic_publication as silver
 from tfm_lakehouse.silver import silver_iqr_orchestration as orchestration
 from tfm_lakehouse.silver import metadata_diagnostics as diagnostics
+from tfm_lakehouse.silver import metadata_enrichment as enrichment
+from tfm_lakehouse.silver import weather_diagnostics as weather_diagnostics
 from tfm_lakehouse.silver.silver_iqr import IQR_METHOD, summarize_electricity_iqr
 
 
@@ -70,6 +73,255 @@ def published(spark, tmp_path):
     return tmp_path, config, bronze, result
 
 
+@pytest.mark.unit
+def test_weather_transition_and_special_tokens_are_diagnostic_only():
+    assert weather_diagnostics._transition_sensitive("2016-03-13 02:30:00", "America/New_York")
+    assert weather_diagnostics._transition_sensitive("2016-11-06 01:30:00", "America/New_York")
+    assert not weather_diagnostics._transition_sensitive("2016-01-01 01:00:00", "America/New_York")
+    assert weather_diagnostics._special("-1e0", "precipDepth1HR")
+    assert weather_diagnostics._special("+9", "cloudCoverage")
+    assert not weather_diagnostics._special("9.0000000000000000001", "cloudCoverage")
+
+
+@pytest.mark.unit
+def test_weather_diagnostic_rejects_real_configuration(tmp_path):
+    from types import SimpleNamespace
+    with pytest.raises(silver.SilverPublicationError, match="synthetic"):
+        weather_diagnostics.diagnose_synthetic_weather(None, SimpleNamespace(data_kind="real"), "silver", tmp_path)
+
+
+@pytest.mark.integration
+def test_weather_diagnostic_unavailable_keeps_silver_identity(spark, published, monkeypatch):
+    root, config, bronze, result = published
+    monkeypatch.setattr(iqr, "summarize_electricity_iqr", lambda *_: pytest.fail("IQR must not run"))
+    weather = weather_diagnostics.diagnose_synthetic_weather(spark, config, "silver", root)
+    assert weather["weather_status"] == "unavailable"
+    assert weather["silver"]["delta_table_id"] == result["delta_table_id"]
+    assert weather["bronze_run_id"] == bronze["run_id"]
+    assert all(row["status"] == "missing_site_column" for row in weather["mappings"])
+
+
+@pytest.mark.integration
+def test_weather_without_site_column_reports_ambiguous_metadata(spark, tmp_path):
+    config, _, _ = _create_silver(spark, tmp_path)
+    config.metadata.write_text("building_id\n" + "\n".join(APPROVED_BUILDINGS)
+                               + "\n" + APPROVED_BUILDINGS[0] + "\n")
+    bronze = run_bronze(spark, config)
+    silver.publish_synthetic_silver(spark, config, bronze["run_id"], "duplicate_meta", tmp_path)
+    result = weather_diagnostics.diagnose_synthetic_weather(spark, config, "duplicate_meta", tmp_path)
+    assert result["weather_status"] == "unavailable"
+    assert result["mappings"][0]["status"] == "ambiguous_metadata"
+    assert not result["metadata_site_column_available"]
+    assert result["metadata_duplicates"]["selected"]["identical"] == 1
+
+
+@pytest.mark.integration
+def test_weather_diagnostic_historical_duplicates_coverage_and_lineage(spark, tmp_path, monkeypatch):
+    config, _, _ = _create_silver(spark, tmp_path)
+    weather_file = config.raw_root / "weather.csv"
+    metadata_rows = [f"{name},SITE,America/New_York" for name in APPROVED_BUILDINGS]
+    metadata_rows[1] = f"{APPROVED_BUILDINGS[1]},NO_WEATHER,America/New_York"
+    metadata_rows[2] = f"{APPROVED_BUILDINGS[2]}, ,America/New_York"
+    metadata_rows.append(f"{APPROVED_BUILDINGS[0]},OTHER,America/New_York")
+    config.metadata.write_text("building_id,site_id,timezone\n" + "\n".join(metadata_rows) + "\n")
+    weather_file.write_text("timestamp,site_id,airTemperature,precipDepth1HR,cloudCoverage\n"
+                            "2016-01-01 00:00:00,SITE,1,-1,9\n"
+                            "2016-01-01 00:00:00,SITE,1,-1,9\n"
+                            "2016-01-01 00:00:00,SITE,2,-1,9\n"
+                            "2016-01-01 01:00:00,SITE,,NaN,0\n"
+                            "2016-01-01 02:00:00,SITE,1,0,0\n"
+                            "2016-01-01 02:00:00,SITE,1,0,0\n"
+                            "2016-01-01 00:00:00,OTHER,1,0,0\n"
+                            "2016-01-01 00:00:00,OTHER,1,0,0\n"
+                            "2016-03-13 02:30:00,SITE,bad,0,0\n"
+                            "2016-11-06 01:30:00,SITE,3,0,0\n"
+                            "invalid,SITE,1,0,0\n")
+    config = replace(config, weather=weather_file)
+    bronze = run_bronze(spark, config)
+    silver.publish_synthetic_silver(spark, config, bronze["run_id"], "with_weather", tmp_path)
+    weather_file.write_text("timestamp,site_id,airTemperature,precipDepth1HR,cloudCoverage\n"
+                            "2016-01-01 00:00:00,SITE,99,0,0\n")
+    run_bronze(spark, config)
+    iqr.publish_synthetic_iqr(spark, config, "with_weather", "weather_iqr", tmp_path)
+    before_iqr = iqr._fingerprint(tmp_path / "iqr-publications" / "weather_iqr")
+    monkeypatch.setattr(iqr, "summarize_electricity_iqr", lambda *_: pytest.fail("IQR must not run"))
+    monkeypatch.setattr(iqr, "read_synthetic_iqr_pair", lambda *a, **k: pytest.fail("IQR must not be read"))
+    before_silver = iqr._fingerprint(tmp_path / "silver-publications" / "with_weather")
+    before_weather = iqr._fingerprint(config.table_path("weather"))
+    output = weather_diagnostics.diagnose_synthetic_weather(spark, config, "with_weather", tmp_path)
+    assert output["weather_status"] == "available" and output["bronze_run_id"] == bronze["run_id"]
+    assert output["weather_version"] == next(t["delta_version"] for t in bronze["tables"] if t["name"] == "weather")
+    duplicate_by_site = {row["site_id"]: row for row in output["duplicates"]}
+    assert duplicate_by_site["SITE"]["conflicting_keys"] == 1
+    assert duplicate_by_site["SITE"]["identical_keys"] == 1
+    assert duplicate_by_site["SITE"]["exact_duplicate_extra_rows"] == 2
+    assert duplicate_by_site["OTHER"]["identical_keys"] == 1
+    assert output["mappings"][0]["status"] == "ambiguous_metadata"
+    assert output["mappings"][2]["status"] == "invalid_site"
+    assert "NO_WEATHER" in output["missing_weather_sites"]
+    assert not output["available_variables"]["windSpeed"]
+    assert any(r["off_grid"] for r in output["temporal_status"] if r["off_grid"] is not None)
+    assert output["transition_diagnostics"][0]["sensitive_labels"] == 0
+    assert any(row["sensitive_labels"] == 2 for row in output["transition_diagnostics"])
+    assert any(row["status"] == "invalid_format" for row in output["temporal_status"])
+    january = [r for r in output["variable_period_profiles"] if r["variable"] == "precipDepth1HR" and r["period"] == "2016-01"]
+    site_profile = next(row for row in january if row["site_id"] == "SITE")
+    assert site_profile["special_code_count"] == 3 and site_profile["missing"] == 1
+    assert any(row["site_id"] == "NO_WEATHER" and row["rows"] == 0
+               and row["missing_weather_labels"] > 0 for row in january)
+    assert iqr._fingerprint(tmp_path / "silver-publications" / "with_weather") == before_silver
+    assert iqr._fingerprint(config.table_path("weather")) == before_weather
+    assert iqr._fingerprint(tmp_path / "iqr-publications" / "weather_iqr") == before_iqr
+    original_reader = weather_diagnostics._read_verified_tables
+    def bad_lineage(*args):
+        frames = original_reader(*args)
+        frames["weather"] = frames["weather"].withColumn("_bronze_source_sha256", F.lit("wrong"))
+        return frames
+    with monkeypatch.context() as fault:
+        fault.setattr(weather_diagnostics, "_read_verified_tables", bad_lineage)
+        with pytest.raises(iqr.IQRPublicationError, match="lineage differs"):
+            weather_diagnostics.diagnose_synthetic_weather(spark, config, "with_weather", tmp_path)
+    manifest = config.namespace / "_runs" / (bronze["run_id"] + ".json")
+    manifest.write_bytes(manifest.read_bytes() + b" ")
+    with pytest.raises(silver.SilverPublicationError):
+        weather_diagnostics.diagnose_synthetic_weather(spark, config, "with_weather", tmp_path)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value,status", [(None, "null"), ("", "empty"), ("NaN", "nonfinite"),
+    ("Infinity", "nonfinite"), ("bad", "invalid"), ("0", "zero"), ("-1", "negative"),
+    ("1e-19", "positive_nonrepresentable"), ("1e20", "positive_nonrepresentable"),
+    ("1.1234567890123456789", "positive_nonrepresentable"), ("1.0000000000000000000", "valid"),
+    ("1e-18", "valid"), ("1e2", "valid")])
+def test_metadata_area_exact_classification(value, status):
+    number, actual = enrichment._area(value)
+    assert actual == status
+    assert (number is not None) == (status == "valid")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value,status", [(None, "null"), ("", "empty"),
+                                         ("UTC", "valid"), ("unknown/invented", "unknown")])
+def test_metadata_timezone_classification(value, status):
+    assert enrichment._timezone(value) == status
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("kind", ["identical", "conflicting"])
+def test_enrichment_rejects_selected_duplicates_before_join(monkeypatch, kind):
+    duplicate = {"identical": 0, "conflicting": 0}
+    duplicate[kind] = 1
+    monkeypatch.setattr(enrichment, "diagnose_synthetic_metadata", lambda *a: {"duplicates": {"selected": duplicate}})
+    with pytest.raises(iqr.IQRPublicationError, match="duplicated"):
+        enrichment.enrich_synthetic_metadata(None, None, "silver", None)
+
+
+@pytest.mark.integration
+def test_enrichment_preserves_exact_silver_with_missing_metadata_columns(spark, published, monkeypatch):
+    root, config, _, silver_result = published
+    monkeypatch.setattr(iqr, "summarize_electricity_iqr", lambda *_: pytest.fail("IQR must not run"))
+    diagnostic, frame = enrichment.enrich_synthetic_metadata(spark, config, "silver", root)
+    source = spark.read.format("delta").option("versionAsOf", 0).load(silver_result["table_path"])
+    assert not frame.select(*source.columns).exceptAll(source).count()
+    assert not source.exceptAll(frame.select(*source.columns)).count()
+    assert frame.where(F.col("metadata_sqm_status") != "missing_column").count() == 0
+    assert frame.where(F.col("metadata_site_id_status") != "missing_column").count() == 0
+    assert len(diagnostic["building_quality"]) == 16
+
+
+@pytest.mark.integration
+def test_enrichment_context_and_unrelated_duplicates_with_existing_iqr(spark, tmp_path, monkeypatch):
+    config, _, _ = _create_silver(spark, tmp_path)
+    records = [f"{name},SITE,{index + 1}.0,UTC,Lodging,Dormitory"
+               for index, name in enumerate(APPROVED_BUILDINGS[:-1])]
+    records += ["OTHER,SITE,10,UTC,Lodging,Dormitory"] * 2
+    records.append(f"{APPROVED_BUILDINGS[-1].lower()},SITE,10,UTC,Lodging,Dormitory")
+    config.metadata.write_text("building_id,site_id,sqm,timezone,primaryspaceusage,sub_primaryspaceusage\n"
+                               + "\n".join(records) + "\n")
+    (tmp_path / "silver-publications" / "silver").rename(tmp_path / "old-silver")
+    bronze = run_bronze(spark, config)
+    spark._jvm.org.apache.spark.sql.delta.DeltaLog.clearCache()
+    silver.publish_synthetic_silver(spark, config, bronze["run_id"], "silver", tmp_path)
+    iqr.publish_synthetic_iqr(spark, config, "silver", "limits", tmp_path)
+    iqr_fingerprint = iqr._fingerprint(tmp_path / "iqr-publications" / "limits")
+    monkeypatch.setattr(iqr, "summarize_electricity_iqr", lambda *_: pytest.fail("IQR must not run"))
+    monkeypatch.setattr(iqr, "read_synthetic_iqr_pair", lambda *a, **k: pytest.fail("IQR must not be read"))
+    diagnostic, frame = enrichment.enrich_synthetic_metadata(spark, config, "silver", tmp_path)
+    assert diagnostic["duplicates"]["unrelated"]["identical"] == 1
+    assert diagnostic["missing_buildings"] == [APPROVED_BUILDINGS[-1]]
+    assert frame.where(F.col("building_id") == APPROVED_BUILDINGS[-1]).where(
+        F.col("metadata_sqm_status") != "missing_row").count() == 0
+    row = frame.where(F.col("building_id") == APPROVED_BUILDINGS[0]).first()
+    assert row.metadata_sqm_numeric == 1 and row.metadata_sqm_status == "valid"
+    assert row.metadata_timezone_status == "valid" and row.metadata_site_id_status == "present"
+    assert weather_diagnostics.diagnose_synthetic_weather(spark, config, "silver", tmp_path)["weather_status"] == "unavailable"
+    assert iqr._fingerprint(tmp_path / "iqr-publications" / "limits") == iqr_fingerprint
+
+
+@pytest.mark.integration
+def test_enrichment_full_cohort_and_identical_duplicate_rejection(spark, tmp_path):
+    config, _, _ = _create_silver(spark, tmp_path)
+    records = [f"{name},SITE,123.45,UTC,Lodging,Dormitory" for name in APPROVED_BUILDINGS]
+    header = "building_id,site_id,sqm,timezone,primaryspaceusage,sub_primaryspaceusage\n"
+    config.metadata.write_text(header + "\n".join(records) + "\n")
+    (tmp_path / "silver-publications" / "silver").rename(tmp_path / "old-silver")
+    bronze = run_bronze(spark, config)
+    spark._jvm.org.apache.spark.sql.delta.DeltaLog.clearCache()
+    silver.publish_synthetic_silver(spark, config, bronze["run_id"], "silver", tmp_path)
+    report, frame = enrichment.enrich_synthetic_metadata(spark, config, "silver", tmp_path)
+    assert not report["missing_buildings"] and len(report["building_quality"]) == 16
+    assert frame.where(~F.col("metadata_available") | (F.col("metadata_sqm_status") != "valid")).count() == 0
+    config.metadata.write_text(header + "\n".join(records + [records[0]]) + "\n")
+    (tmp_path / "silver-publications" / "silver").rename(tmp_path / "second-silver")
+    bronze = run_bronze(spark, config)
+    spark._jvm.org.apache.spark.sql.delta.DeltaLog.clearCache()
+    silver.publish_synthetic_silver(spark, config, bronze["run_id"], "silver", tmp_path)
+    with pytest.raises(iqr.IQRPublicationError, match="duplicated"):
+        enrichment.enrich_synthetic_metadata(spark, config, "silver", tmp_path)
+
+
+@pytest.mark.integration
+def test_enrichment_rejects_colliding_silver_columns(spark, published, monkeypatch):
+    root, config, _, _ = published
+    diagnose = enrichment.diagnose_synthetic_metadata
+    verify = iqr._verify_silver
+    def diagnose_then_collide(*args):
+        result = diagnose(*args)
+        def collide(*arguments):
+            identity, frame = verify(*arguments)
+            return identity, frame.withColumn("metadata_sqm_status", F.lit("collision"))
+        monkeypatch.setattr(iqr, "_verify_silver", collide)
+        return result
+    monkeypatch.setattr(enrichment, "diagnose_synthetic_metadata", diagnose_then_collide)
+    with pytest.raises(iqr.IQRPublicationError, match="collision"):
+        enrichment.enrich_synthetic_metadata(spark, config, "silver", root)
+
+
+@pytest.mark.integration
+def test_enrichment_does_not_read_accepted_iqr(spark, tmp_path, monkeypatch):
+    config, _, _ = _create_silver(spark, tmp_path)
+    start = datetime(2016, 1, 1)
+    rows = [(start + timedelta(hours=i)).strftime("%Y-%m-%d %H:%M:%S") + "," + ",".join(["1"] * 16)
+            for i in range(16667)]
+    config.electricity.write_text("timestamp," + ",".join(APPROVED_BUILDINGS) + "\n"
+                                  + "\n".join(rows) + "\n")
+    (tmp_path / "silver-publications" / "silver").rename(tmp_path / "old-silver")
+    bronze = run_bronze(spark, config)
+    spark._jvm.org.apache.spark.sql.delta.DeltaLog.clearCache()
+    silver.publish_synthetic_silver(spark, config, bronze["run_id"], "silver", tmp_path)
+    iqr.publish_synthetic_iqr(spark, config, "silver", "accepted", tmp_path)
+    state, _, _ = iqr.read_synthetic_iqr_pair(spark, config, tmp_path,
+                                              silver_publication_id="silver", iqr_publication_id="accepted")
+    assert state["iqr_status"] == "available"
+    before = iqr._fingerprint(tmp_path / "iqr-publications" / "accepted")
+    monkeypatch.setattr(iqr, "summarize_electricity_iqr", lambda *_: pytest.fail("IQR must not run"))
+    monkeypatch.setattr(iqr, "read_synthetic_iqr_pair", lambda *a, **k: pytest.fail("IQR must not be read"))
+    _, frame = enrichment.enrich_synthetic_metadata(spark, config, "silver", tmp_path)
+    assert frame.count() == 16667 * 16
+    assert weather_diagnostics.diagnose_synthetic_weather(spark, config, "silver", tmp_path)["weather_status"] == "unavailable"
+    assert iqr._fingerprint(tmp_path / "iqr-publications" / "accepted") == before
+
+
 @pytest.mark.integration
 def test_metadata_diagnostics_bind_historical_version_and_preserve_evidence(spark, published):
     root, config, bronze, silver_result = published
@@ -85,6 +337,9 @@ def test_metadata_diagnostics_bind_historical_version_and_preserve_evidence(spar
     assert not result["missing_buildings"] and not result["available_columns"]["site_id"]
     assert result["silver"]["delta_table_id"] == silver_result["delta_table_id"]
     assert iqr._fingerprint(root / "silver-publications" / "silver") == before
+    enriched, view = enrichment.enrich_synthetic_metadata(spark, config, "silver", root)
+    assert enriched["bronze_run_id"] == bronze["run_id"]
+    assert not enriched["available_columns"]["site_id"] and view.count() == silver_result["output_rows"]
 
 
 @pytest.mark.integration
@@ -109,6 +364,8 @@ def test_metadata_diagnostics_classify_duplicates_and_empty_fields(spark, tmp_pa
     assert result["counts"]["null_building_id"] == 1
     assert result["counts"]["selected"]["fields"]["sqm"]["null"] == 2
     assert len(result["missing_buildings"]) == 15
+    with pytest.raises(iqr.IQRPublicationError, match="duplicated"):
+        enrichment.enrich_synthetic_metadata(spark, config, "silver", root)
 
 
 @pytest.mark.integration
@@ -129,6 +386,8 @@ def test_metadata_diagnostics_reject_changed_manifest_and_bad_lineage(spark, pub
     manifest.write_bytes(manifest.read_bytes() + b" ")
     with pytest.raises(silver.SilverPublicationError):
         diagnostics.diagnose_synthetic_metadata(spark, config, "silver", root)
+    with pytest.raises(silver.SilverPublicationError):
+        enrichment.enrich_synthetic_metadata(spark, config, "silver", root)
     assert iqr._fingerprint(metadata) == before
 
 
