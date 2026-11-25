@@ -23,6 +23,7 @@ from tfm_lakehouse.silver import silver_synthetic_publication as silver
 from tfm_lakehouse.silver import silver_iqr_orchestration as orchestration
 from tfm_lakehouse.silver import metadata_diagnostics as diagnostics
 from tfm_lakehouse.silver import metadata_enrichment as enrichment
+from tfm_lakehouse.silver import contextual_identity as contextual_identity
 from tfm_lakehouse.silver import weather_diagnostics as weather_diagnostics
 from tfm_lakehouse.silver.silver_iqr import IQR_METHOD, summarize_electricity_iqr
 
@@ -71,6 +72,156 @@ def _create_silver(spark, root, name="silver", *, interrupt=False):
 def published(spark, tmp_path):
     config, bronze, result = _create_silver(spark, tmp_path)
     return tmp_path, config, bronze, result
+
+
+@pytest.mark.unit
+def test_contextual_zone_hashes_actual_bytes_without_cache(tmp_path, monkeypatch):
+    from zoneinfo import ZoneInfo
+    source = Path("/usr/share/zoneinfo/UTC")
+    if not source.is_file():
+        pytest.skip("System UTC timezone resource unavailable")
+    content = source.read_bytes()
+    path = tmp_path / "zone"
+    path.write_bytes(content)
+    ZoneInfo("UTC")  # A previously cached object must not provide the evidence.
+    monkeypatch.setattr(contextual_identity._tzpath, "find_tzfile", lambda _: str(path))
+    status, resource, digest = contextual_identity._controlled_zone("UTC")
+    import hashlib
+    assert status == "valid" and resource == "file:" + str(path)
+    assert digest == hashlib.sha256(content).hexdigest()
+    alternate = Path("/usr/share/zoneinfo/Etc/GMT+1")
+    if alternate.is_file():
+        path.write_bytes(alternate.read_bytes())
+        assert contextual_identity._controlled_zone("UTC")[2] != digest
+    path.write_bytes(b"corrupt timezone")
+    with pytest.raises((ValueError, EOFError)):
+        contextual_identity._controlled_zone("UTC")
+
+
+@pytest.mark.unit
+def test_contextual_zone_missing_and_invalid():
+    assert contextual_identity._controlled_zone(None)[0] == "null"
+    assert contextual_identity._controlled_zone("")[0] == "empty"
+    assert contextual_identity._controlled_zone("invalid/unknown/invented")[0] == "unknown"
+    assert contextual_identity._controlled_zone("../invalid")[0] == "unknown"
+
+
+@pytest.mark.unit
+def test_contextual_zone_lookup_precedence_and_worker_disagreement(tmp_path, monkeypatch):
+    from io import BytesIO
+    from types import SimpleNamespace
+    source = Path("/usr/share/zoneinfo/UTC")
+    if not source.is_file():
+        pytest.skip("System UTC timezone resource unavailable")
+    content = source.read_bytes()
+    path = tmp_path / "first"
+    path.write_bytes(content)
+    monkeypatch.setattr(contextual_identity._tzpath, "find_tzfile", lambda _: str(path))
+    monkeypatch.setattr(contextual_identity._common, "load_tzdata", lambda _: pytest.fail("fallback used"))
+    assert contextual_identity._controlled_zone("UTC")[1] == "file:" + str(path)
+    monkeypatch.setattr(contextual_identity._tzpath, "find_tzfile", lambda _: None)
+    monkeypatch.setattr(contextual_identity._common, "load_tzdata", lambda _: BytesIO(content))
+    assert contextual_identity._controlled_zone("UTC")[1] == "tzdata:UTC"
+    one = SimpleNamespace(metadata_timezone="UTC", status="valid", resource="a", sha256="1")
+    two = SimpleNamespace(metadata_timezone="UTC", status="valid", resource="a", sha256="2")
+    with pytest.raises(iqr.IQRPublicationError, match="worker evidence differs"):
+        contextual_identity._merge_zone_evidence([one, two])
+
+
+@pytest.mark.integration
+def test_contextual_intent_with_real_worker_timezone_and_replay(spark, tmp_path, monkeypatch):
+    config, _, _ = _create_silver(spark, tmp_path)
+    config.metadata.write_text("building_id,timezone\n" +
+                               "\n".join(f"{name},UTC" for name in APPROVED_BUILDINGS) + "\n")
+    bronze = run_bronze(spark, config)
+    silver.publish_synthetic_silver(spark, config, bronze["run_id"], "context_source", tmp_path)
+    intent = contextual_identity.build_synthetic_contextual_intent(
+        spark, config, "context_source", "context", tmp_path)
+    assert intent["timezone_evidence"][0]["timezone"] == "UTC"
+    assert intent["timezone_evidence"][0]["status"] == "valid"
+    assert len(intent["timezone_evidence"][0]["sha256"]) == 64
+    with pytest.raises(iqr.IQRPublicationError, match="evidence differs"):
+        contextual_identity.verify_synthetic_contextual_intent(
+            spark, config, "silver", "context", tmp_path, intent)
+    metadata_path = config.table_path("metadata")
+    held = tmp_path / "held-metadata"
+    metadata_path.rename(held)
+    try:
+        with pytest.raises((iqr.IQRPublicationError, SnapshotError, OSError)):
+            contextual_identity.build_synthetic_contextual_intent(
+                spark, config, "context_source", "context", tmp_path)
+    finally:
+        held.rename(metadata_path)
+    changed = deepcopy(intent)
+    changed["timezone_evidence"][0]["sha256"] = "0" * 64
+    with pytest.raises(iqr.IQRPublicationError, match="evidence differs"):
+        contextual_identity.verify_synthetic_contextual_intent(
+            spark, config, "context_source", "context", tmp_path, changed)
+    from io import BytesIO
+    import hashlib
+    from zoneinfo import ZoneInfo
+    first_zone, second_zone = Path("/usr/share/zoneinfo/UTC"), Path("/usr/share/zoneinfo/Etc/GMT+1")
+    if first_zone.is_file() and second_zone.is_file():
+        resource = tmp_path / "synthetic-zone"
+        resource.write_bytes(first_zone.read_bytes())
+        def controlled(name):
+            if name is None:
+                return "null", None, None
+            data = resource.read_bytes()
+            ZoneInfo.from_file(BytesIO(data), key=name)
+            return "valid", "file:" + str(resource), hashlib.sha256(data).hexdigest()
+        monkeypatch.setattr(contextual_identity, "_controlled_zone", controlled)
+        pinned = contextual_identity.build_synthetic_contextual_intent(
+            spark, config, "context_source", "context", tmp_path)
+        resource.write_bytes(second_zone.read_bytes())
+        with pytest.raises(iqr.IQRPublicationError, match="evidence differs"):
+            contextual_identity.verify_synthetic_contextual_intent(
+                spark, config, "context_source", "context", tmp_path, pinned)
+    manifest = config.namespace / "_runs" / (bronze["run_id"] + ".json")
+    manifest.write_bytes(manifest.read_bytes() + b" ")
+    with pytest.raises(silver.SilverPublicationError):
+        contextual_identity.build_synthetic_contextual_intent(
+            spark, config, "context_source", "context", tmp_path)
+
+
+@pytest.mark.integration
+def test_contextual_intent_rejects_worker_evidence_disagreement(spark, published, monkeypatch):
+    from pyspark import TaskContext
+    root, config, _, _ = published
+    existing = contextual_identity.enrich_synthetic_metadata
+    def repartitioned(*args):
+        diagnostic, frame = existing(*args)
+        return diagnostic, frame.repartition(4)
+    def inconsistent(value):
+        return "null", "invented", str(TaskContext.get().partitionId())
+    monkeypatch.setattr(contextual_identity, "enrich_synthetic_metadata", repartitioned)
+    monkeypatch.setattr(contextual_identity, "_controlled_zone", inconsistent)
+    with pytest.raises(iqr.IQRPublicationError, match="worker evidence differs"):
+        contextual_identity.build_synthetic_contextual_intent(spark, config, "silver", "context", root)
+
+
+@pytest.mark.integration
+def test_contextual_intent_deterministic_without_iqr(spark, published, monkeypatch):
+    root, config, bronze, result = published
+    newer = run_bronze(spark, config)
+    assert newer["run_id"] != bronze["run_id"]
+    monkeypatch.setattr(iqr, "summarize_electricity_iqr", lambda *_: pytest.fail("IQR must not run"))
+    first = contextual_identity.build_synthetic_contextual_intent(spark, config, "silver", "context", root)
+    second = contextual_identity.build_synthetic_contextual_intent(spark, config, "silver", "context", root)
+    assert first == second
+    assert first["silver"]["delta_table_id"] == result["delta_table_id"]
+    assert first["bronze_run_id"] == bronze["run_id"]
+    with pytest.raises(iqr.IQRPublicationError, match="Unsupported"):
+        contextual_identity.build_synthetic_contextual_intent(spark, config, "silver", "context", root,
+                                                            enrichment_version="different")
+
+
+@pytest.mark.unit
+def test_contextual_intent_rejects_real_config(tmp_path):
+    from types import SimpleNamespace
+    with pytest.raises(silver.SilverPublicationError, match="synthetic"):
+        contextual_identity.build_synthetic_contextual_intent(
+            None, SimpleNamespace(data_kind="real"), "silver", "context", tmp_path)
 
 
 @pytest.mark.unit

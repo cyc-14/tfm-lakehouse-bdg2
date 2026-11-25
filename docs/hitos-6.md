@@ -69,6 +69,78 @@ superó siete. Se probó además la independencia ante una publicación IQR no
 aceptada y otra aceptada, sin leer ni recalcular IQR durante el enriquecimiento.
 La aceptación estadística IQR no es requisito de esta vista.
 
+### Identidad contextual sintética
+
+El autor ha aprobado D15: diferir la integración meteorológica; D16: una
+publicación Delta contextual independiente; D17: vincularla a Silver, Bronze,
+metadatos y método exactos; D18: versionar la interpretación y acreditar sus
+recursos horarios; D19: reserva, commit y finalización con recuperación explícita
+y sin reintentos automáticos; D20: selección por ID explícito; D21: mantener IQR
+vinculado a la Silver eléctrica original; y D22: exigir fuentes retenidas.
+Su ratificación académica conjunta está pendiente.
+
+D23 aprueba la interpretación horaria controlada para la intención contextual:
+el recurso resuelto con la precedencia de `zoneinfo` se lee una vez y sus mismos
+bytes se usan para SHA-256 y `ZoneInfo.from_file`. Se rechazan evidencias
+distintas entre trabajadores participantes, diferencias de esquema o del
+multiconjunto completo frente a la vista H06. No se interpreta ni convierte
+ningún instante eléctrico. `build_synthetic_contextual_intent` y
+`verify_synthetic_contextual_intent`, en `tfm_lakehouse.silver.contextual_identity`,
+generan o contrastan la intención sin escribir tablas, reservas ni marcadores.
+La evidencia solo cubre trabajadores participantes y no acredita la retención
+futura; Bronze no registra UUID físico histórico de metadatos.
+La selección sintética de identidad contextual y regresiones de vínculo y
+publicación Silver superó 45 pruebas. Una comprobación posterior de identidad
+Silver distinta, recurso horario modificado y fuente temporalmente ausente
+superó una prueba adicional. El cambio de recurso en replay se inyectó sobre
+un archivo sintético; la resolución productiva se comprueba por separado.
+
+### Publicación contextual sintética
+
+`publish_synthetic_contextual(spark, config, silver_publication_id,
+publication_id, workspace)`, en `tfm_lakehouse.silver.contextual_publication`,
+implementa una publicación independiente bajo
+`contextual-publications/<publication_id>/`: `intent.json`, `table/` y
+`completed.json`. El bloqueo local cooperativo abarca la reserva y la
+verificación. La intención versionada vincula la identidad eléctrica, el
+manifiesto Bronze, la versión de metadatos, el método de enriquecimiento, la
+evidencia horaria, el esquema y la huella del multiconjunto. No incorpora
+observaciones meteorológicas ni recalcula IQR.
+
+Las filas y la evidencia horaria se capturan en una misma acción y se contrastan
+con la intención; las filas se conservan en memoria del proceso conductor para
+evitar una nueva evaluación de las fuentes al escribir. Por ello la API se
+limita a fixtures sintéticos pequeños: no impone un límite propio de filas o
+bytes y la configuración de Spark no garantiza memoria suficiente en Python.
+Un fallo de recogida ocurre antes de crear una nueva reserva, aunque el directorio
+y el archivo de bloqueo pueden haberse creado. No se ha probado el agotamiento de
+memoria del proceso. Se verifican esquema y multiconjunto de
+la tabla, identidad del commit y fuentes retenidas. Delta normaliza a nullable
+los campos superiores; el esquema original queda en la intención.
+
+La reinvocación explícita continúa una reserva válida sin tabla, reconcilia un
+commit verificado sin marcador o devuelve la publicación idéntica sin otro
+commit. Los conflictos y evidencias incompletas bloquean la operación; no se
+eliminan ni se sobrescriben. Commit y marcador no forman una transacción atómica.
+La validación sintética integral de este incremento aún está pendiente; no hay
+lector histórico independiente ni selección automática de publicaciones.
+Una selección de publicación y recuperación superó cinco pruebas, tres de ellas
+con Spark y Delta; otra selección de controles unitarios de identidad e IQR
+superó 45. Estas cifras no cubren todos los fallos y mutaciones exigidos para
+aceptar la publicación contextual.
+Una repetición que añadía la regresión de intención determinista terminó con
+cuatro pruebas superadas y dos resultados inconclusos durante la preparación
+Bronze, tras interrupciones manuales de Spark; la regresión añadida sí pasó.
+La repetición limpia de los dos casos interrumpidos superó ambas pruebas.
+Una prueba con dos publicadores cooperativos verificó la exclusión y un único
+commit. Otra detectó una limitación bloqueante de recuperación: tras reservar,
+una modificación del registro Delta de metadatos con suma de comprobación
+actualizada no impidió publicar, cuando la versión y el contenido contextual
+seguían siendo iguales. La intención aceptada no conserva la huella física del
+árbol de metadatos entre ejecuciones. No se ha demostrado alteración de filas;
+la decisión sobre cómo vincular esa evidencia queda pendiente y la lectura
+histórica permanece bloqueada.
+
 ### Diagnóstico sintético de meteorología
 
 El autor ha aprobado H06-D09–D14 para sintéticos: diagnosticar sin enriquecer;
