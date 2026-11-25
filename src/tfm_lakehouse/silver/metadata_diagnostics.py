@@ -34,8 +34,9 @@ def diagnose_synthetic_metadata(spark, config, silver_publication_id, workspace)
     iqr._require(item is not None, "Metadata table is unavailable")
     metadata_fingerprint = iqr._fingerprint(config.table_path("metadata"))
     frame = _read_verified_tables(spark, config, report, manifest_path)["metadata"]
-    frame = frame.persist(StorageLevel.DISK_ONLY)
-    try:
+    with iqr._frame_cleanup() as frames:
+        frames.append(("metadata snapshot", frame))
+        frame = frame.persist(StorageLevel.DISK_ONLY)
         lineage = {"_bronze_source_uri": item["source_uri"],
                    "_bronze_source_sha256": item["source_sha256"],
                    "_bronze_data_kind": config.data_kind,
@@ -91,5 +92,3 @@ def diagnose_synthetic_metadata(spark, config, silver_publication_id, workspace)
                 "missing_buildings": [name for name in APPROVED_BUILDINGS if name not in present],
                 "expected_join_cardinality": "at_most_one_metadata_row_per_building",
                 "historical_bronze_uuid": "not_recorded"}
-    finally:
-        frame.unpersist()

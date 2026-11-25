@@ -50,7 +50,7 @@ anterior correspondía al 09/11/2026.
 | H03 | Caracterización eléctrica y meteorológica; ejecuciones reales del 30/10/2026. Evolución eléctrica v2 probada solo con sintéticos | Cierre académico global y contraste con la memoria |
 | H04 | Selección conjunta de 16 edificios y contratos documentados; herramientas de contraste sintéticas | Reproducir selección y procedencia desde las fuentes; cierre formal |
 | H05 | Transformación, publicación Silver e IQR y orquestación verificadas con sintéticos; contraste sintético con pandas | Validación real separadamente autorizada y cierre formal |
-| H06 | Incrementos sintéticos verificados individualmente; regresión integrada con fallos | Investigar la regresión, ratificación y semántica meteorológica física |
+| H06 | Incrementos sintéticos verificados individualmente; corrección D25 de liberación comprobada; regresión integrada con fallos | Investigar el agotamiento de memoria, ratificación y semántica meteorológica física |
 | H07 | Planificado; sin Gold implementado | Fórmulas, cobertura y comparabilidad |
 | H08 | Planificado; sin explotación implementada | Tareas y visualizaciones analíticas |
 | H09 | Planificado; sin recuperación integral entre capas | Diseño y pruebas integrales |

@@ -5,9 +5,11 @@ import fcntl
 import errno
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import re
+import traceback
 
 from delta.tables import DeltaTable
 from pyspark import StorageLevel
@@ -25,6 +27,53 @@ from tfm_lakehouse.silver.silver_snapshot_binding import transform_published_syn
 
 class IQRPublicationError(silver.SilverPublicationError):
     """Publication, source identity or selection cannot be verified safely."""
+
+
+_LOGGER = logging.getLogger(__name__)
+
+
+@contextmanager
+def _frame_cleanup():
+    """Attempt all registered releases while retaining the primary failure."""
+    frames = []
+
+    def release(primary):
+        first = None
+        secondary_errors = []
+        for label, frame in reversed(frames):
+            try:
+                frame.unpersist()
+            except BaseException as error:
+                if primary is None:
+                    primary = first = error
+                else:
+                    try:
+                        secondary_errors.append(error)
+                        BaseException.__setattr__(primary, "_h06_cleanup_failures", secondary_errors)
+                    except BaseException:
+                        # A custom exception may forbid the attribute.
+                        pass
+                    try:
+                        detail = "".join(traceback.format_exception(error))
+                        primary.add_note(f"Cleanup failed for {label}:\n{detail}")
+                    except BaseException:
+                        # Reporting must never prevent another release or mask
+                        # the operation failure, even during resource pressure.
+                        try:
+                            _LOGGER.error("Cleanup failed for %s", label,
+                                          exc_info=(type(error), error, error.__traceback__))
+                        except BaseException:
+                            pass
+        if first is not None:
+            raise first.with_traceback(first.__traceback__)
+
+    try:
+        yield frames
+    except BaseException as error:
+        release(error)
+        raise
+    else:
+        release(None)
 
 
 _PARAMETERS = {
@@ -211,21 +260,20 @@ def _records(frame: DataFrame) -> list[dict]:
 @contextmanager
 def _calculation(spark, config, root, publication_id, *, calculate=True):
     identity, source = _verify_silver(spark, config, root, publication_id)
-    source = source.persist(StorageLevel.DISK_ONLY)
-    expected = None
-    try:
+    with _frame_cleanup() as frames:
+        frames.append(("Silver source", source))
+        source = source.persist(StorageLevel.DISK_ONLY)
         _require(source.count() == identity["output_rows"], "Silver snapshot count changed")
         _stable_silver(identity, config)
         records = None
+        expected = None
         if calculate:
-            expected = summarize_electricity_iqr(source).persist(StorageLevel.DISK_ONLY)
+            expected = summarize_electricity_iqr(source)
+            frames.append(("IQR result", expected))
+            expected = expected.persist(StorageLevel.DISK_ONLY)
             records = _records(expected)
         _stable_silver(identity, config)
         yield identity, source, expected, records
-    finally:
-        if expected is not None:
-            expected.unpersist()
-        source.unpersist()
 
 
 def _intent(identity, publication_id, records) -> dict:

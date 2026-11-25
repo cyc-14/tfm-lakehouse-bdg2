@@ -178,6 +178,34 @@ causa. En otra secuencia se observaron estados Delta persistidos; una limpieza
 aislada de su caché redujo su número, sin reproducir ni explicar el fallo. No
 hay aceptación técnica integrada con ese resultado.
 
+### Corrección de liberación de recursos D25
+
+El autor aprobó D25, opción A, para corregir la liberación en IQR y en el
+diagnóstico de metadatos. Se intenta liberar cada DataFrame registrado aunque
+falle otra liberación. La excepción de la operación conserva su identidad,
+causa y traza; los errores de liberación se conservan como excepciones y se
+añaden como notas o, si no es posible, se registran. Si la operación termina
+bien, se propaga el primer error de liberación. Si fallan simultáneamente todos
+los mecanismos de diagnóstico, no se puede garantizar la observabilidad de
+los errores secundarios.
+
+La selección D25 superó 13 pruebas unitarias y tres casos Spark/Delta:
+liberación fallida tras un diagnóstico correcto, diagnóstico histórico y
+recuperación IQR desde una reserva. Para evitar inspeccionar las rutas protegidas
+reales, el lanzador temporal usa raíces protegidas sintéticas; mantiene las
+comprobaciones de rutas y emplea Ivy local. `TFM_REAL_CONFIG` permanece ausente.
+La revisión independiente no identificó defectos bloqueantes. Esta corrección
+no explica ni resuelve el agotamiento de memoria de Spark; la aceptación
+integrada de H06 sigue pendiente.
+
+Comprobaciones, con SHA-256 del lanzador temporal
+`7d3b81a36baeef30a8e836abb1a25bb56228140226d399c52e85137a06475040`:
+
+```bash
+env -u TFM_REAL_CONFIG PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/silver/test_cleanup_d25.py --tb=long
+env -u TFM_REAL_CONFIG PYTHONDONTWRITEBYTECODE=1 timeout 480s .venv/bin/python -B /tmp/h06_d25_runner.py -q -p no:cacheprovider tests/silver/test_cleanup_d25_integration.py tests/silver/test_silver_iqr_publication.py::test_metadata_diagnostics_bind_historical_version_and_preserve_evidence tests/silver/test_silver_iqr_publication.py::test_orchestrated_recovery_of_reservation_without_delta --tb=long --junitxml=/tmp/h06-d25-spark-escalated.xml
+```
+
 ### Lectura contextual histórica explícita
 
 `read_synthetic_contextual(spark, config, publication_id, workspace)`, en
