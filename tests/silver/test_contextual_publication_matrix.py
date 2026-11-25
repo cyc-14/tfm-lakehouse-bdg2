@@ -162,7 +162,9 @@ def test_cooperative_concurrent_contextual_publishers(spark, tmp_path, monkeypat
 
 @pytest.mark.integration
 def test_recovery_checks_silver_identity_and_retained_sources(spark, tmp_path, monkeypatch):
-    config, bronze, _ = _create_silver(spark, tmp_path)
+    config, _, _ = _create_silver(spark, tmp_path)
+    newer = run_bronze(spark, config)
+    silver.publish_synthetic_silver(spark, config, newer["run_id"], "other", tmp_path)
     original = DataFrameWriter.save
 
     def interrupt(writer, path=None, *args, **kwargs):
@@ -174,7 +176,6 @@ def test_recovery_checks_silver_identity_and_retained_sources(spark, tmp_path, m
         patch.setattr(DataFrameWriter, "save", interrupt)
         with pytest.raises(OSError, match="reserved"):
             publication.publish_synthetic_contextual(spark, config, "silver", "context", tmp_path)
-    silver.publish_synthetic_silver(spark, config, bronze["run_id"], "other", tmp_path)
     with pytest.raises(iqr.IQRPublicationError, match="conflicts"):
         publication.publish_synthetic_contextual(spark, config, "other", "context", tmp_path)
     source = config.table_path("metadata")
@@ -264,6 +265,11 @@ def test_exact_output_and_existing_iqr_independence(spark, tmp_path, monkeypatch
     captured = spark.createDataFrame(expected_rows, expected.schema)
     assert not captured.exceptAll(actual).limit(1).count()
     assert not actual.exceptAll(captured).limit(1).count()
+    electrical = (spark.read.format("delta").option("versionAsOf", 0)
+                  .load(result["intent"]["silver"]["table_path"]))
+    projected = actual.select(*electrical.columns)
+    assert not electrical.exceptAll(projected).limit(1).count()
+    assert not projected.exceptAll(electrical).limit(1).count()
     altered = captured.withColumn("metadata_available", ~F.col("metadata_available"))
     with pytest.raises(iqr.IQRPublicationError, match="multiset differs"):
         publication._verify_output(spark, Path(result["table_path"]), altered, result["intent"])

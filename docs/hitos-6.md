@@ -106,6 +106,20 @@ verificación. La intención versionada vincula la identidad eléctrica, el
 manifiesto Bronze, la versión de metadatos, el método de enriquecimiento, la
 evidencia horaria, el esquema y la huella del multiconjunto. No incorpora
 observaciones meteorológicas ni recalcula IQR.
+La validación del espacio puede inspeccionar estructuralmente el árbol IQR;
+no consulta sus resultados para construir el contexto.
+
+D24 aprueba la intención contextual versión 2, que añade la huella SHA-256
+del árbol físico de metadatos a partir de rutas relativas y contenido. La
+huella se contrasta durante el consumo y las revalidaciones, también en la
+recuperación; acredita coherencia con la evidencia registrada, no autenticidad
+externa ni protección frente a cambios externos coordinados y revertidos entre
+comprobaciones. Las reservas y publicaciones anteriores sin esta evidencia se rechazan
+sin modificarlas ni migrarlas. El marcador de finalización conserva su propia
+versión de contrato 1, distinta de la versión 2 de la intención. El futuro
+lector histórico deberá exigir la misma evidencia física. La ratificación
+académica conjunta sigue pendiente. Las comparaciones de intención, marcador y
+esquema respetan también los tipos JSON, sin equiparar booleanos y números.
 
 Las filas y la evidencia horaria se capturan en una misma acción y se contrastan
 con la intención; las filas se conservan en memoria del proceso conductor para
@@ -136,10 +150,20 @@ Una prueba con dos publicadores cooperativos verificó la exclusión y un único
 commit. Otra detectó una limitación bloqueante de recuperación: tras reservar,
 una modificación del registro Delta de metadatos con suma de comprobación
 actualizada no impidió publicar, cuando la versión y el contenido contextual
-seguían siendo iguales. La intención aceptada no conserva la huella física del
+seguían siendo iguales. La intención versión 1 no conservaba la huella física del
 árbol de metadatos entre ejecuciones. No se ha demostrado alteración de filas;
-la decisión sobre cómo vincular esa evidencia queda pendiente y la lectura
-histórica permanece bloqueada.
+la corrección aprobada en D24 incorpora esa huella en la intención.
+
+La verificación D24 superó 27 casos sintéticos distintos con Spark/Delta y 47
+pruebas unitarias. Cubrió versiones anteriores, las dos mutaciones que habían
+reproducido el defecto, cambios durante la publicación, recuperación, esquema,
+multiconjuntos, fuentes, zonas horarias, concurrencia e independencia de los
+resultados IQR. Dos casos no llegaron al punto contextual por un fallo del
+proceso auxiliar de la JVM y pasaron al repetirlos en una sesión limpia. Otro
+falló al preparar dos Silver sobre el mismo run Bronze; se corrigió el fixture
+para respetar H05 y la repetición pasó. La revisión independiente respalda
+iniciar la lectura histórica explícita; ese lector aún no está implementado.
+La regresión sintética general queda reservada a la verificación integrada H06.
 
 ### Diagnóstico sintético de meteorología
 

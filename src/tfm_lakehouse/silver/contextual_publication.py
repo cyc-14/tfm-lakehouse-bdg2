@@ -46,7 +46,8 @@ def _verify_output(spark, target, expected, intent):
     expected_schema = expected.schema.jsonValue()
     for field in expected_schema["fields"]:
         field["nullable"] = True
-    iqr._require(actual.schema.jsonValue() == expected_schema, "Contextual committed schema differs")
+    iqr._require(iqr._canonical(actual.schema.jsonValue()) == iqr._canonical(expected_schema),
+                 "Contextual committed schema differs")
     iqr._require(not expected.exceptAll(actual).limit(1).count()
                  and not actual.exceptAll(expected).limit(1).count(),
                  "Contextual committed multiset differs")
@@ -75,9 +76,14 @@ def publish_synthetic_contextual(spark, config, silver_publication_id: str,
             enrichment_version=enrichment_version)
         diagnostic, view = identity.enrich_synthetic_metadata(spark, config, silver_publication_id, root)
         iqr._require(diagnostic["silver"] == intent["silver"], "Silver identity changed")
-        iqr._require(view.schema.jsonValue() == intent["schema"], "Contextual schema differs")
+        iqr._require(diagnostic["metadata_files_sha256"] == intent["metadata_files_sha256"],
+                     "Metadata files changed before materialization")
+        iqr._require(iqr._canonical(view.schema.jsonValue()) == iqr._canonical(intent["schema"]),
+                     "Contextual schema differs")
         zone = F.udf(identity._controlled_zone, identity._ZONE_EVIDENCE)(F.col("metadata_timezone"))
         measured = view.withColumn("__h06_zone_evidence", zone).collect()
+        iqr._require(iqr._fingerprint(config.table_path("metadata")) == intent["metadata_files_sha256"],
+                     "Metadata files changed during materialization")
         entries = []
         rows = []
         for row in measured:
@@ -108,7 +114,7 @@ def publish_synthetic_contextual(spark, config, silver_publication_id: str,
         else:
             silver._check_tree(folder)
             iqr._folder_layout(folder, "table")
-            iqr._require(iqr._read(folder / "intent.json") == intent,
+            iqr._require(iqr._canonical(iqr._read(folder / "intent.json")) == iqr._canonical(intent),
                          "Contextual publication ID conflicts with intent")
         target, completed = folder / "table", folder / "completed.json"
         if not target.exists():
@@ -119,7 +125,8 @@ def publish_synthetic_contextual(spark, config, silver_publication_id: str,
         result = _verify_output(spark, target, output, intent)
         revalidate()
         if completed.exists():
-            iqr._require(iqr._read(completed) == result, "Contextual completion evidence differs")
+            iqr._require(iqr._canonical(iqr._read(completed)) == iqr._canonical(result),
+                         "Contextual completion evidence differs")
         else:
             silver._exclusive_json(completed, result)
         revalidate()

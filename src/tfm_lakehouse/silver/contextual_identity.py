@@ -13,6 +13,7 @@ from tfm_lakehouse.silver import silver_iqr_publication as iqr
 from tfm_lakehouse.silver.metadata_enrichment import enrich_synthetic_metadata
 
 ENRICHMENT_VERSION = "h06-metadata-v1"
+INTENT_CONTRACT_VERSION = 2
 _ZONE_EVIDENCE = StructType([StructField("status", StringType(), False),
                              StructField("resource", StringType(), True),
                              StructField("sha256", StringType(), True)])
@@ -87,7 +88,8 @@ def build_synthetic_contextual_intent(spark, config, silver_publication_id, publ
         # Spark's projection changes nullability metadata; restore the verified
         # input schema while retaining and comparing every materialized value.
         controlled = spark.createDataFrame(controlled.rdd, view.schema)
-        iqr._require(controlled.schema.jsonValue() == view.schema.jsonValue(), "Contextual schema differs")
+        iqr._require(iqr._canonical(controlled.schema.jsonValue()) ==
+                     iqr._canonical(view.schema.jsonValue()), "Contextual schema differs")
         iqr._require(not controlled.exceptAll(view).limit(1).count()
                      and not view.exceptAll(controlled).limit(1).count(), "Timezone interpretation differs")
         entries = (measured.select("metadata_timezone", "__h06_zone_evidence.*").distinct().collect())
@@ -98,12 +100,13 @@ def build_synthetic_contextual_intent(spark, config, silver_publication_id, publ
         iqr._stable_silver(identity, config)
         iqr._require(iqr._fingerprint(config.table_path("metadata")) == diagnostic["metadata_files_sha256"],
                      "Metadata files changed")
-        return {"contract_version": 1, "publication_id": publication_id,
+        return {"contract_version": INTENT_CONTRACT_VERSION, "publication_id": publication_id,
                 "enrichment_version": enrichment_version, "silver": identity,
                 "bronze_run_id": diagnostic["bronze_run_id"],
                 "manifest_sha256": diagnostic["manifest_sha256"],
                 "metadata_version": diagnostic["metadata_version"],
                 "metadata_source_sha256": diagnostic["metadata_source_sha256"],
+                "metadata_files_sha256": diagnostic["metadata_files_sha256"],
                 "timezone_evidence": ordered, "schema": view.schema.jsonValue(),
                 "context_multiset_sha256": result_hash}
     finally:
@@ -116,5 +119,6 @@ def verify_synthetic_contextual_intent(spark, config, silver_publication_id, pub
     actual = build_synthetic_contextual_intent(
         spark, config, silver_publication_id, publication_id, workspace,
         enrichment_version=enrichment_version)
-    iqr._require(actual == expected, "Contextual intent or timezone evidence differs")
+    iqr._require(iqr._canonical(actual) == iqr._canonical(expected),
+                 "Contextual intent or timezone evidence differs")
     return actual
