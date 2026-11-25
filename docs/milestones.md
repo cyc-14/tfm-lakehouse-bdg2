@@ -37,11 +37,11 @@ técnica de un hito.
 | H11 | `H11 - Validación funcional y analítica` | Indicadores contrastados y evaluación de tareas representativas | OE4, OE5, OE7 | H08–H10 |
 | H12 | `H12 - Reproducibilidad y cierre del TFM` | Documentación, evidencias, limitaciones y revisión final coherentes | OE1–OE7 | H11 |
 
-## Estado actual y nivel de evidencia — 09/11/2026
+## Estado actual y nivel de evidencia
 
-Esta tabla resume el árbol local, incluido el incremento IQR incorporado
-al HEAD inspeccionado. Las verificaciones citadas son evidencia histórica;
-esta revisión documental no ejecuta pruebas ni datos.
+Esta tabla resume el árbol local. Las verificaciones citadas son evidencia
+histórica salvo que se indique una ejecución posterior; el corte documental
+anterior correspondía al 09/11/2026.
 
 | Hito | Implementación y evidencia disponible | Pendiente |
 | --- | --- | --- |
@@ -50,7 +50,7 @@ esta revisión documental no ejecuta pruebas ni datos.
 | H03 | Caracterización eléctrica y meteorológica; ejecuciones reales del 30/10/2026. Evolución eléctrica v2 probada solo con sintéticos | Cierre académico global y contraste con la memoria |
 | H04 | Selección conjunta de 16 edificios y contratos documentados; herramientas de contraste sintéticas | Reproducir selección y procedencia desde las fuentes; cierre formal |
 | H05 | Transformación, publicación Silver e IQR y orquestación verificadas con sintéticos; contraste sintético con pandas | Validación real separadamente autorizada y cierre formal |
-| H06 | Vista y publicación contextual sintéticas verificadas; diagnóstico meteorológico implementado | Lectura histórica explícita, ratificación y semántica meteorológica física |
+| H06 | Incrementos sintéticos verificados individualmente; regresión integrada con fallos | Investigar la regresión, ratificación y semántica meteorológica física |
 | H07 | Planificado; sin Gold implementado | Fórmulas, cobertura y comparabilidad |
 | H08 | Planificado; sin explotación implementada | Tareas y visualizaciones analíticas |
 | H09 | Planificado; sin recuperación integral entre capas | Diseño y pruebas integrales |
@@ -194,7 +194,7 @@ documenta las versiones JVM afectadas, la comprobación estática complementaria
 las restricciones del perfil local CSV/Delta y los disparadores de reevaluación.
 La propuesta es mantener provisionalmente ese perfil, sujeta a decisión expresa
 de Carlos e Irantzu. Este estado no equivale a cierre ni aceptación del riesgo,
-no modifica la aceptación académica de H03 y no autoriza avanzar a H04.
+no modifica la aceptación académica de H03 y, por sí solo, no autorizó avanzar a H04.
 Las pruebas funcionales históricas permanecen separadas de esta revisión estática.
 
 ## Secuencia principal

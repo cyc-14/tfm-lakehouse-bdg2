@@ -1,7 +1,8 @@
 # Hito 6 — Integración de metadatos y meteorología
 
-**Estado:** diagnóstico y vista sintética de metadatos implementados; aceptación
-del enriquecimiento pendiente. **Responsabilidad:** Irantzu valida significados y
+**Estado:** incrementos contextuales y diagnóstico meteorológico con aceptación
+técnica sintética individual; regresión integrada fallida y ratificación
+académica pendientes. **Responsabilidad:** Irantzu valida significados y
 uniones; Carlos implementa y verifica la integración. **Objetivos:** OE3,
 OE4. **Requisito previo:** Silver eléctrica aceptada en H05.
 
@@ -31,8 +32,8 @@ edificio; el diagnóstico no resuelve duplicados ni decide una unión.
 Las huellas detectan cambios durante las acciones, pero no autentican el
 almacenamiento ni garantizan protección frente a modificaciones externas
 coordinadas. Una nueva versión Bronze concurrente también detiene el diagnóstico
-de forma conservadora. La interpretación de campos y el tratamiento de conflictos
-siguen pendientes de aprobación.
+de forma conservadora. Las reglas sintéticas de interpretación y tratamiento
+de conflictos están aprobadas; su ratificación académica conjunta sigue pendiente.
 
 La selección sintética de este diagnóstico y las regresiones de vínculo y
 publicación Silver superaron 43 pruebas. La distinción entre cadena vacía y
@@ -41,8 +42,9 @@ como `null` los campos CSV sin valor según su contrato.
 
 ### Vista sintética de metadatos
 
-El autor ha aprobado para sintéticos H06-D01 y D02: bloquear
-duplicados idénticos o conflictivos de los 16 edificios; D03: diagnosticar
+El autor ha aprobado para sintéticos H06-D01: bloquear duplicados idénticos
+de metadatos de los edificios seleccionados; D02: bloquear los conflictivos;
+D03: diagnosticar
 duplicados ajenos sin bloquear; D04: conservar mediciones sin metadatos y
 expresar ausencias; D05: conservar originales e interpretar área solo si es
 finita, positiva y exactamente representable; D06: vista derivada sin
@@ -116,8 +118,8 @@ recuperación; acredita coherencia con la evidencia registrada, no autenticidad
 externa ni protección frente a cambios externos coordinados y revertidos entre
 comprobaciones. Las reservas y publicaciones anteriores sin esta evidencia se rechazan
 sin modificarlas ni migrarlas. El marcador de finalización conserva su propia
-versión de contrato 1, distinta de la versión 2 de la intención. El futuro
-lector histórico deberá exigir la misma evidencia física. La ratificación
+versión de contrato 1, distinta de la versión 2 de la intención. El lector
+histórico exige la misma evidencia física. La ratificación
 académica conjunta sigue pendiente. Las comparaciones de intención, marcador y
 esquema respetan también los tipos JSON, sin equiparar booleanos y números.
 
@@ -136,8 +138,8 @@ La reinvocación explícita continúa una reserva válida sin tabla, reconcilia 
 commit verificado sin marcador o devuelve la publicación idéntica sin otro
 commit. Los conflictos y evidencias incompletas bloquean la operación; no se
 eliminan ni se sobrescriben. Commit y marcador no forman una transacción atómica.
-La validación sintética integral de este incremento aún está pendiente; no hay
-lector histórico independiente ni selección automática de publicaciones.
+En aquella fase faltaba la validación sintética integral y no existía lector
+histórico independiente. No hay selección automática de publicaciones.
 Una selección de publicación y recuperación superó cinco pruebas, tres de ellas
 con Spark y Delta; otra selección de controles unitarios de identidad e IQR
 superó 45. Estas cifras no cubren todos los fallos y mutaciones exigidos para
@@ -161,18 +163,70 @@ multiconjuntos, fuentes, zonas horarias, concurrencia e independencia de los
 resultados IQR. Dos casos no llegaron al punto contextual por un fallo del
 proceso auxiliar de la JVM y pasaron al repetirlos en una sesión limpia. Otro
 falló al preparar dos Silver sobre el mismo run Bronze; se corrigió el fixture
-para respetar H05 y la repetición pasó. La revisión independiente respalda
-iniciar la lectura histórica explícita; ese lector aún no está implementado.
-La regresión sintética general queda reservada a la verificación integrada H06.
+para respetar H05 y la repetición pasó. La revisión independiente respaldó
+iniciar la lectura histórica explícita.
+La regresión sintética general se ejecutó en la verificación integrada H06.
+Seleccionó 1.011 casos y terminó con 908 resultados de llamada superados,
+67 fallos y 37 errores; hubo además 26 exclusiones por alcance y seguridad.
+Una llamada superada tuvo también un error de finalización, por lo que los
+recuentos de pytest no son categorías de casos disjuntas. Las primeras trazas
+registran falta de memoria de ejecución de Spark en agregaciones y después un
+contexto detenido; su causa raíz y el alcance exacto de la cascada siguen en
+investigación. Los dos primeros casos fallidos pasaron en una sesión nueva; una
+secuencia focal instrumentada de tres casos también pasó sin identificar la
+causa. En otra secuencia se observaron estados Delta persistidos; una limpieza
+aislada de su caché redujo su número, sin reproducir ni explicar el fallo. No
+hay aceptación técnica integrada con ese resultado.
+
+### Lectura contextual histórica explícita
+
+`read_synthetic_contextual(spark, config, publication_id, workspace)`, en
+`tfm_lakehouse.silver.contextual_reader`, devuelve el marcador verificado y un
+DataFrame Delta de la publicación indicada, fijado a la versión 0. El ejemplo
+presupone `spark` local, una `config` sintética con sus rutas dentro de un
+`workspace` absoluto aislado bajo `/tmp`, Bronze con los 16 edificios
+aprobados y Silver eléctrica ya publicados:
+
+```python
+from tfm_lakehouse.silver.contextual_reader import read_synthetic_contextual
+from tfm_lakehouse.silver.contextual_publication import publish_synthetic_contextual
+
+publish_synthetic_contextual(spark, config, "silver_01", "contexto_01", workspace)
+evidence, contextual = read_synthetic_contextual(spark, config, "contexto_01", workspace)
+```
+
+El ID es obligatorio. La lectura comparte el bloqueo local ya existente y
+rechaza evidencia ausente, incompatible o modificada; no crea reservas ni
+marcadores y no reconcilia commits. Contrasta la intención v2, los recursos
+horarios, las fuentes retenidas, el commit, el marcador, el esquema completo
+y los multiconjuntos contextual y eléctrico. No selecciona una publicación
+automáticamente ni consulta resultados IQR. La validación del espacio puede
+inspeccionar estructuralmente el árbol IQR.
+
+El DataFrame devuelto es diferido: tras la devolución, la tabla y las fuentes
+retenidas deben seguir disponibles e inalteradas. El bloqueo ya no protege las
+acciones posteriores ni frente a modificaciones externas no cooperativas.
+La huella D24 abarca todo el árbol físico de metadatos: una versión Bronze
+posterior que lo cambie también impedirá leer la publicación anterior, aunque
+su versión lógica siga retenida.
+
+La selección de lectura superó diez pruebas con Spark/Delta, incluida la
+coexistencia con IQR aceptado y no aceptado, y las comprobaciones unitarias y
+regresiones unitarias seleccionadas superaron 48 pruebas. Las comprobaciones de
+solo lectura abarcan los árboles de publicación y fuentes; Spark puede usar
+archivos temporales internos durante sus acciones.
 
 ### Diagnóstico sintético de meteorología
 
-El autor ha aprobado H06-D09–D14 para sintéticos: diagnosticar sin enriquecer;
-utilizar únicamente weather del manifiesto Bronze asociado a Silver; tratar
-`site_id` como correspondencia nominal; conservar etiquetas nominales;
-diagnosticar duplicados sin resolverlos; y contabilizar ausencias, variables,
-unidades documentales y códigos sin imputar ni reinterpretar. La ratificación
-académica conjunta sigue pendiente.
+El autor ha aprobado para sintéticos H06-D09: diagnosticar sin enriquecer ni
+asociar analíticamente; D10: utilizar solo la versión weather del manifiesto
+Bronze asociado a Silver e indicar su ausencia; D11: tratar `site_id` como
+correspondencia espacial nominal, sin probar representatividad física; D12:
+conservar etiquetas nominales y diagnosticar compatibilidad y ambigüedad sin
+afirmar equivalencia temporal física; D13: conservar y diagnosticar duplicados
+idénticos y conflictivos sin resolverlos; y D14: diagnosticar ausencias,
+variables, cobertura, unidades y códigos sin imputar ni reinterpretar. La
+ratificación académica conjunta sigue pendiente.
 
 `diagnose_synthetic_weather(spark, config, silver_publication_id, workspace)`
 devuelve disponibilidad, mapeos de edificios, versión y huella de origen,
@@ -191,8 +245,12 @@ instantes. La coincidencia nominal no demuestra alineación física ni
 representatividad espacial. El contrato Bronze no registra UUID físico histórico;
 los códigos especiales se cuentan sin transformar sus valores originales.
 La selección sintética del diagnóstico, independencia de IQR y regresiones de
-caracterización meteorológica superó 73 pruebas. El caso de weather disponible
-con IQR aceptado no se ha materializado conjuntamente; la API no consulta IQR.
+caracterización meteorológica superó 73 pruebas. Aquella selección no
+materializó conjuntamente weather disponible e IQR aceptado. Una prueba
+posterior sí los combinó con 16.667 horas sintéticas y verificó que el
+diagnóstico no consulta ni recalcula IQR.
+Otra sonda sintética confirmó el diagnóstico sin bloqueo de duplicados
+conflictivos ajenos y la fidelidad de las unidades al catálogo documental.
 Tras reforzar el diagnóstico simultáneo de duplicados y columna ausente, la
 selección afectada y las regresiones meteorológicas superaron 72 pruebas.
 

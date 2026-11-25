@@ -21,6 +21,9 @@ y temporal nominal, vínculo Bronze, publicación Silver, diagnóstico de calida
 motor IQR y publicación IQR versionada, con verificación sintética documentada.
 La orquestación Silver → IQR está implementada con verificación sintética
 parcial; el cierre formal de H05 está pendiente.
+[H06](docs/hitos-6.md) incorpora enriquecimiento, publicación y lectura contextual
+explícita con pruebas sintéticas, además de diagnóstico meteorológico nominal.
+La regresión sintética integrada de H06 presenta fallos pendientes de análisis.
 La integración meteorológica y Gold quedan fuera del alcance implementado.
 
 El [registro de hitos](docs/milestones.md) es la referencia del estado actual.
@@ -137,5 +140,6 @@ Fuentes: [repositorio oficial](https://github.com/buds-lab/building-data-genome-
 - [Caracterización eléctrica y metadatos — H03](docs/h03-2-characterization.md).
 - [Meteorología y diagnóstico temporal — H03](docs/h03-3-weather-timezones.md).
 - [Electricidad Silver, calidad e IQR versionado — H05](docs/hitos-5.md).
+- [Metadatos, contexto y diagnóstico meteorológico — H06](docs/hitos-6.md).
 - [Definiciones preparadas para los 12 *milestones*](docs/github-milestones.json).
 - [Fixtures sintéticos](tests/fixtures/README.md).
