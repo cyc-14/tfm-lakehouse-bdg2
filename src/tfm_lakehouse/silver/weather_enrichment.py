@@ -37,8 +37,10 @@ def _nominal_seconds(value):
     return day.toordinal() * 86400 + second if status == "valid_nominal" else None
 
 
-def _associate(context, weather):
+def _associate(context, weather, *, tolerance_seconds=MAX_DISTANCE_SECONDS):
     """Build a lazy association; inputs must already have verified identities."""
+    if tolerance_seconds not in (0, 900, 1800, 3600):
+        raise ValueError("Unsupported diagnostic tolerance")
     reserved = {"weather_association_status", "weather_key_row_count",
                 "weather_duplicate_kind", "weather_timestamp_original",
                 "weather_offset_seconds", "weather_distance_seconds", "weather_match_type"}
@@ -68,7 +70,7 @@ def _associate(context, weather):
                 .where(F.col("__electric_seconds").isNotNull() & F.col("__site").isNotNull()
                        & ~F.col("__site").rlike(r"^\s*$")))
     candidates = electric.join(groups, (electric.__site == groups.site_id) &
-        (F.abs(F.col("__weather_seconds") - F.col("__electric_seconds")) <= MAX_DISTANCE_SECONDS), "inner")
+        (F.abs(F.col("__weather_seconds") - F.col("__electric_seconds")) <= tolerance_seconds), "inner")
     order = Window.partitionBy("__site", "__label").orderBy(
         F.abs(F.col("__weather_seconds") - F.col("__electric_seconds")), F.col("__weather_seconds"))
     chosen = candidates.withColumn("__rank", F.row_number().over(order)).where(F.col("__rank") == 1)

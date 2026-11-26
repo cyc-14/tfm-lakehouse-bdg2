@@ -334,6 +334,69 @@ durante las acciones posteriores: la vista no es la captura durable de D36.
 La publicación meteorológica, su recuperación, lector histórico y cobertura
 completa corresponden a actividades posteriores y no están implementados aquí.
 
+### Calidad y cobertura meteorológicas sintéticas
+
+`diagnose_synthetic_weather_quality(spark, config, silver_id, contextual_id,
+workspace)` devuelve evidencia y tres DataFrames diferidos: `coverage`,
+`variables` y `sensitivity`. Por ejemplo, con la sesión y configuración
+sintéticas y las publicaciones explícitas ya disponibles:
+
+```python
+from tfm_lakehouse.silver.weather_quality import diagnose_synthetic_weather_quality
+
+evidence, reports = diagnose_synthetic_weather_quality(
+    spark, config, "silver_01", "contexto_01", workspace
+)
+reports["coverage"].where("scope = 'site'").show()
+```
+
+Los resultados agrupan directamente por edificio o emplazamiento y mes de la
+etiqueta eléctrica; las fechas inválidas se agrupan en `unassigned`. La
+precedencia de estados es sitio ausente, sitio inválido y fecha inválida. Las
+filas restantes son elegibles y se reparten entre asociación exacta, anterior,
+posterior, clave duplicada rechazada y ausencia. Las filas originales repetidas
+se cuentan; las etiquetas eléctricas y claves meteorológicas distintas se
+deduplican dentro de cada grupo, sin sumar edificios ni meses entre sí.
+
+La cobertura de filas es `associated_rows / eligible_rows`; se publica también
+`associated_rows / electrical_rows`. La cobertura nominal de etiquetas es
+`associated_electrical_keys / eligible_electrical_keys`. Los denominadores cero
+producen null. Por variable, `available_ratio` y `interpretable_ratio` dividen
+por `associated_rows`. Los valores numéricamente interpretables son los de
+estado `finite`; los posibles códigos especiales se cuentan aparte, junto al
+subconjunto finito sin esa marca y su proporción sobre `associated_rows`.
+Ninguno de estos recuentos demuestra validez física ni elegibilidad analítica.
+
+Se preserva el texto y se reutiliza el intérprete decimal exacto: admite signo,
+dígitos ASCII, punto decimal opcional y exponente decimal opcional; rechaza
+espacios y no redondea. Los estados distinguen observación no asociada, columna
+ausente, null, vacío, `NaN` exacto, sintaxis inválida, infinito literal,
+desbordamiento, subdesbordamiento, escala excedida y finito. `-1` en
+precipitación y `9` en nubosidad se señalan como posibles códigos sin atribuir
+un significado analítico. Cada estado de una observación asociada es exclusivo.
+
+La sensibilidad recalcula la selección para 0, 900, 1.800 y 3.600 segundos,
+manteniendo el desempate hacia la etiqueta anterior y el rechazo de duplicados.
+Los incrementos comparan cada tolerancia con la precedente; 3.600 segundos son
+solo diagnóstico. Mayor cobertura no implica mejor coincidencia física. Los
+desplazamientos con signo y las distancias absolutas se resumen con mínimo,
+máximo y media para asociaciones únicas. La media se calcula por fila
+eléctrica, incluida su multiplicidad y el uso compartido de observaciones. Los
+DataFrames no recogen el conjunto completo en el conductor; siguen siendo
+diferidos y requieren fuentes retenidas e inalteradas durante su evaluación.
+
+Las pruebas sintéticas enfocadas de calidad superaron 16 casos; la regresión de
+asociación, tres, y la selección unitaria numérica, temporal y meteorológica,
+141. Una prueba Spark/Delta verificó el vínculo explícito y la independencia
+IQR con fuentes inventadas. La resistencia prolongada y la regresión segmentada
+integrada de D27 no se han repetido para esta ampliación; sus resultados
+anteriores permanecen vigentes dentro del alcance en que se obtuvieron.
+
+En el primer intento de prueba de la asociación, el arranque estándar consultó
+metadatos de componentes de rutas protegidas. Se interrumpió la prueba sin leer
+datos reales; los lanzadores posteriores sustituyen esas raíces por rutas
+sintéticas y usan las dependencias locales existentes.
+
 1. Validar claves de metadatos, relación edificio-emplazamiento, superficie
    y zona horaria frente a las fuentes y contratos aprobados.
 2. Implementar una unión de metadatos con cardinalidad controlada,
