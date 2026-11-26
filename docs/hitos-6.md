@@ -1,8 +1,7 @@
 # Hito 6 — Integración de metadatos y meteorología
 
-**Estado:** incrementos contextuales y diagnóstico meteorológico con aceptación
-técnica sintética individual; regresión integrada fallida y ratificación
-académica pendientes. **Responsabilidad:** Irantzu valida significados y
+**Estado:** verificación técnica sintética integrada D27 superada; ratificación
+académica y validación real pendientes. **Responsabilidad:** Irantzu valida significados y
 uniones; Carlos implementa y verifica la integración. **Objetivos:** OE3,
 OE4. **Requisito previo:** Silver eléctrica aceptada en H05.
 
@@ -175,8 +174,8 @@ contexto detenido; su causa raíz y el alcance exacto de la cascada siguen en
 investigación. Los dos primeros casos fallidos pasaron en una sesión nueva; una
 secuencia focal instrumentada de tres casos también pasó sin identificar la
 causa. En otra secuencia se observaron estados Delta persistidos; una limpieza
-aislada de su caché redujo su número, sin reproducir ni explicar el fallo. No
-hay aceptación técnica integrada con ese resultado.
+aislada de su caché redujo su número, sin reproducir ni explicar el fallo.
+Esa ejecución no permitió la aceptación técnica integrada.
 
 ### Corrección de liberación de recursos D25
 
@@ -195,8 +194,8 @@ recuperación IQR desde una reserva. Para evitar inspeccionar las rutas protegid
 reales, el lanzador temporal usa raíces protegidas sintéticas; mantiene las
 comprobaciones de rutas y emplea Ivy local. `TFM_REAL_CONFIG` permanece ausente.
 La revisión independiente no identificó defectos bloqueantes. Esta corrección
-no explica ni resuelve el agotamiento de memoria de Spark; la aceptación
-integrada de H06 sigue pendiente.
+no explica ni resuelve el agotamiento de memoria de Spark; en ese momento la
+aceptación integrada de H06 seguía pendiente.
 
 Comprobaciones, con SHA-256 del lanzador temporal
 `7d3b81a36baeef30a8e836abb1a25bb56228140226d399c52e85137a06475040`:
@@ -205,6 +204,33 @@ Comprobaciones, con SHA-256 del lanzador temporal
 env -u TFM_REAL_CONFIG PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/silver/test_cleanup_d25.py --tb=long
 env -u TFM_REAL_CONFIG PYTHONDONTWRITEBYTECODE=1 timeout 480s .venv/bin/python -B /tmp/h06_d25_runner.py -q -p no:cacheprovider tests/silver/test_cleanup_d25_integration.py tests/silver/test_silver_iqr_publication.py::test_metadata_diagnostics_bind_historical_version_and_preserve_evidence tests/silver/test_silver_iqr_publication.py::test_orchestrated_recovery_of_reservation_without_delta --tb=long --junitxml=/tmp/h06-d25-spark-escalated.xml
 ```
+
+### Verificación integrada D26 y D27
+
+En D26 se compararon tres iteraciones sintéticas en sesiones limpias con otras
+tres en una sesión compartida. Se observaron estados Delta retenidos entre
+iteraciones, sin reproducir el agotamiento de memoria ni establecer su causa.
+
+D27 aprueba dos puertas independientes: resistencia en sesión prolongada y
+regresión sintética permitida en segmentos aislados. La resistencia completó
+20 iteraciones y 140 operaciones en una sola sesión, en 1.374,69 segundos,
+sin OOM, fallos ni paradas preventivas. Registró 31.940 trabajos y 58.480
+identificadores de etapas asociados; estos últimos no acreditan etapas
+ejecutadas. El muestreo puede no captar picos breves.
+
+La regresión recogió 1.051 nodos: 1.023 permitidos superaron preparación,
+llamada y cierre en 89 procesos independientes, sin fallos, errores ni saltos.
+Se excluyeron individualmente 28: uno de datos reales, 25 que establecen
+`TFM_REAL_CONFIG` y dos que inspeccionan rutas protegidas del proyecto. El
+lanzador utilizó raíces protegidas sintéticas e Ivy local; las comprobaciones
+de las rutas reales no quedaron cubiertas. La partición coincidió exactamente
+con el inventario permitido y las huellas de fuentes permanecieron estables.
+La revisión independiente respaldó ambas puertas dentro de esos límites.
+
+La segmentación es una política de verificación, no una corrección del OOM
+histórico, cuya causa sigue sin determinarse. Tampoco se ha establecido la causa
+del incidente histórico de recencia IQR. La ratificación académica conjunta y
+la validación con BDG2 real siguen pendientes.
 
 ### Lectura contextual histórica explícita
 
