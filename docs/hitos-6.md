@@ -433,6 +433,63 @@ de vínculo de calidad y la de vínculo de asociación superaron una prueba cada
 una. No se repitieron la regresión general ni la resistencia D27 en esta
 actividad.
 
+### Captura meteorológica distribuida sintética
+
+D37 aprueba una captura identificada por ID explícito, UUID físico Delta,
+versión 0, esquema y huella física D24, con reconciliación completa del
+enriquecimiento y de las proyecciones contextual y eléctrica. Esta identidad
+corresponde a una representación física concreta, no acredita autenticidad
+externa ni una identidad lógica independiente de la representación. D38
+aprueba la reserva exclusiva, propietario explícito y bloqueo cooperativo;
+una captura existente no se sobrescribe ni recupera automáticamente.
+
+```python
+from tfm_lakehouse.silver.weather_capture import (
+    create_synthetic_weather_capture, verify_synthetic_weather_capture,
+)
+
+capture = create_synthetic_weather_capture(
+    spark, config, "silver_01", "contexto_01", "weather_01",
+    "captura_01", "autor", workspace,
+)
+verified = verify_synthetic_weather_capture(spark, config, "captura_01", "autor", workspace)
+```
+
+La reserva, intención y marcador viven en el espacio sintético aislado. La
+tabla se escribe de forma distribuida y el marcador de finalización es la
+última escritura, tras verificar fuentes, commit, esquema y multiconjuntos.
+Una captura incompleta, ajena o modificada se rechaza; no hay reintentos,
+reparación, caducidad ni API de borrado. El autor decide su retirada manual tras
+revisar identidad y dependencias. El propietario y el bloqueo coordinan usos
+locales; no autentican a usuarios ni protegen contra escritores externos.
+
+Los archivos de la tabla se huellan por bloques y el log Delta se lee por
+líneas de hasta 8 MiB; una línea mayor bloquea la verificación. El mapa de
+rutas, el catálogo y las dependencias contextuales conservan costes en el
+conductor. La publicación contextual existente recoge sus filas y su lector
+ordena y recorre grupos en el conductor. La captura tampoco evita el coste de
+shuffle, almacenamiento temporal o posibles sesgos de partición. No se ha
+acreditado escalabilidad de extremo a extremo ni validado con BDG2 real.
+
+La integración sintética de captura superó dos pruebas Spark/Delta en
+341,48 segundos, con 32 filas eléctricas, particiones alternativas y
+verificación tras vaciar la caché. La selección unitaria de captura y
+regresiones de identidad, asociación, calidad y D25 superó 42 casos; una
+selección adicional de identidad, asociación y calidad superó 23 casos con
+Spark sintético. Los fallos de escritura y de cambio de fuente durante la
+materialización se inyectaron con un escritor simulado. No se ejecutaron la
+regresión general, la resistencia D27 ni la campaña de escala para este cambio.
+
+Una campaña posterior puede escalonar 128, 10.000, 100.000, 280.704 y
+1.000.000 de filas eléctricas inventadas. Las 280.704 representan únicamente
+16 edificios por 17.544 etiquetas nominales; no acreditan cobertura real. La
+campaña debe incluir también el ancho y volumen de los tres orígenes Bronze,
+Silver eléctrica, IQR y contexto, no solo la tabla de salida. Para cada escala
+se proponen límites acordados antes de ejecutar, medición de tiempo, memoria
+del conductor y trabajadores, disco temporal, shuffle y archivos, y parada ante
+presión de recursos, falta de espacio, errores o incumplimiento de límites. La
+validación real requiere autorización y rutas revisadas por separado.
+
 1. Validar claves de metadatos, relación edificio-emplazamiento, superficie
    y zona horaria frente a las fuentes y contratos aprobados.
 2. Implementar una unión de metadatos con cardinalidad controlada,
