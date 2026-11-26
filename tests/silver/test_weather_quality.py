@@ -33,12 +33,12 @@ def test_quality_api_rejects_changed_context_and_weather(monkeypatch, tmp_path):
         quality.diagnose_synthetic_weather_quality(None, None, "s", "c", tmp_path)
     monkeypatch.setattr(quality.contextual_reader, "read_synthetic_contextual", lambda *_: (evidence["contextual"], None))
     monkeypatch.setattr(quality.silver, "_manifest", lambda *_: ({}, "manifest"))
-    monkeypatch.setattr(quality.iqr, "_fingerprint", lambda *_: "changed")
+    monkeypatch.setattr(quality, "weather_tree_fingerprint", lambda *_: "changed")
     config = SimpleNamespace(table_path=lambda _: tmp_path)
     with pytest.raises(quality.iqr.IQRPublicationError, match="Weather source changed"):
         quality.diagnose_synthetic_weather_quality(None, config, "s", "c", tmp_path)
     checks = iter(("weather", "changed"))
-    monkeypatch.setattr(quality.iqr, "_fingerprint", lambda *_: next(checks))
+    monkeypatch.setattr(quality, "weather_tree_fingerprint", lambda *_: next(checks))
     monkeypatch.setattr(quality, "_read_verified_tables", lambda *_: {"weather": None})
     monkeypatch.setattr(quality, "_sensitivity", lambda *_: None)
     config.namespace = tmp_path
@@ -106,6 +106,10 @@ def test_monthly_coverage_and_sensitivity_are_reconciled(monkeypatch):
         assert rain.available_rows == 4 and rain.numerically_interpretable_rows == 4
         assert rain.finite_without_special_rows == 0
         assert rain.available_weather_keys == 1
+        assert (rain.eligible_electrical_keys, rain.associated_electrical_keys,
+                rain.associated_weather_keys) == (4, 2, 1)
+        assert rain.potential_special_code_weather_keys == 1
+        assert rain.finite_without_special_weather_keys == 0
         clouds = next(r for r in variables if r.variable == "cloudCoverage")
         for row in variables:
             assert sum(row[state + "_rows"] for state in quality.QUALITY_STATES) == row.associated_rows

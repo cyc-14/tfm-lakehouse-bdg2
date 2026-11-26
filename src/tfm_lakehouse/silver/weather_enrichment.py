@@ -9,6 +9,7 @@ from tfm_lakehouse.silver import silver_synthetic_publication as silver
 from tfm_lakehouse.silver.silver_electricity_temporal import _interpret
 from tfm_lakehouse.silver.silver_electricity_numeric import _interpret as _numeric
 from tfm_lakehouse.silver.weather_diagnostics import _special
+from tfm_lakehouse.silver.weather_integrity import weather_tree_fingerprint
 from tfm_lakehouse.weather_characterization import VARIABLES
 
 ASSOCIATION_POLICY = "h06-nominal-nearest-1800-earlier-v1"
@@ -129,7 +130,7 @@ def associate_synthetic_weather(spark, config, silver_publication_id, contextual
     items = {item["name"]: item for item in report["tables"]}
     iqr._require("weather" in items, "Weather source is unavailable")
     weather_path = config.table_path("weather")
-    before = iqr._fingerprint(weather_path)
+    before = weather_tree_fingerprint(weather_path)
     path = config.namespace / "_runs" / (identity["source_run_id"] + ".json")
     weather = _read_verified_tables(spark, config, report, path)["weather"]
     item = items["weather"]
@@ -146,14 +147,15 @@ def associate_synthetic_weather(spark, config, silver_publication_id, contextual
                      not right.exceptAll(left).limit(1).count(), "Association multiset differs")
     verify_multiset(result.select(*context.columns), context)
     verify_multiset(result.select(*electrical.columns), electrical)
-    iqr._require(iqr._fingerprint(weather_path) == before, "Weather source changed")
+    iqr._require(weather_tree_fingerprint(weather_path) == before, "Weather source changed")
     iqr._stable_silver(identity, config)
     again, _ = contextual_reader.read_synthetic_contextual(spark, config, contextual_publication_id, root)
     iqr._require(again == contextual_evidence, "Contextual publication changed")
-    iqr._require(iqr._fingerprint(weather_path) == before, "Weather source changed")
+    iqr._require(weather_tree_fingerprint(weather_path) == before, "Weather source changed")
     return {"association_policy": ASSOCIATION_POLICY, "silver": identity,
             "contextual_publication_id": contextual_publication_id, "contextual": contextual_evidence,
             "manifest_sha256": digest, "weather_version": item["delta_version"],
+            "weather_source_uri": item["source_uri"], "weather_table_path": item["table_path"],
             "weather_source_sha256": item["source_sha256"], "weather_files_sha256": before,
             "available_variables": {name: name in weather.columns for name in VARIABLES},
             "temporal_semantics": "nominal_not_physical"}, result

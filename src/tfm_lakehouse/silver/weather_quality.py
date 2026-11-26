@@ -9,6 +9,7 @@ from tfm_lakehouse.silver import contextual_reader
 from tfm_lakehouse.silver import silver_iqr_publication as iqr
 from tfm_lakehouse.silver import silver_synthetic_publication as silver
 from tfm_lakehouse.silver.weather_enrichment import _associate, _nominal_seconds
+from tfm_lakehouse.silver.weather_integrity import weather_tree_fingerprint
 from tfm_lakehouse.weather_characterization import VARIABLES
 
 TOLERANCES = (0, 900, 1800, 3600)
@@ -99,6 +100,9 @@ def _variables(frame):
         interpretable = associated & (state == "finite")
         ordinary_candidate = interpretable & ~F.col("__variable.special")
         key = F.struct("metadata_site_id", "weather_timestamp_original")
+        electrical_key = F.struct("metadata_site_id", "timestamp_original")
+        eligible = F.col("weather_association_status").isin(
+            "associated_unique", "missing_observation", "duplicate_identical", "duplicate_conflicting")
         def count(condition):
             return F.sum(F.when(condition, 1).otherwise(0)).cast("long")
         output = values.groupBy(*_dimensions(scope), F.col("__variable.variable").alias("variable")).agg(
@@ -107,8 +111,13 @@ def _variables(frame):
             count(interpretable).alias("numerically_interpretable_rows"),
             count(ordinary_candidate).alias("finite_without_special_rows"),
             count(associated & F.col("__variable.special")).alias("potential_special_code_rows"),
+            F.countDistinct(F.when(eligible, electrical_key)).alias("eligible_electrical_keys"),
+            F.countDistinct(F.when(associated, electrical_key)).alias("associated_electrical_keys"),
+            F.countDistinct(F.when(associated, key)).alias("associated_weather_keys"),
             F.countDistinct(F.when(available, key)).alias("available_weather_keys"),
             F.countDistinct(F.when(interpretable, key)).alias("interpretable_weather_keys"),
+            F.countDistinct(F.when(associated & F.col("__variable.special"), key)).alias("potential_special_code_weather_keys"),
+            F.countDistinct(F.when(ordinary_candidate, key)).alias("finite_without_special_weather_keys"),
             *[count(associated & (state == label)).alias(label + "_rows") for label in QUALITY_STATES])
         output = (output.withColumn("available_ratio", F.when(F.col("associated_rows") > 0,
                                    F.col("available_rows") / F.col("associated_rows")))
@@ -151,11 +160,11 @@ def diagnose_synthetic_weather_quality(spark, config, silver_publication_id, con
     report, digest = silver._manifest(config, evidence["silver"]["source_run_id"])
     iqr._require(digest == evidence["manifest_sha256"], "Bronze manifest changed")
     weather_path = config.table_path("weather")
-    iqr._require(iqr._fingerprint(weather_path) == evidence["weather_files_sha256"], "Weather source changed")
+    iqr._require(weather_tree_fingerprint(weather_path) == evidence["weather_files_sha256"], "Weather source changed")
     report_path = config.namespace / "_runs" / (evidence["silver"]["source_run_id"] + ".json")
     weather = _read_verified_tables(spark, config, report, report_path)["weather"]
     sensitivity = _sensitivity(context, weather)
-    iqr._require(iqr._fingerprint(weather_path) == evidence["weather_files_sha256"], "Weather source changed")
+    iqr._require(weather_tree_fingerprint(weather_path) == evidence["weather_files_sha256"], "Weather source changed")
     iqr._stable_silver(evidence["silver"], config)
     return evidence, {"coverage": _coverage(association), "variables": _variables(association),
                       "sensitivity": sensitivity}

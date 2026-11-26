@@ -366,6 +366,10 @@ por `associated_rows`. Los valores numéricamente interpretables son los de
 estado `finite`; los posibles códigos especiales se cuentan aparte, junto al
 subconjunto finito sin esa marca y su proporción sobre `associated_rows`.
 Ninguno de estos recuentos demuestra validez física ni elegibilidad analítica.
+Cada variable incluye además las claves eléctricas elegibles y asociadas y las
+claves meteorológicas asociadas, disponibles, finitas, con posible código y
+finitas sin esa marca. No se ha implementado la cobertura opcional frente a un
+calendario nominal completo.
 
 Se preserva el texto y se reutiliza el intérprete decimal exacto: admite signo,
 dígitos ASCII, punto decimal opcional y exponente decimal opcional; rechaza
@@ -396,6 +400,38 @@ En el primer intento de prueba de la asociación, el arranque estándar consult�
 metadatos de componentes de rutas protegidas. Se interrumpió la prueba sin leer
 datos reales; los lanzadores posteriores sustituyen esas raíces por rutas
 sintéticas y usan las dependencias locales existentes.
+
+### Identidad meteorológica sintética preliminar
+
+`build_synthetic_weather_identity(spark, config, silver_id, contextual_id,
+publication_id, workspace)` devuelve una intención preliminar y una vista
+diferida. Vincula el ID explícito, Silver, contexto v2, manifiesto y versión
+weather Bronze, URI y SHA-256 declarados, huella física, esquema y versiones de
+las políticas de asociación, interpretación y calidad. La regla operativa es
+de 1.800 segundos inclusivos con desempate anterior y rechazo de la clave
+duplicada elegida sin alternativa. Las tolerancias diagnósticas no la cambian.
+
+`verify_synthetic_weather_identity(..., expected, candidate)` reconstruye la
+intención, compara el JSON distinguiendo tipos y comprueba el esquema y el
+multiconjunto completo con `exceptAll` en ambos sentidos. Verifica también las
+proyecciones contextual y eléctrica mediante la asociación existente y
+recomprueba las fuentes. El resultado acredita esa comparación durante la
+acción, sin identificar como durable la vista diferida. La captura D36 y la
+identidad definitiva del contenido están pendientes.
+
+La huella física meteorológica conserva la definición D24: SHA-256 del mapa
+canónico de rutas relativas y SHA-256 de cada archivo, incluido el registro
+Delta. Los archivos se leen por bloques; el mapa de rutas permanece en memoria.
+La huella acredita coherencia con la evidencia, no autenticidad externa, y no
+detecta necesariamente modificaciones revertidas entre comprobaciones. Las
+dependencias contextuales existentes mantienen sus propias limitaciones de
+memoria; esta actividad no acredita escalabilidad de extremo a extremo.
+La selección sintética de identidad, asociación y calidad superó 23 casos;
+una prueba Delta adicional verificó la versión meteorológica histórica, la
+reconciliación y el rechazo de una alteración del commit. La regresión Delta
+de vínculo de calidad y la de vínculo de asociación superaron una prueba cada
+una. No se repitieron la regresión general ni la resistencia D27 en esta
+actividad.
 
 1. Validar claves de metadatos, relación edificio-emplazamiento, superficie
    y zona horaria frente a las fuentes y contratos aprobados.
