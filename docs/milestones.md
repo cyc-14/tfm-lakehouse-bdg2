@@ -96,6 +96,86 @@ de escala. D40,
 D41, los dos controles de integración D27 de las ampliaciones y la validación
 con BDG2 real permanecen pendientes.
 
+La decisión D43 autoriza una recuperación excepcional de publicaciones v2
+históricas incompletas únicamente con autorización para la publicación concreta
+y evidencia independiente verificable de su existencia anterior a D42, vinculada
+a la intención exacta. Sin esa evidencia, la recuperación se rechaza. Esta
+condición matiza la recuperación histórica de estados incompletos; la lectura
+verificada de publicaciones terminadas no requiere conservar la captura.
+
+Durante la verificación anterior se estableció brevemente `TFM_REAL_CONFIG` en
+una prueba negativa y se usó el directorio temporal predeterminado de pytest; la
+primera acción se sustituyó por un espía. Las ejecuciones posteriores deben
+comprobar que la variable esté ausente y que el directorio base, bajo un padre
+autorizado, sea nuevo y no exista ni como enlace, antes de iniciar pytest.
+Una revisión posterior ejecutó `git ls-tree`, consulta de lectura no incluida
+entre las autorizadas; se interrumpió esa línea de revisión sin escribir en Git.
+En otra repetición se comprobó por error una ruta sintética distinta de la que
+utilizaba el ejecutor. La ejecución afectada terminó con un error de sockets
+antes de iniciar Spark y no constituye evidencia de verificación.
+También se interrumpió preventivamente una regresión meteorológica al detectar
+que su fase final eliminaba archivos sintéticos de la prueba. La interrupción
+ocurrió antes de esa fase; el error de Py4J producido por ella no es resultado
+de la regresión. Se preparó una comprobación alternativa sin esos borrados.
+La primera ejecución de esa alternativa falló al importar la asociación
+meteorológica en un trabajador Python; se corrigió el ciclo de importación y se
+añadió una comprobación en un intérprete nuevo. La repetición de la integración
+sin borrados superó la captura, publicación y lectura meteorológicas sintéticas
+en 611,26 segundos; ese tiempo no constituye una medición de escala.
+En una comprobación D39 posterior se imprimió la raíz de campaña en el preflight,
+pero se validó después de iniciar Spark. Se interrumpió esa ejecución durante la
+ingesta sintética y se conservó la reserva parcial; el error asociado a la
+interrupción no es un resultado funcional. La repetición reservó y validó una
+campaña nueva antes de iniciar Spark y superó la publicación y lectura
+contextuales, además de la huella tras repartición y `unpersist()`, en 148,53
+segundos. Usó el perfil Spark sintético habitual, no el perfil temporal D39.
+Una prueba multiproceso posterior volvió a ejecutar por error el lanzador pytest
+en un hijo y reutilizó el mismo directorio base. Esa ejecución falló y pytest
+pudo limpiar ese directorio sintético; el hijo se sustituyó por un proceso que
+no invoca pytest.
+
+La alternativa D43 seleccionada limita la evidencia histórica a expedientes de
+reservas observadas en el árbol Git fijado anterior a D42. El expediente con el
+formato previsto no está presente en ese árbol: las pruebas con datos inventados
+y un lector sustituido no acreditan una recuperación histórica real operativa.
+
+El borrador de D40 materializa filas contextuales y evidencia de zona en una
+captura Delta independiente, con identidad física y huella de árbol. La
+publicación v2 conserva su intención y marcador; un vínculo externo comprueba
+la captura durante la recuperación, y el lector de una publicación terminada
+no depende de conservarla. El orden de bloqueo es publicación y después captura.
+Los bloqueos contextuales de lectura y escritura intentan liberar y cerrar
+por separado sin sustituir una excepción primaria por un fallo de limpieza.
+
+La interfaz excepcional `recover_legacy_synthetic_contextual` exige el ID y
+hash exacto autorizados, una justificación y una captura identificada. Solo
+admite un expediente de reserva observada en
+`docs/h06-contextual-observed-reservations/<id>.json` del commit anterior a
+D42 `0e979b2b5ae161db7d60556363665616182df9c0`. El expediente debe vincular
+el identificador y las huellas de la intención canónica y de su archivo de
+reserva, sin publicar la intención completa. Las huellas no garantizan el
+anonimato si el contenido puede adivinarse; no admite una declaración
+actual o una fecha de archivo como prueba de antigüedad. El anclaje acredita el
+contenido bajo la confianza en la historia Git del proyecto, sin autenticar por
+sí mismo el origen externo de los datos. La
+falta de captura o vínculo en una publicación inconclusa se rechaza por defecto.
+Dos integraciones sintéticas recuperaron una reserva sin tabla y otra con una
+tabla comprometida sin añadir otro commit; en ambas se simuló el lector del
+expediente Git. Tras reforzar la huella de la tabla histórica, ambos casos se
+repitieron y una alteración inyectada antes del marcador impidió finalizar.
+Una prueba integrada de la captura
+contrastó la intención y la huella v2, rechazó una alteración física y leyó la
+publicación tras retirar la
+captura sintética. Una sustitución por otra tabla Delta sintética también fue
+rechazada, conservando ambas tablas. Otra prueba conservó la evidencia TZif de
+`UTC`. Una regresión
+rechazó una modificación de metadatos durante la materialización; también se
+leyó una publicación sintética creada por el publicador anterior a D42 y se
+comprobó la independencia de IQR. La validación
+de una recuperación con evidencia histórica real
+y el conjunto completo de regresiones siguen pendientes. Esta interfaz no
+autoriza procesar datos reales.
+
 ## Evolución histórica
 
 ### Situación y nivel de evidencia — 31/10/2026

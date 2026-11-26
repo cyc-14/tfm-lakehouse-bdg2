@@ -19,15 +19,36 @@ def _read_lock(root):
         handle = silver._open_regular(namespace / ".publication.lock", os.O_RDONLY)
     except OSError as exc:
         raise iqr.IQRPublicationError("Contextual publication lock is unavailable") from exc
-    with handle:
+    acquired = False
+    primary = None
+    try:
         try:
             fcntl.flock(handle, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            acquired = True
         except BlockingIOError as exc:
             raise iqr.IQRPublicationError("Another local contextual publication is active") from exc
+        yield namespace
+    except BaseException as exc:
+        primary = exc
+        raise
+    finally:
+        failures = []
+        if acquired:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+            except BaseException as exc:
+                failures.append(exc)
         try:
-            yield namespace
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+            handle.close()
+        except BaseException as exc:
+            failures.append(exc)
+        if primary is not None:
+            for exc in failures:
+                publication._record_cleanup_failure(primary, exc)
+        elif failures:
+            for exc in failures[1:]:
+                publication._record_cleanup_failure(failures[0], exc)
+            raise failures[0]
 
 
 def read_synthetic_contextual(spark, config, publication_id: str, workspace: Path):

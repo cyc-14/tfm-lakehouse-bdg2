@@ -8,22 +8,29 @@ from pyspark.sql.types import StructType
 from tfm_lakehouse.silver import contextual_identity as identity
 from tfm_lakehouse.silver import silver_iqr_publication as iqr
 from tfm_lakehouse.silver import silver_synthetic_publication as silver
-from tfm_lakehouse.silver import weather_capture as shared
 from tfm_lakehouse.silver.weather_integrity import weather_tree_fingerprint as fingerprint
 
 _FIELDS = ('__h06_capture_zone_status', '__h06_capture_zone_resource', '__h06_capture_zone_sha256')
 
 
-def namespace(root, config):
-    target = root / 'contextual-captures'
-    silver._no_links(target)
+def isolated_namespace(root, config, name):
+    iqr._require(name in {'contextual-captures', 'contextual-capture-bindings',
+                          'contextual-legacy-recoveries'}, 'Unknown contextual namespace')
+    target = root / name
     for other in (config.raw_root, config.lakehouse_root, root / 'silver-publications',
                   root / 'iqr-publications', root / 'contextual-publications',
-                  root / 'weather-captures', root / 'weather-publications'):
+                  root / 'weather-captures', root / 'weather-publications',
+                  *(root / item for item in ('contextual-captures', 'contextual-capture-bindings',
+                                             'contextual-legacy-recoveries') if item != name)):
         iqr._require(not target.is_relative_to(other) and not other.is_relative_to(target),
                      'Contextual capture overlaps another product')
+    silver._no_links(target)
     silver._check_tree(target)
     return target
+
+
+def namespace(root, config):
+    return isolated_namespace(root, config, 'contextual-captures')
 
 
 def _exclusive_json(path, value):
@@ -79,6 +86,7 @@ def create(spark, config, root, namespace_path, capture_id, owner_id, parent, vi
 
 def verify(spark, config, root, folder, capture_id, owner_id, parent, *, complete=True):
     """Verify exact capture identity and return a lazy projection of pinned Delta v0."""
+    from tfm_lakehouse.silver import weather_capture as shared
     silver._check_tree(folder)
     iqr._require(folder.is_dir(), 'Contextual capture unavailable')
     wanted = {'intent.json', 'table', 'completed.json'} if complete else {'intent.json', 'table'}
