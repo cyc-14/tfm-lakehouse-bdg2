@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shlex
 import sys
+import tempfile
 from typing import Iterable, Iterator
 
 import pyspark
@@ -52,7 +53,7 @@ def _spark_locks():
                 first.release()
 
 
-def _validate_launcher_settings() -> None:
+def _validate_launcher_settings(*, isolated: bool = False) -> None:
     """Reject explicit Ivy overrides; custom launch scripts are outside this profile."""
     arguments = shlex.split(os.environ.get("PYSPARK_SUBMIT_ARGS", "pyspark-shell"))
     if any("spark.jars.ivy" in arg or arg.startswith("--properties-file")
@@ -81,6 +82,8 @@ def _validate_launcher_settings() -> None:
         with defaults.open(encoding="utf-8") as handle:
             for line in handle:
                 if line.strip() and not line.lstrip().startswith(("#", "!")):
+                    if isolated:
+                        raise ConfigurationError("External Spark defaults are unsupported in a campaign")
                     # Java properties escapes/continuations can conceal Ivy keys.
                     if ("spark.jars.ivy" in line or "\\" in line
                             or _JAVA_ARGFILE.search(line)):
@@ -126,6 +129,7 @@ def spark_session(
     ivy_dir: Path | None = None,
     *,
     protected_roots: Iterable[Path] = (),
+    campaign=None,
 ) -> Iterator[SparkSession]:
     """Own one local context; reject preexisting resources and unsafe Ivy paths.
 
@@ -136,9 +140,47 @@ def spark_session(
     _reject_existing_resources()
     if master != "local" and not (master.startswith("local[") and master.endswith("]")):
         raise ValueError("Este prototipo admite únicamente Spark local.")
-    ivy = validate_ivy_directory(ivy_dir, protected_roots=protected_roots)
-    _validate_launcher_settings()
+    campaign_root = None
+    if campaign is None:
+        ivy = validate_ivy_directory(ivy_dir, protected_roots=protected_roots)
+    else:
+        from tfm_lakehouse.scalability_workspace import validate_authorized_campaign
+        if ivy_dir is not None or tuple(protected_roots):
+            raise ConfigurationError("Campaign Spark uses its own isolated Ivy directory")
+        if (os.environ.get("SPARK_HOME")
+                or (os.environ.get("SPARK_CONF_DIR") and
+                    os.environ["SPARK_CONF_DIR"] != str(campaign.root / "spark-conf"))):
+            raise ConfigurationError("External Spark configuration paths are unsupported")
+        if SparkContext._gateway is not None or SparkContext._jvm is not None:
+            raise ConfigurationError("Campaign requires a fresh JVM gateway")
+        if (os.environ.get("PYSPARK_SUBMIT_ARGS", "pyspark-shell") != "pyspark-shell"
+                or any(os.environ.get(key) for key in
+                       ("SPARK_LOCAL_DIRS", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS",
+                        "JDK_JAVA_OPTIONS", "SPARK_SUBMIT_OPTS"))):
+            raise ConfigurationError("External Spark temporary settings are unsupported")
+        campaign_root = validate_authorized_campaign(campaign)
+        ivy = campaign_root / "ivy"
+        jar_root = ivy / "jars"
+        jars = [jar_root / name for name in ("io.delta_delta-spark_2.12-3.3.3.jar",
+                "io.delta_delta-storage-3.3.3.jar", "org.antlr_antlr4-runtime-4.9.3.jar")]
+        if any(not jar.is_file() for jar in jars):
+            raise ConfigurationError("Campaign requires pre-provisioned local Delta jars; downloads are disabled")
+    if campaign_root is None:
+        _validate_launcher_settings()
+    else:
+        # Inspect only the campaign-owned configuration, never an environment path.
+        old_conf = os.environ.get("SPARK_CONF_DIR")
+        os.environ["SPARK_CONF_DIR"] = str(campaign_root / "spark-conf")
+        try:
+            _validate_launcher_settings(isolated=True)
+        finally:
+            if old_conf is None:
+                os.environ.pop("SPARK_CONF_DIR", None)
+            else:
+                os.environ["SPARK_CONF_DIR"] = old_conf
     previous = os.environ.get("PYSPARK_PYTHON")
+    temp_previous = tempfile.tempdir
+    temp_environment = {}
     environment_changed = False
     session = None
     owned = None
@@ -146,6 +188,18 @@ def spark_session(
     try:
         with _spark_locks():
             _reject_existing_resources()
+            if campaign_root is not None:
+                if SparkContext._gateway is not None or SparkContext._jvm is not None:
+                    raise ConfigurationError("Campaign requires a fresh JVM gateway")
+                local = str(campaign_root / "spark-local")
+                temporary = str(campaign_root / "temp")
+                values = {"TMPDIR": temporary, "TMP": temporary, "TEMP": temporary,
+                          "SPARK_LOCAL_DIRS": local,
+                          "SPARK_CONF_DIR": str(campaign_root / "spark-conf"),
+                          "JAVA_TOOL_OPTIONS": "-Djava.io.tmpdir=" + temporary}
+                temp_environment = {key: os.environ.get(key) for key in values}
+                os.environ.update(values)
+                tempfile.tempdir = temporary
             builder = (
                 SparkSession.builder.master(master).appName(app_name)
                 .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
@@ -158,7 +212,15 @@ def spark_session(
                 .config("spark.jars.ivy", str(ivy))
                 .config("spark.pyspark.python", sys.executable)
             )
-            builder = configure_spark_with_delta_pip(builder)
+            if campaign_root is not None:
+                builder = (builder.config("spark.local.dir", local)
+                           .config("spark.executorEnv.TMPDIR", temporary)
+                           .config("spark.executorEnv.TMP", temporary)
+                           .config("spark.executorEnv.TEMP", temporary))
+            if campaign_root is None:
+                builder = configure_spark_with_delta_pip(builder)
+            else:
+                builder = builder.config("spark.jars", ",".join(str(jar) for jar in jars))
             _reject_existing_resources()
             environment_changed = True
             os.environ["PYSPARK_PYTHON"] = sys.executable
@@ -177,6 +239,15 @@ def spark_session(
                 raise
             if owned is None or session.sparkContext is not owned:
                 raise RuntimeError("Spark startup did not return the manager's context")
+            if campaign_root is not None:
+                if (owned.getConf().get("spark.local.dir") != local
+                        or owned._jvm.java.lang.System.getProperty("java.io.tmpdir") != temporary
+                        or tempfile.gettempdir() != temporary):
+                    raise ConfigurationError("Effective Spark temporary settings differ")
+                directories = owned._jvm.org.apache.spark.SparkEnv.get().blockManager().diskBlockManager().localDirs()
+                if not directories or any(not Path(str(d.getAbsolutePath())).is_relative_to(Path(local))
+                                          for d in directories):
+                    raise ConfigurationError("Spark local storage escaped the campaign")
             session.sparkContext.setLogLevel("WARN")
         yield session
     except BaseException as exc:
@@ -193,6 +264,16 @@ def spark_session(
                     os.environ.pop("PYSPARK_PYTHON", None)
                 else:
                     os.environ["PYSPARK_PYTHON"] = previous
+            except BaseException as exc:
+                failure = _cleanup_failure(failure, exc)
+        if temp_environment:
+            try:
+                for key, value in temp_environment.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+                tempfile.tempdir = temp_previous
             except BaseException as exc:
                 failure = _cleanup_failure(failure, exc)
     if failure is not None:

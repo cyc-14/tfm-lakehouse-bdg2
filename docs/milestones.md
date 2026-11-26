@@ -50,7 +50,7 @@ anterior correspondía al 09/11/2026.
 | H03 | Caracterización eléctrica y meteorológica; ejecuciones reales del 30/10/2026. Evolución eléctrica v2 probada solo con sintéticos | Cierre académico global y contraste con la memoria |
 | H04 | Selección conjunta de 16 edificios y contratos documentados; herramientas de contraste sintéticas | Reproducir selección y procedencia desde las fuentes; cierre formal |
 | H05 | Transformación, publicación Silver e IQR y orquestación verificadas con sintéticos; contraste sintético con pandas | Validación real separadamente autorizada y cierre formal |
-| H06 | D27 superada en su alcance original; asociación, captura, publicación y lectura meteorológicas con verificación sintética enfocada | Integración D27 de las ampliaciones, escala, causas históricas del OOM y de recencia IQR, ratificación conjunta y validación real |
+| H06 | D27 superada en su alcance original; asociación, captura, publicación y lectura meteorológicas con verificación sintética enfocada; espacio sintético D39 | Integración D27 de las ampliaciones, materialización contextual distribuida, escala, causas históricas del OOM y de recencia IQR, ratificación conjunta y validación real |
 | H07 | Planificado; sin Gold implementado | Fórmulas, cobertura y comparabilidad |
 | H08 | Planificado; sin explotación implementada | Tareas y visualizaciones analíticas |
 | H09 | Planificado; sin recuperación integral entre capas | Diseño y pruebas integrales |
@@ -62,6 +62,39 @@ La implementación y la prueba sintética no conceden aceptación académica ni
 autorización para BDG2 real. Los contratos y evidencias se mantienen en las guías
 enlazadas en el catálogo. Las definiciones de `github-milestones.json` son
 plantillas de planificación, no otro registro del estado actual.
+
+### Espacio sintético aislado D39 — 26/11/2026
+
+`reserve_campaign(id, owner)` en `tfm_lakehouse.scalability_workspace` reserva
+una sola vez un directorio bajo `data/lakehouse/synthetic/scalability/`, tras
+comprobar exclusión de Git y sistema de archivos. `authorize_campaign(id, owner)`
+habilita en el proceso una reserva completa existente. Los identificadores son
+declaraciones de propiedad, no credenciales frente a otros procesos. La reserva
+conserva los restos de una inicialización interrumpida y no los adopta ni elimina.
+
+Cada directorio contiene `raw`, `lakehouse`, espacios independientes de Silver,
+IQR, contexto y meteorología, `spark-local`, `spark-conf`, `temp`, `ivy` y
+`evidence`. Las configuraciones sintéticas deben usar `raw` y `lakehouse` de la
+misma campaña. Las pruebas pequeñas bajo `/tmp` siguen admitidas. Antes de usar
+una campaña se vuelven a comprobar su propiedad, sus rutas y la exclusión Git;
+la comprobación del montaje admite `ext4`, `xfs` y `btrfs` y rechaza otros tipos.
+
+Para una futura sesión, `spark_session(campaign=campaign)` necesita una JVM nueva
+y los tres JAR Delta/ANTLR ya disponibles en `ivy/jars` de esa campaña; no los
+descarga. Sitúa los temporales de Python, JVM y Spark en el espacio reservado y
+comprueba los valores efectivos antes de entregar la sesión. Los recursos deben
+permanecer estables: las comprobaciones no ofrecen aislamiento frente a procesos
+que sustituyan rutas o montajes durante la ejecución, ni equivalen a un límite de
+recursos. La sesión no autoriza por sí sola el uso de fuentes reales.
+
+Se reservó y verificó un espacio de prueba en el destino autorizado, montado en
+`ext4`. La ejecución enfocada del 26/11/2026 superó 28 casos de reserva,
+aislamiento y rechazo de sesiones o rutas ajenas, y la prueba
+`test_local_spark_uses_campaign_temporary_storage` superó un arranque Spark
+local mínimo con JAR ya presentes y datos inventados. No se ejecutó una campaña
+de escala. D40,
+D41, los dos controles de integración D27 de las ampliaciones y la validación
+con BDG2 real permanecen pendientes.
 
 ## Evolución histórica
 

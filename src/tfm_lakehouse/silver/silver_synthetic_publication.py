@@ -66,6 +66,22 @@ def _open_regular(path: Path, flags: int):
 def _validate_workspace(workspace: Path, config: BronzeConfig) -> Path:
     if not isinstance(workspace, Path) or not workspace.is_absolute() or ".." in workspace.parts:
         raise SilverPublicationError("An absolute temporary workspace is required")
+    from tfm_lakehouse import scalability_workspace as scalability
+    if workspace.parent == scalability.SCALABILITY_ROOT:
+        try:
+            return scalability.validate_synthetic_config(workspace, config)
+        except (scalability.WorkspaceError, OSError, ValueError) as exc:
+            raise SilverPublicationError("Invalid scalability campaign workspace") from exc
+    # Reject unauthorized locations before inspecting any caller-supplied path.
+    if not workspace.is_relative_to(Path('/tmp')) or workspace == Path('/tmp'):
+        raise SilverPublicationError("Workspace is outside authorized synthetic roots")
+    if config.data_kind != "synthetic":
+        raise SilverPublicationError("Only synthetic configurations are supported")
+    for path in (config.raw_root, config.lakehouse_root, config.namespace,
+                 *config.sources.values(), *(config.table_path(name) for name in config.sources)):
+        if (not isinstance(path, Path) or not path.is_absolute() or ".." in path.parts
+                or path == workspace or not path.is_relative_to(workspace)):
+            raise SilverPublicationError("Bronze paths must be inside the temporary workspace")
     _no_links(workspace)
     root = workspace.resolve(strict=True)
     temp = Path("/tmp").resolve(strict=True)

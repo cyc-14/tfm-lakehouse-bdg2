@@ -4,9 +4,9 @@ import fcntl
 import os
 from pathlib import Path
 
-from pyspark.sql import Row, functions as F
-
 from tfm_lakehouse.silver import contextual_identity as identity
+from tfm_lakehouse.silver import contextual_capture as capture
+from tfm_lakehouse.silver import weather_capture as capture_lock
 from tfm_lakehouse.silver import silver_iqr_publication as iqr
 from tfm_lakehouse.silver import silver_synthetic_publication as silver
 
@@ -60,74 +60,93 @@ def _verify_output(spark, target, expected, intent):
 
 def publish_synthetic_contextual(spark, config, silver_publication_id: str,
                                  publication_id: str, workspace: Path, *,
-                                 enrichment_version: str = identity.ENRICHMENT_VERSION) -> dict:
-    """Publish or explicitly reconcile one retained-source synthetic identity.
+                                 enrichment_version: str = identity.ENRICHMENT_VERSION,
+                                 capture_id: str | None = None, owner_id: str | None = None) -> dict:
+    """Publish/reconcile v2 from one durable capture, retaining all failure evidence.
 
-    Values are collected once on the driver and recreated from those immutable
-    values, so Spark cannot recompute the source plan during the Delta write.
-    This deliberately limits the API to small synthetic fixtures.
+    By default the explicitly supplied publication and Silver IDs are also the
+    capture and owner IDs. The lock order is publication then capture. Completed
+    legacy publications can be reconciled without any retained capture.
     """
     iqr._identifier(silver_publication_id)
     iqr._identifier(publication_id)
+    iqr._require((capture_id is None) == (owner_id is None), 'Capture and owner IDs must be paired')
+    capture_id = publication_id if capture_id is None else capture_id
+    owner_id = silver_publication_id if owner_id is None else owner_id
+    iqr._identifier(capture_id)
+    iqr._identifier(owner_id)
     root = _workspace(workspace, config)
     with _lock(root) as namespace:
         intent = identity.build_synthetic_contextual_intent(
             spark, config, silver_publication_id, publication_id, root,
             enrichment_version=enrichment_version)
         diagnostic, view = identity.enrich_synthetic_metadata(spark, config, silver_publication_id, root)
-        iqr._require(diagnostic["silver"] == intent["silver"], "Silver identity changed")
-        iqr._require(diagnostic["metadata_files_sha256"] == intent["metadata_files_sha256"],
-                     "Metadata files changed before materialization")
-        iqr._require(iqr._canonical(view.schema.jsonValue()) == iqr._canonical(intent["schema"]),
-                     "Contextual schema differs")
-        zone = F.udf(identity._controlled_zone, identity._ZONE_EVIDENCE)(F.col("metadata_timezone"))
-        measured = view.withColumn("__h06_zone_evidence", zone).collect()
-        iqr._require(iqr._fingerprint(config.table_path("metadata")) == intent["metadata_files_sha256"],
-                     "Metadata files changed during materialization")
-        entries = []
-        rows = []
-        for row in measured:
-            evidence = row["__h06_zone_evidence"]
-            status = row["metadata_timezone_status"]
-            if status not in ("missing_row", "missing_column"):
-                iqr._require(status == evidence.status, "Timezone interpretation differs")
-            entries.append(Row(metadata_timezone=row["metadata_timezone"], status=evidence.status,
-                               resource=evidence.resource, sha256=evidence.sha256))
-            rows.append(tuple(row[name] for name in view.columns))
-        iqr._require(identity._merge_zone_evidence(entries) == intent["timezone_evidence"],
-                     "Materialized timezone evidence differs")
-        output = spark.createDataFrame(rows, view.schema)
-        iqr._require(identity._multiset_hash(output) == intent["context_multiset_sha256"],
-                     "Materialized contextual multiset differs")
+        iqr._require(diagnostic['silver'] == intent['silver'], 'Silver identity changed')
+        iqr._require(diagnostic['metadata_files_sha256'] == intent['metadata_files_sha256'],
+                     'Metadata files changed before materialization')
+        iqr._require(iqr._canonical(view.schema.jsonValue()) == iqr._canonical(intent['schema']),
+                     'Contextual schema differs')
+        folder = namespace / publication_id
+        silver._no_links(folder)
+        captures = capture.namespace(root, config)
+        capture_folder = captures / capture_id
 
         def revalidate():
             identity.verify_synthetic_contextual_intent(
                 spark, config, silver_publication_id, publication_id, root, intent,
                 enrichment_version=enrichment_version)
 
-        revalidate()
-        folder = namespace / publication_id
-        silver._no_links(folder)
-        if not folder.exists():
-            folder.mkdir()
-            silver._exclusive_json(folder / "intent.json", intent)
-        else:
+        # A completed publication remains independently recoverable after retirement.
+        if folder.is_dir() and (folder / 'completed.json').is_file() and not capture_folder.exists():
             silver._check_tree(folder)
-            iqr._folder_layout(folder, "table")
-            iqr._require(iqr._canonical(iqr._read(folder / "intent.json")) == iqr._canonical(intent),
-                         "Contextual publication ID conflicts with intent")
-        target, completed = folder / "table", folder / "completed.json"
-        if not target.exists():
-            iqr._require(not completed.exists(), "Completion evidence exists without a table")
+            iqr._folder_layout(folder, 'table')
+            iqr._require(iqr._canonical(iqr._read(folder / 'intent.json')) == iqr._canonical(intent),
+                         'Contextual publication ID conflicts with intent')
+            result = _verify_output(spark, folder / 'table', view, intent)
+            iqr._require(iqr._canonical(iqr._read(folder / 'completed.json')) == iqr._canonical(result),
+                         'Contextual completion evidence differs')
             revalidate()
-            (output.write.format("delta").mode("errorifexists")
-             .option("userMetadata", iqr._canonical(intent)).save(str(target)))
-        result = _verify_output(spark, target, output, intent)
-        revalidate()
-        if completed.exists():
-            iqr._require(iqr._canonical(iqr._read(completed)) == iqr._canonical(result),
-                         "Contextual completion evidence differs")
-        else:
-            silver._exclusive_json(completed, result)
-        revalidate()
-        return result
+            return result
+
+        with capture_lock._lock(captures):
+            if not capture_folder.exists():
+                iqr._require(not folder.exists(), 'Capture missing for unfinished contextual publication')
+                capture.create(spark, config, root, captures, capture_id, owner_id, intent, view)
+            capture_result, output = capture.verify(
+                spark, config, root, capture_folder, capture_id, owner_id, intent)
+            capture_before = capture.fingerprint(capture_folder)
+
+            def stable_capture():
+                iqr._require(capture.fingerprint(capture_folder) == capture_before,
+                             'Contextual capture changed during publication')
+                actual, _ = capture.verify(spark, config, root, capture_folder, capture_id, owner_id, intent)
+                iqr._require(iqr._canonical(actual) == iqr._canonical(capture_result),
+                             'Contextual capture identity changed')
+
+            revalidate()
+            if not folder.exists():
+                folder.mkdir()
+                silver._exclusive_json(folder / 'intent.json', intent)
+            else:
+                silver._check_tree(folder)
+                iqr._folder_layout(folder, 'table')
+                iqr._require(iqr._canonical(iqr._read(folder / 'intent.json')) == iqr._canonical(intent),
+                             'Contextual publication ID conflicts with intent')
+            target, completed = folder / 'table', folder / 'completed.json'
+            if not target.exists():
+                iqr._require(not completed.exists(), 'Completion evidence exists without a table')
+                stable_capture()
+                revalidate()
+                (output.write.format('delta').mode('errorifexists')
+                 .option('userMetadata', iqr._canonical(intent)).save(str(target)))
+            result = _verify_output(spark, target, output, intent)
+            stable_capture()
+            revalidate()
+            if completed.exists():
+                iqr._require(iqr._canonical(iqr._read(completed)) == iqr._canonical(result),
+                             'Contextual completion evidence differs')
+            else:
+                silver._exclusive_json(completed, result)
+            stable_capture()
+            revalidate()
+            return result
