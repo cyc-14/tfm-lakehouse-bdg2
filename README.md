@@ -21,10 +21,11 @@ y temporal nominal, vínculo Bronze, publicación Silver, diagnóstico de calida
 motor IQR y publicación IQR versionada, con verificación sintética documentada.
 La orquestación Silver → IQR está implementada con verificación sintética
 parcial; el cierre formal de H05 está pendiente.
-[H06](docs/hitos-6.md) incorpora enriquecimiento, publicación y lectura contextual
-explícita con pruebas sintéticas, además de diagnóstico meteorológico nominal.
-La regresión sintética integrada de H06 presenta fallos pendientes de análisis.
-La integración meteorológica y Gold quedan fuera del alcance implementado.
+[H06](docs/hitos-6.md) incorpora contexto y asociación meteorológica nominal,
+captura, publicación y lectura histórica explícita con verificación sintética. La resistencia
+y regresión segmentada D27 se superaron en su alcance original; las ampliaciones
+meteorológicas disponen de pruebas sintéticas enfocadas. La ratificación conjunta
+y la validación con BDG2 real siguen pendientes. Gold no está implementado.
 
 El [registro de hitos](docs/milestones.md) es la referencia del estado actual.
 Las pruebas habituales usan datos sintéticos. No se ha autorizado validar ni

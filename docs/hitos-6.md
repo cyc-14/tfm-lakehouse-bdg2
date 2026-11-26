@@ -1,7 +1,8 @@
 # Hito 6 — Integración de metadatos y meteorología
 
-**Estado:** verificación técnica sintética integrada D27 superada; ratificación
-académica y validación real pendientes. **Responsabilidad:** Irantzu valida significados y
+**Estado:** verificación técnica sintética integrada D27 superada en su alcance
+original; las ampliaciones meteorológicas tienen verificación sintética enfocada.
+Ratificación académica y validación real pendientes. **Responsabilidad:** Irantzu valida significados y
 uniones; Carlos implementa y verifica la integración. **Objetivos:** OE3,
 OE4. **Requisito previo:** Silver eléctrica aceptada en H05.
 
@@ -479,6 +480,89 @@ selección adicional de identidad, asociación y calidad superó 23 casos con
 Spark sintético. Los fallos de escritura y de cambio de fuente durante la
 materialización se inyectaron con un escritor simulado. No se ejecutaron la
 regresión general, la resistencia D27 ni la campaña de escala para este cambio.
+
+### Publicación meteorológica sintética y recuperación
+
+`publish_synthetic_weather(spark, config, capture_id, owner_id, publication_id,
+workspace)` publica una captura explícita verificada en una tabla Delta
+independiente. El ID debe coincidir con la intención meteorológica de la
+captura. La intención vincula el marcador y la huella de la captura; el
+marcador de publicación registra UUID, commit, versión 0, esquema y huella.
+Se concilian en ambos sentidos el multiconjunto completo y las proyecciones
+contextual y eléctrica.
+
+```python
+from tfm_lakehouse.silver.weather_publication import publish_synthetic_weather
+
+evidence = publish_synthetic_weather(
+    spark, config, "captura_01", "autor", "weather_01", workspace
+)
+```
+
+La reinvocación explícita puede continuar una reserva compatible sin tabla,
+verificar y finalizar una tabla comprometida sin marcador o devolver una
+publicación completa verificada. Una tabla parcial, intención o marcador
+incompatibles, fuentes ausentes o evidencia desconocida bloquean la operación
+y se conservan. Nunca se recrea una captura ni se ejecuta otro commit para
+recuperar uno existente. No había selección automática ni lector histórico
+meteorológico en esa fase.
+
+La captura y sus fuentes deben permanecer disponibles e íntegras para
+publicar, recuperar o verificar. D38 permite al autor retirarla tras revisar
+dependencias; hacerlo puede impedir verificaciones posteriores y no establece
+retención permanente. Los bloqueos son cooperativos y las verificaciones no son
+una transacción entre tablas ni resisten necesariamente modificaciones externas
+coordinadas o revertidas. Antes del marcador final no existe un UUID de
+publicación anclado fuera de la tabla: una sustitución con la misma intención
+y contenido puede resultar indistinguible. Tras finalizar, el marcador vincula
+UUID, commit y huella. La escritura del marcador sincroniza el archivo, sin
+garantizar resistencia completa ante pérdida de alimentación del sistema.
+
+### Lectura histórica meteorológica sintética
+
+`read_synthetic_weather(spark, config, publication_id, workspace)` exige un ID
+explícito y devuelve la evidencia verificada y un DataFrame Delta fijado a la
+versión 0. No reserva, recupera ni selecciona la publicación más reciente.
+
+```python
+from tfm_lakehouse.silver.weather_reader import read_synthetic_weather
+
+evidence, frame = read_synthetic_weather(spark, config, "weather_01", workspace)
+```
+
+La lectura abre los bloqueos existentes en modo compartido, primero el de
+publicación y después el de captura, sin crearlos. Comprueba intención, marcador,
+commit, UUID, huellas y esquemas; verifica la captura y las fuentes retenidas y
+reconcilia los multiconjuntos enriquecido, contextual y eléctrico. Rechaza
+evidencia ausente, incompleta, alterada o incompatible, sin repararla.
+
+El DataFrame devuelto conserva el esquema físico Delta, incluida su nulabilidad;
+el esquema lógico original se verifica y figura en la evidencia. El DataFrame es
+diferido y los bloqueos se liberan antes de las acciones del consumidor: tabla,
+captura y fuentes deben permanecer disponibles e inalteradas. Los bloqueos no
+excluyen escritores externos no cooperativos; las huellas acreditan coherencia,
+no autenticidad externa. La limitación de anclaje de UUID anterior al marcador
+final de publicación no cambia. Las relecturas, el shuffle, la enumeración de
+archivos y las dependencias contextuales mantienen costes no evaluados a escala.
+
+La integración sintética del lector superó una prueba Spark/Delta en 652,42
+segundos con 32 filas; comprobó ausencia de escrituras de evidencia y rechazo
+de marcador corrupto, tabla publicada o fuente weather alteradas y captura
+ausente. La selección del ID antiguo frente a otro más reciente se comprobó
+con dobles, y la contención de cada bloqueo se probó con procesos independientes
+sin un publicador Spark concurrente. La regresión unitaria seleccionada de
+lectores, publicación, captura, identidad y D25 superó 46 casos. No se repitieron
+la regresión general ni la resistencia D27 para esta ampliación.
+
+La integración sintética de publicación y recuperación superó una prueba
+Spark/Delta en 713,53 segundos, con 32 filas eléctricas. La prueba interrumpió
+la finalización tras un commit real sintético, rechazó alteraciones físicas de
+weather y captura, recuperó sin otro commit y rechazó la sustitución física de
+la tabla final. Las pruebas unitarias de publicación y regresiones relevantes
+superaron 51 casos; otra selección sintética de identidad, asociación y calidad
+superó 23. Las reservas parciales y la contención cooperativa se probaron con
+dobles o en un mismo proceso, no como concurrencia multiproceso. No se ejecutaron
+la regresión general, la resistencia D27 ni la campaña de escala para este cambio.
 
 Una campaña posterior puede escalonar 128, 10.000, 100.000, 280.704 y
 1.000.000 de filas eléctricas inventadas. Las 280.704 representan únicamente
