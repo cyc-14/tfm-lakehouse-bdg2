@@ -308,6 +308,32 @@ conflictivos ajenos y la fidelidad de las unidades al catálogo documental.
 Tras reforzar el diagnóstico simultáneo de duplicados y columna ausente, la
 selección afectada y las regresiones meteorológicas superaron 72 pruebas.
 
+### Asociación meteorológica nominal sintética
+
+El autor aprobó D28–D31 para ampliar H06 con asociación meteorológica y una
+publicación independiente, revisando expresamente el aplazamiento D15. D32
+revisa D28: permite elegir por sitio la etiqueta nominal más cercana hasta
+1.800 segundos, incluido el límite; ante empate se elige la anterior. Primero
+se selecciona la clave y después se rechaza si está duplicada, sin buscar otra.
+El desplazamiento es meteorología menos electricidad. No se convierten zonas,
+no se resuelve DST y la proximidad nominal no acredita simultaneidad física.
+
+D33 exige la fuente y claves meteorológicas para publicar; D34 conserva texto,
+representación decimal exacta y posibles códigos especiales; D35 distingue
+duplicados y cobertura sin inflar observaciones compartidas; D36 exige captura
+distribuida durable para la futura publicación. La ratificación académica
+conjunta sigue pendiente. Se conserva la aceptación sintética D01–D27 y D09–D14
+sigue vigente para el diagnóstico independiente.
+
+`associate_synthetic_weather` construye una vista sintética diferida vinculada
+a los IDs explícitos de contexto y Silver y a la versión Bronze del manifiesto.
+Conserva el multiconjunto contextual y eléctrico y rechaza asociaciones cuya
+clave elegida esté duplicada. La evidencia incluye la huella física weather y
+la versión de política. Las fuentes deben seguir disponibles e inalteradas
+durante las acciones posteriores: la vista no es la captura durable de D36.
+La publicación meteorológica, su recuperación, lector histórico y cobertura
+completa corresponden a actividades posteriores y no están implementados aquí.
+
 1. Validar claves de metadatos, relación edificio-emplazamiento, superficie
    y zona horaria frente a las fuentes y contratos aprobados.
 2. Implementar una unión de metadatos con cardinalidad controlada,
