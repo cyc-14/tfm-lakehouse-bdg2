@@ -93,14 +93,39 @@ durabilidad ante un fallo eléctrico; ninguna de estas piezas supervisa una
 ejecución ni sustituye el preflight completo. Las 24 pruebas enfocadas usan
 medidas y rutas sintéticas y no acreditan las garantías operacionales D44.
 
-El lanzador parcial admite exclusivamente una sonda sintética incorporada: crea
-una sesión y un grupo de procesos, reclama el `basetemp` fuera del destino y
-conserva el expediente. El hijo reautoriza D39 y contrasta la configuración por
-un canal heredado antes de la sonda. Se verificaron 28 casos sintéticos, también
-reclamaciones concurrentes sobre una campaña D39. No admite cargas generales:
-la procedencia del lanzador, el preflight integral y el control de recursos y
-terminación siguen pendientes. El canal acredita su posesión, no autenticidad
-frente a procesos externos. No se han ejecutado Spark ni benchmarks.
+La verificación inicial del lanzador parcial superó 28 casos sintéticos,
+incluidas reclamaciones concurrentes sobre una campaña D39. El hijo
+reautorizaba D39 y contrastaba la configuración por un canal heredado.
+Quedaban pendientes la comprobación de procedencia del lanzador, el preflight
+integral y el control de recursos y terminación.
+
+**Lanzador restringido D44 (27/11/2026).** En una campaña D39 autorizada,
+`launch_workload(campaign, basetemp, run_id, handler="synthetic_probe_v1",
+parameters=ProbeParameters("fixture.txt"))` ejecuta una sonda registrada. Si se
+indica un fichero, debe ser un `.txt` sintético de hasta 64 KiB ya presente en
+`raw/`. Ambos procesos verifican su huella y el padre vuelve a comprobarla
+antes de registrar el resultado. `launch_probe` conserva
+el uso sin fichero. Los destinos y las raíces excluidas se determinan en el
+programa. El reclamo exclusivo se conserva fuera del `basetemp`, que debe
+seguir sin existir durante el protocolo.
+
+Antes de ejecutar la sonda, el hijo reautoriza la campaña y contrasta la
+configuración, el reclamo y el permiso recibido. La comprobación vincula el
+canal heredado, el recibo que escribe el hijo, PID, tiempo de inicio, grupo,
+sesión y ejecutable. Si el sistema admite `pidfd`, se usa durante ese
+contraste. El modelo es cooperativo entre procesos del mismo usuario.
+La evidencia registra el intento antes de arrancar y distingue el resultado
+completo de los fallos. El marcador sincronizado tras recoger al hijo fija
+la finalización. Un error posterior al cerrar el directorio se registra como
+aviso. Tras un fallo se cierra el canal y se espera al hijo con
+plazo. Si sigue activo al vencer el plazo, se registra que aún no se ha recogido
+y se continúa la espera en segundo plano mientras viva el padre. El lanzador
+conserva los expedientes y carece de una vía de señalización.
+
+Las 52 pruebas enfocadas superadas en 3,39 s incluyen sondas reales en una
+campaña D39 y fallos inyectados de identidad, autorización e inicialización.
+El muestreo, la aplicación de umbrales y la política de parada del supervisor
+siguen pendientes. La evidencia tampoco acredita preparación para BDG2 real.
 
 ### Espacio sintético aislado D39 — 26/11/2026
 
