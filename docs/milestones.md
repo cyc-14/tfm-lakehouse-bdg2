@@ -63,6 +63,45 @@ autorización para BDG2 real. Los contratos y evidencias se mantienen en las gu�
 enlazadas en el catálogo. Las definiciones de `github-milestones.json` son
 plantillas de planificación, no otro registro del estado actual.
 
+### Protocolo progresivo sintético D45
+
+La secuencia aprobada parte de una calibración de 128 filas eléctricas y una
+ejecución de 10.000 y de 100.000 filas. Si cada escenario requerido termina
+correctamente, siguen tres ejecuciones de 280.704 filas nominales; el escenario
+de un millón es opcional. La anchura Bronze sintética se varía por separado
+entre 16, 128, 512 y 1.600 columnas, sin ejecutar automáticamente todas las
+combinaciones. Las 280.704 posiciones son 16 edificios por 17.544 etiquetas
+nominales, no un recuento real comprobado.
+
+Las medidas de componentes, la verificación integral de escala y las dos
+puertas D27 —regresión funcional segmentada y resistencia independiente— son
+actividades distintas. La aprobación del protocolo no autoriza por sí sola una
+campaña ni acredita escalabilidad. El supervisor y su verificación permanecen
+pendientes de implementación.
+
+La evaluación aislada de umbrales D44 está implementada y se ha probado con
+20 casos de medidas inventadas, incluidos límites y datos inválidos. No recoge
+medidas ni controla procesos: el preflight, la supervisión, la terminación y la
+evidencia durable siguen pendientes. No habilita ejecutar benchmarks.
+
+Se han añadido primitivas parciales para comprobar la autorización D39 en el
+proceso actual, rechazar un `basetemp` ajeno o ya existente y reservar una
+carpeta de evidencia sin sobrescritura. También se puede leer la identidad de
+un proceso desde procfs. El envío de señales está bloqueado hasta disponer de
+un lanzador que pruebe la pertenencia a la carga. La reserva aún no garantiza
+durabilidad ante un fallo eléctrico; ninguna de estas piezas supervisa una
+ejecución ni sustituye el preflight completo. Las 24 pruebas enfocadas usan
+medidas y rutas sintéticas y no acreditan las garantías operacionales D44.
+
+El lanzador parcial admite exclusivamente una sonda sintética incorporada: crea
+una sesión y un grupo de procesos, reclama el `basetemp` fuera del destino y
+conserva el expediente. El hijo reautoriza D39 y contrasta la configuración por
+un canal heredado antes de la sonda. Se verificaron 28 casos sintéticos, también
+reclamaciones concurrentes sobre una campaña D39. No admite cargas generales:
+la procedencia del lanzador, el preflight integral y el control de recursos y
+terminación siguen pendientes. El canal acredita su posesión, no autenticidad
+frente a procesos externos. No se han ejecutado Spark ni benchmarks.
+
 ### Espacio sintético aislado D39 — 26/11/2026
 
 `reserve_campaign(id, owner)` en `tfm_lakehouse.scalability_workspace` reserva
