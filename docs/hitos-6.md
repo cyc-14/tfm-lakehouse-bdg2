@@ -1,8 +1,9 @@
 # Hito 6 — Integración de metadatos y meteorología
 
-**Estado:** verificación técnica sintética integrada D27 superada en su alcance
-original; las ampliaciones meteorológicas tienen verificación sintética enfocada.
-Ratificación académica y validación real pendientes. **Responsabilidad:** Irantzu valida significados y
+**Estado:** resistencia y regresión segmentada superadas en su alcance
+original. Las ampliaciones meteorológicas tienen verificación sintética enfocada.
+Las fuentes locales y un snapshot Bronze real se han verificado. La validación
+real de Silver y la ratificación académica siguen pendientes. **Responsabilidad:** Irantzu valida significados y
 uniones; Carlos implementa y verifica la integración. **Objetivos:** OE3,
 OE4. **Requisito previo:** Silver eléctrica aceptada en H05.
 
@@ -14,6 +15,55 @@ mediciones sin información contextual válida deben conservarse o tratarse
 según reglas explícitas y quedar contabilizadas.
 
 ## Actividades incrementales
+
+### Validación progresiva con los datos locales de BDG2
+
+La auditoría en solo lectura verificó los tres CSV contra el manifiesto
+local e identificó una publicación Bronze con electricidad y metadatos
+en versión 1 y meteorología en versión 0. La lectura secuencial de los
+Parquet activos con Apache Parquet comparó exactamente las filas,
+incluidos los nulos y las cuatro columnas de linaje. La igualdad en
+orden físico comprobó también la multiplicidad. El contraste se
+realizó sin Spark y se limita a las versiones y huellas verificadas.
+
+El supervisor incorpora una carga para Silver eléctrica vinculada a la
+instantánea auditada y a una autorización de ejecución única. Verifica la
+autorización en el proceso lanzador y en el hijo, comprueba las 13 huellas
+antes de iniciar la JVM y reserva las salidas de forma exclusiva. Spark
+lee los Parquet exactos de electricidad y metadatos. Los archivos de
+meteorología quedan vinculados por sus huellas.
+
+La publicación usa la transformación `h05.3-v1` y la cohorte de
+[H04](hitos-4.md). Una referencia independiente generada desde el CSV
+permite comparar todas las filas y sus multiplicidades mediante
+diferencias distribuidas en ambos sentidos. La comprobación incluye los
+19 campos, los nulos, los valores decimales, las etiquetas nominales y el
+linaje. El resultado debe tener un único commit Delta y las huellas de
+entrada deben mantenerse estables. Linux restringe las escrituras del
+proceso y sus descendientes a los destinos reservados y al espacio de
+trabajo.
+
+La integración con archivos inventados concilió 32 posiciones, incluidas
+filas repetidas, publicó la versión Delta 0 y confirmó el cierre de los
+procesos supervisados. La publicación con BDG2 sigue pendiente. Se
+esperan 280.704 posiciones eléctricas, incluidas las 352 ausencias
+observadas en la auditoría.
+
+La auditoría registró dos claves meteorológicas duplicadas por
+emplazamiento en Bull, Fox, Peacock y Robin. La interpretación temporal de
+esas claves queda pendiente. También siguen pendientes la comparación
+independiente con el archivo de distribución y el contraste de las tres
+discrepancias de superficie con el libro de trabajo de la memoria.
+Las superficies del CSV y de la memoria son, respectivamente, 5.842,9 y
+5.824,9 m² para `Robin_lodging_Dorthy`, 5.885,2 y 5.885,3 m² para
+`Fox_lodging_Wallace`, y 4.188,6 y 4.188,8 m² para
+`Bull_lodging_Danielle`. Las diferencias no cambian la cohorte.
+
+La validación continúa por Silver eléctrica, IQR, contexto y
+meteorología, seguida de comprobaciones integradas proporcionadas.
+Las pruebas sintéticas preventivas de esas capas y los escenarios
+opcionales de estrés quedan aplazados. Los controles integrados
+pendientes se reevaluarán con evidencia de ejecución.
 
 `diagnose_synthetic_metadata(spark, config, silver_publication_id, workspace)`,
 en `tfm_lakehouse.silver.metadata_diagnostics`, verifica la Silver explícita y
@@ -42,15 +92,13 @@ como `null` los campos CSV sin valor según su contrato.
 
 ### Vista sintética de metadatos
 
-El autor ha aprobado para sintéticos H06-D01: bloquear duplicados idénticos
-de metadatos de los edificios seleccionados; D02: bloquear los conflictivos;
-D03: diagnosticar
-duplicados ajenos sin bloquear; D04: conservar mediciones sin metadatos y
-expresar ausencias; D05: conservar originales e interpretar área solo si es
-finita, positiva y exactamente representable; D06: vista derivada sin
-persistencia vinculada a Bronze y Silver; D07: área `Decimal(38,18)` sin
-redondeo, con estado para positivos no representables; y D08: consulta IQR
-independiente, sin recalcular IQR al enriquecer. La ratificación académica
+La vista bloquea duplicados idénticos o conflictivos de metadatos de los
+edificios seleccionados y diagnostica sin bloquear los duplicados ajenos.
+Conserva las mediciones sin metadatos y expresa las ausencias. La superficie
+original se conserva y solo se interpreta cuando es finita, positiva y
+exactamente representable como `Decimal(38,18)`, sin redondeo. La vista
+derivada no persistente se vincula a Bronze y Silver. La consulta IQR es
+independiente y el enriquecimiento no recalcula IQR. La ratificación académica
 conjunta sigue pendiente.
 
 `enrich_synthetic_metadata(spark, config, silver_publication_id, workspace)`
@@ -73,16 +121,15 @@ La aceptación estadística IQR no es requisito de esta vista.
 
 ### Identidad contextual sintética
 
-El autor ha aprobado D15: diferir la integración meteorológica; D16: una
-publicación Delta contextual independiente; D17: vincularla a Silver, Bronze,
-metadatos y método exactos; D18: versionar la interpretación y acreditar sus
-recursos horarios; D19: reserva, commit y finalización con recuperación explícita
-y sin reintentos automáticos; D20: selección por ID explícito; D21: mantener IQR
-vinculado a la Silver eléctrica original; y D22: exigir fuentes retenidas.
-Su ratificación académica conjunta está pendiente.
+La publicación Delta contextual es independiente y se vincula a las versiones
+exactas de Silver, Bronze, metadatos y método. La interpretación temporal está
+versionada y sus recursos horarios se acreditan. La reserva, el commit y la
+finalización disponen de recuperación explícita sin reintentos automáticos.
+La lectura exige un ID explícito y fuentes retenidas. IQR permanece vinculado
+a la Silver eléctrica original. La ratificación académica conjunta sigue
+pendiente.
 
-D23 aprueba la interpretación horaria controlada para la intención contextual:
-el recurso resuelto con la precedencia de `zoneinfo` se lee una vez y sus mismos
+La interpretación horaria controlada utiliza un recurso de zona: el recurso resuelto con la precedencia de `zoneinfo` se lee una vez y sus mismos
 bytes se usan para SHA-256 y `ZoneInfo.from_file`. Se rechazan evidencias
 distintas entre trabajadores participantes, diferencias de esquema o del
 multiconjunto completo frente a la vista H06. No se interpreta ni convierte
@@ -111,7 +158,7 @@ observaciones meteorológicas ni recalcula IQR.
 La validación del espacio puede inspeccionar estructuralmente el árbol IQR;
 no consulta sus resultados para construir el contexto.
 
-D24 aprueba la intención contextual versión 2, que añade la huella SHA-256
+La intención contextual versión 2 incluye la huella SHA-256
 del árbol físico de metadatos a partir de rutas relativas y contenido. La
 huella se contrasta durante el consumo y las revalidaciones, también en la
 recuperación; acredita coherencia con la evidencia registrada, no autenticidad
@@ -178,10 +225,9 @@ causa. En otra secuencia se observaron estados Delta persistidos; una limpieza
 aislada de su caché redujo su número, sin reproducir ni explicar el fallo.
 Esa ejecución no permitió la aceptación técnica integrada.
 
-### Corrección de liberación de recursos D25
+### Conservación de excepciones y liberación de recursos
 
-El autor aprobó D25, opción A, para corregir la liberación en IQR y en el
-diagnóstico de metadatos. Se intenta liberar cada DataFrame registrado aunque
+En IQR y en el diagnóstico de metadatos se intenta liberar cada DataFrame registrado aunque
 falle otra liberación. La excepción de la operación conserva su identidad,
 causa y traza; los errores de liberación se conservan como excepciones y se
 añaden como notas o, si no es posible, se registran. Si la operación termina
@@ -189,7 +235,7 @@ bien, se propaga el primer error de liberación. Si fallan simultáneamente todo
 los mecanismos de diagnóstico, no se puede garantizar la observabilidad de
 los errores secundarios.
 
-La selección D25 superó 13 pruebas unitarias y tres casos Spark/Delta:
+La selección de liberación de recursos superó 13 pruebas unitarias y tres casos Spark/Delta:
 liberación fallida tras un diagnóstico correcto, diagnóstico histórico y
 recuperación IQR desde una reserva. Para evitar inspeccionar las rutas protegidas
 reales, el lanzador temporal usa raíces protegidas sintéticas; mantiene las
@@ -206,13 +252,13 @@ env -u TFM_REAL_CONFIG PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -
 env -u TFM_REAL_CONFIG PYTHONDONTWRITEBYTECODE=1 timeout 480s .venv/bin/python -B /tmp/h06_d25_runner.py -q -p no:cacheprovider tests/silver/test_cleanup_d25_integration.py tests/silver/test_silver_iqr_publication.py::test_metadata_diagnostics_bind_historical_version_and_preserve_evidence tests/silver/test_silver_iqr_publication.py::test_orchestrated_recovery_of_reservation_without_delta --tb=long --junitxml=/tmp/h06-d25-spark-escalated.xml
 ```
 
-### Verificación integrada D26 y D27
+### Verificación integrada de resistencia y regresión
 
-En D26 se compararon tres iteraciones sintéticas en sesiones limpias con otras
+Se compararon tres iteraciones sintéticas en sesiones limpias con otras
 tres en una sesión compartida. Se observaron estados Delta retenidos entre
 iteraciones, sin reproducir el agotamiento de memoria ni establecer su causa.
 
-D27 aprueba dos puertas independientes: resistencia en sesión prolongada y
+La verificación comprende dos pruebas independientes: resistencia en sesión prolongada y
 regresión sintética permitida en segmentos aislados. La resistencia completó
 20 iteraciones y 140 operaciones en una sola sesión, en 1.374,69 segundos,
 sin OOM, fallos ni paradas preventivas. Registró 31.940 trabajos y 58.480
@@ -232,6 +278,287 @@ La segmentación es una política de verificación, no una corrección del OOM
 histórico, cuya causa sigue sin determinarse. Tampoco se ha establecido la causa
 del incidente histórico de recencia IQR. La ratificación académica conjunta y
 la validación con BDG2 real siguen pendientes.
+
+### Supervisión cooperativa de procesos
+
+`launch_supervised_workload` ejecuta sondas registradas en una campaña
+sintética autorizada y aplica los límites de recursos. El conductor
+valida el recibo del hijo y confirma la primera muestra de procesos, memoria y
+disco antes de enviar el permiso. Observa la ejecución y contrasta el resultado
+y las muestras finales antes de aceptar el éxito. Mantiene los intervalos de
+muestreo de 1 s para procesos y memoria y de 5 s para disco. Los relojes
+monotónicos aplican el límite de 30 min a la operación y el de 8 h a la campaña.
+
+Una parada queda registrada desde la primera observación que la exige. El
+conductor vuelve a comprobar la identidad y la sesión de cada miembro y envía
+`SIGTERM` mediante su `pidfd`. Mantiene la observación durante la gracia.
+Puede enviar `SIGKILL` a un miembro que siga verificado tras 30 s desde la
+confirmación del envío de `SIGTERM`. El conductor recoge al hijo directo y
+comprueba por separado la salida de los descendientes observados. Conserva la
+clasificación y los miembros pendientes al vencer el plazo. Cada ejecución
+tiene un solo intento y cada miembro recibe como máximo una solicitud por fase.
+
+El resultado distingue el éxito supervisado, la parada D44, los fallos de
+monitoreo y de carga, la terminación incompleta y la evidencia sin confirmar.
+La comprobación de identidad, el envío de señales y la publicación tienen
+trabajos acotados con plazas independientes. Una operación en curso puede
+seguir bloqueada en el kernel tras vencer su plazo. La comprobación inicial
+del espacio D39 y su reserva se realizan antes de arrancar el hijo. Si el
+resultado en disco queda incompleto, la respuesta conserva el estado y los
+motivos conocidos. `failure.json` prevalece si también se llegó a ver un
+`completed.json` cuya escritura no pudo confirmarse.
+
+El 27/11/2026 se superaron 176 pruebas enfocadas en 27,85 s. Las 36 nuevas
+comprobaron el rechazo inicial en cada umbral de parada y los fallos de
+medición y escritura por inyección. Se envió `SIGTERM` a una sonda registrada
+y a un descendiente sintético controlado por su padre. Otro hijo sintético
+ignoró `SIGTERM` y recibió `SIGKILL` con un reloj inyectado. El plazo de
+producción es de 30 s. La revisión independiente fue de solo lectura.
+
+El seguimiento cubre los miembros observables de una carga cooperativa.
+Un descendiente puede salir de la sesión y perder su parentesco visible
+antes de la primera muestra. El `pidfd` fija la instancia del proceso entre
+la comprobación y la señal. La pertenencia se comprueba justo antes del envío.
+La integración futura requiere registrar y verificar la JVM, el daemon y los
+workers reales de Spark bajo D46, incluidos sus cambios de grupo y el cierre
+de procesos. La sonda de integración siguiente realiza esa comprobación para
+un único perfil sintético.
+
+### Integración de Spark con el supervisor de recursos
+
+El lanzador registra `synthetic_spark_probe_v1` para `launch_supervised_workload`.
+La sonda usa Spark local con dos particiones, ocho valores inventados y una
+operación de shuffle. La campaña D39 debe estar autorizada en ambos procesos
+y contener los tres JAR de Delta y ANTLR ya disponibles bajo `ivy/jars`.
+El permiso vincula sus huellas, el directorio temporal de campaña y el destino
+de evidencia. El JVM y los workers usan esa campaña. El arranque del gateway
+queda restringido al `spark-submit` de la instalación PySpark fijada.
+
+```python
+from tfm_lakehouse.resource_supervisor import SparkProbeParameters, launch_supervised_workload
+from tfm_lakehouse.scalability_workspace import authorize_campaign
+
+campaign = authorize_campaign(campaign_id, owner_id)
+result = launch_supervised_workload(
+    campaign,
+    campaign.root / "temp" / "pytest-spark-probe-01",
+    "spark-probe-01",
+    handler="synthetic_spark_probe_v1",
+    parameters=SparkProbeParameters(),
+)
+```
+
+El directorio base y el identificador de ejecución deben ser nuevos. El
+supervisor coteja la JVM de Py4J con el proceso abierto por el conductor y al
+daemon y los workers con sus muestras y registros de salida. El daemon
+mantiene su propio grupo dentro del SID de la carga. El conductor recoge su
+gateway y el supervisor recoge al conductor y confirma la salida de los
+descendientes observados. El daemon conserva su propia limpieza de grupo.
+El watchdog envía señales individuales mediante `pidfd`. Los límites D44 se
+evalúan desde antes de conceder el permiso hasta la comprobación final.
+
+El resultado conserva duraciones monotónicas de inicialización, operación y
+cierre. Las medidas de heap proceden de un hilo de diagnóstico con espera
+acotada. El RSS y la CPU se obtienen de procfs y los máximos corresponden a
+las muestras observadas. El registro de eventos distingue los IDs de etapa
+asociados a cada trabajo, los pares de etapa e intento con inicio de tarea y
+los pares con `TaskEnd`. Los bytes de shuffle y derrame suman los intentos
+de tarea que los notificaron. Un contador ausente conserva el valor nulo y
+el registro documenta la cobertura de cada suma.
+
+El supervisor mantiene los plazos y las garantías de atribución de D46
+aunque se bloquee la consulta de heap. La consulta bloqueada se comprobó
+mediante un proveedor inyectado. La observación sigue limitada a miembros
+que se hayan podido identificar y a la disponibilidad del kernel. La sonda
+cubre el arranque y la terminación controlada de este perfil local.
+
+La verificación del 27/11/2026 superó 186 casos enfocados en 41,55 s, incluidas
+las dos sondas Spark. En el cierre normal se identificaron el conductor, la
+JVM, el daemon y dos workers. Hubo muestras D44 durante inicialización,
+operación y cierre. El heap tenía un límite efectivo de 1 GiB y un máximo
+observado de 71.261.440 B. El registro muestra un trabajo, dos pares de etapa
+e intento con tareas terminadas, cuatro `TaskEnd`, 308 B de shuffle leído y
+escrito y cero de derrame a memoria y disco en los cuatro informes.
+
+En la segunda sonda se inyectó el límite RSS mientras los workers estaban
+activos. El watchdog envió cinco `SIGTERM` reales a procesos verificados. Se
+recogieron el conductor y su JVM, se confirmó la salida de los descendientes
+y el proceso de contraste ajeno siguió activo. Los cuatro contadores de
+tarea quedaron nulos al cerrarse el registro sin ningún `TaskEnd`.
+
+### Calibración sintética Bronze
+
+`synthetic_bronze_calibration_v1` ejecuta una calibración mediante
+`launch_supervised_workload`. La preparación exclusiva crea tres CSV
+inventados y un manifiesto con sus esquemas, asignaciones de sitio y SHA-256.
+La electricidad contiene ocho filas anchas y 16 edificios, equivalentes a
+128 posiciones. Los metadatos contienen 16 registros y la meteorología 32.
+El lector de snapshots contrasta los commits y las versiones publicadas.
+La calibración compara después todos los valores, duplicados y columnas de
+linaje con la fixture, y vuelve a comprobar las huellas de las fuentes.
+
+La ejecución autorizada del 27/11/2026 terminó con supervisión correcta,
+sin avisos ni paradas. Publicó y reconcilió 8, 16 y 32 filas respectivamente
+en tres tablas Delta, cada una en la versión 0. La preparación tardó 0,073 s,
+el preflight 0,111 s y la ejecución supervisada completa 18,229 s. La ingesta
+Bronze, incluidas sus validaciones y comprobaciones internas, tardó 10,331 s.
+La lectura del snapshot y la reconciliación posterior tardaron 1,405 s.
+La escritura de electricidad ocupó 4,828 s dentro de la ingesta. El arranque
+Spark tardó 2,189 s y el cierre 0,509 s. La sonda Python previa tardó 3,018 s
+y sus tareas forman parte de los contadores Spark de la ejecución.
+
+Los tres CSV sumaron 3.798 B. Las tablas Delta ocuparon 135.168 B asignados en
+18 ficheros, incluida su estructura de transacciones. La razón observada fue
+35,59 sobre los bytes de entrada. El máximo muestreado de RSS conjunto fue
+1.328.627.712 B. Estos datos corresponden a una sola calibración y no permiten
+extrapolar tiempos ni ocupación a tamaños mayores. Antes de comparar anchuras,
+los escenarios independientes previstos usan 128, 512 y 1.600 columnas y
+conservan las mismas comprobaciones de fuente, linaje y supervisión.
+
+La verificación de anchura posterior ejecutó ocho filas eléctricas con 1.600
+edificios sintéticos, incluidos los 16 de la cohorte. Los metadatos pasaron a
+1.600 registros y la meteorología conservó 32. El supervisor registró éxito,
+sin avisos ni procesos pendientes, y la reconciliación comprobó las tres tablas
+en versión 0. La ejecución supervisada tardó 21,086 s y la ingesta 12,218 s.
+La reconciliación tardó 1,957 s y las tablas ocuparon 970.752 B asignados.
+
+El resumen automático de eventos fue parcial por los límites de lectura de
+línea y fichero. El registro Spark completo quedó conservado y una relectura
+independiente confirmó 55 trabajos, 50 intentos de etapa con tareas terminadas,
+73 `TaskEnd`, 24.867 B de shuffle en cada sentido y cero derrame reportado.
+La comparación de anchura también cambia los valores eléctricos desde la
+segunda hora y el número de metadatos. En esa ejecución, la verificación
+usaba `collect()` y construía el multiconjunto en el conductor.
+
+La verificación actual genera y valida cada registro CSV por separado y
+calcula la huella SHA-256 de forma incremental. Spark genera los valores
+esperados a partir de ordinales, al margen del lector CSV de Bronze. Tras
+comprobar nombres, orden y tipos, agrupa por un array con todos los valores
+de la fila y su linaje. La suma de las apariciones con signo debe ser cero
+para cada fila. La comparación conserva las correlaciones, los nulos y los
+duplicados, y devuelve al conductor un indicador de igualdad. El lector de
+snapshots sigue comprobando las versiones Delta y sus commits.
+
+El lector de eventos admite hasta 64 MiB por fichero, 2 MiB por línea y
+200.000 eventos. Retiene identificadores para contar trabajos, etapas y tareas
+sin duplicarlos. Las sumas de métricas sin observaciones se registran como
+ausentes. Un fichero en curso, truncado o inválido no aporta evidencia
+completa de medición. La verificación terminal sigue sujeta al plazo D46.
+
+### Escritura distribuida Bronze
+
+El primer intento combinado usó 17.544 filas eléctricas y 1.600 columnas de
+edificios, equivalentes a 28.070.400 posiciones sintéticas. Validó los tres
+CSV. La lectura eléctrica con `multiLine=True` produjo una partición, que
+se mantuvo al materializar el DataFrame y al escribirlo. La única tarea
+eléctrica agotó el heap Java de 1 GiB al ampliar un diccionario Parquet.
+Spark registró `TASK_WRITE_FAILED` en la etapa 14.0. El intento terminó
+antes del primer commit Delta y de la reconciliación distribuida.
+
+La escritura redistribuye filas completas justo antes de persistir.
+Bronze calcula el número de particiones con el mayor de dos cocientes
+redondeados al alza, los bytes de CSV sobre 8 MiB y el número de campos
+de todas las filas sobre 524.288, incluidos los cuatro campos de linaje.
+El número de filas limita el número solicitado. A partir de dos particiones
+se aplica `repartition(n)` sin columnas, con un intercambio circular. Una
+única llamada de escritura produce el commit Delta de cada tabla. Se
+conservan la lectura CSV, los valores y sus correlaciones, el esquema
+ordenado y la publicación por versiones.
+
+Los dos criterios estiman el volumen por tarea. El CSV incluye cabecera y
+los registros pueden tener tamaños distintos. Las tareas de `local[2]`
+comparten el mismo heap de 1 GiB. Reducir las filas por tarea puede reducir
+el tamaño de cada diccionario, aunque dos diccionarios pueden crecer a la
+vez. El shuffle añade trabajo de serialización y puede usar disco temporal.
+Se mantienen las opciones de diccionario y de memoria y los límites
+del supervisor.
+
+Pasaron 44 pruebas enfocadas y tres pruebas Spark de contrato. Estas últimas
+comprobaron la escritura repartida con CSV multilínea, nulos, duplicados y
+linaje. Comprobaron también que un fallo en la segunda tabla conserva el
+primer commit y deja un informe de ingesta fallida. La prueba supervisada
+de 512 filas eléctricas y 1.600 edificios
+terminó con `supervised_success` en 24,391 s. El plan adaptativo conservó el
+intercambio explícito. Dos tareas eléctricas se solaparon durante 1,244 s y
+escribieron 256 filas cada una. La fase de escritura eléctrica, incluido el
+shuffle, tardó 6,267 s. El máximo muestreado fue de 718.878.568 B de heap
+y 1.854.550.016 B de RSS conjunto. La reconciliación distribuida verificó
+512 filas eléctricas, 1.600 de metadatos y 2.048 meteorológicas, con un solo
+commit versión 0 en cada tabla. El supervisor no registró avisos ni paradas y
+confirmó el cierre de los procesos.
+
+El combinado con escritura distribuida reutilizó las mismas fuentes y terminó con
+`supervised_success` en 89,449 s. Spark ejecutó 54, 1 y 2 tareas de
+escritura para electricidad, metadatos y meteorología. Las eléctricas
+escribieron entre 324 y 325 filas por tarea y alcanzaron dos tareas en
+ejecución simultánea. La reconciliación distribuida verificó las tres
+tablas y un único commit en versión 0 por tabla. D44 no registró avisos
+ni paradas y D46 confirmó la recogida completa de los procesos.
+
+El máximo muestreado de heap fue de 1.038.949.376 B de 1 GiB, antes de
+las tareas de escritura eléctrica. Spark registró 327.805.071 B de
+derrame a disco. La verificación de escalabilidad Bronze queda cerrada
+en el alcance sintético ensayado.
+
+### Calibración eléctrica Silver sintética
+
+Se verificó en lectura el snapshot Bronze
+`75df603267584eb59595760b14d4d795`: electricidad y metadatos Delta en
+versión 0, con ocho y dieciséis filas, respectivamente. Las huellas de
+los CSV, el informe H02 y los metadatos de commit son coherentes con
+la evidencia Bronze conservada.
+
+La publicación eléctrica `h05.3-v1` exige los nombres de la cohorte H04.
+El snapshot contiene dieciséis identificadores inventados
+`SYNTHETIC_building_00` a `SYNTHETIC_building_15`. La comprobación
+de esquema rechaza esa combinación. La campaña sintética admite destinos Silver y de
+evidencia separados de Bronze dentro de la misma campaña autorizada.
+
+`d45-electrical-synthetic-v1` es el perfil de las calibraciones sintéticas de escalabilidad. El permiso del supervisor vincula la campaña, el run Bronze,
+los UUID y versiones Delta, las huellas de los archivos y la cohorte.
+El publicador reutiliza la transformación H05 y persiste esa identidad
+en la intención, los metadatos del commit y la confirmación de
+publicación. Su lector verifica esos vínculos y la igualdad distribuida
+del multiconjunto completo frente a un resultado esperado independiente.
+El perfil tiene su propio directorio de publicación. La API ordinaria
+sigue exigiendo la cohorte H04 para `h05.3-v1`.
+
+Se corrigió la liberación de la publicación eléctrica independiente.
+Se intenta liberar el DataFrame incluso si falla `persist`, y se
+intenta cerrar el descriptor aunque falle el desbloqueo. La excepción
+primaria conserva su identidad, causa y traza. Cuatro casos de fallos
+inyectados quedaron cubiertos en una selección de 16 pruebas unitarias.
+No se inició Spark ni se publicó Silver para esta comprobación.
+
+La calibración terminó con `supervised_success`
+en 17,243 s. Sobre las ocho filas eléctricas Bronze y los dieciséis
+edificios sintéticos, publicó y reconcilió exactamente 128 filas
+eléctricas Silver en un solo commit Delta versión 0. El snapshot
+Bronze y sus huellas se verificaron antes y después de publicar.
+Pasaron 26 pruebas unitarias y tres pruebas Spark enfocadas. La revisión
+independiente cotejó la publicación, el origen y la recogida de procesos.
+
+La comprobación Bronze tardó 6,743 s, la materialización Silver 1,079 s,
+la escritura Delta 0,976 s y la comprobación y publicación final 1,291 s.
+El máximo muestreado fue de 409.377.240 B de heap de 1 GiB y
+1.318.158.336 B de RSS conjunto. El registro Spark completo recogió
+39 trabajos, 39 intentos de etapa ejecutados, 59 tareas terminadas,
+33.440 B de shuffle en cada sentido y cero derrame reportado. Delta
+ocupó 53.248 B asignados en seis ficheros. D44 no registró avisos ni
+paradas, y D46 confirmó el cierre de los procesos.
+
+La calibración de 128 posiciones no establece el rendimiento de otras
+escalas. Cada escenario vincula su snapshot Bronze al registro del perfil.
+
+La ejecución eléctrica Silver de 10.000 posiciones usó 625 filas Bronze
+y los 16 edificios sintéticos. Terminó con `supervised_success` en
+19,731 s y reconcilió exactamente 10.000 filas en un único commit Delta
+versión 0. La verificación Bronze tardó 7,053 s, la materialización
+Silver 1,369 s, la escritura 1,268 s y la reconciliación y publicación
+1,765 s. El heap máximo muestreado fue de 292.679.808 B y el RSS conjunto
+de 1.306.411.008 B. Spark registró 1.711.196 B de shuffle en cada sentido,
+sin derrame reportado. El supervisor no registró paradas ni avisos y confirmó
+la recogida completa de los procesos.
 
 ### Lectura contextual histórica explícita
 

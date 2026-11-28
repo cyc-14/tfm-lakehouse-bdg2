@@ -46,11 +46,11 @@ anterior correspondía al 09/11/2026.
 | Hito | Implementación y evidencia disponible | Pendiente |
 | --- | --- | --- |
 | H01 | Entorno local y escritura/lectura Delta sintética | Revisar cierre en seguimiento; aceptación residual AUD-09 |
-| H02 | Bronze, versiones publicadas y recuperación; regresiones sintéticas y expediente real histórico | No acredita calidad analítica; conservar trazabilidad y restricciones reales |
+| H02 | Bronze con versiones y recuperación. Igualdad exacta verificada entre los CSV locales y el snapshot real de electricidad, metadatos y meteorología | Mantener trazabilidad y controles de integridad en el consumo |
 | H03 | Caracterización eléctrica y meteorológica; ejecuciones reales del 30/10/2026. Evolución eléctrica v2 probada solo con sintéticos | Cierre académico global y contraste con la memoria |
-| H04 | Selección conjunta de 16 edificios y contratos documentados; herramientas de contraste sintéticas | Reproducir selección y procedencia desde las fuentes; cierre formal |
+| H04 | Selección reproducida desde los CSV locales con los mismos 16 edificios y el mismo orden | Contraste con el libro de trabajo, procedencia externa y cierre formal |
 | H05 | Transformación, publicación Silver e IQR y orquestación verificadas con sintéticos; contraste sintético con pandas | Validación real separadamente autorizada y cierre formal |
-| H06 | D27 superada en su alcance original; asociación, captura, publicación y lectura meteorológicas con verificación sintética enfocada; espacio sintético D39 | Integración D27 de las ampliaciones, materialización contextual distribuida, escala, causas históricas del OOM y de recencia IQR, ratificación conjunta y validación real |
+| H06 | Resistencia y regresión segmentada superadas en su alcance original. Verificación sintética de meteorología, escalabilidad Bronze y Silver eléctrica hasta 10.000 posiciones. Auditoría real de fuentes y Bronze completada | Validación progresiva de Silver, IQR, contexto y meteorología. La verificación integrada de las ampliaciones sigue pendiente. Las pruebas sintéticas preventivas restantes se aplazan |
 | H07 | Planificado; sin Gold implementado | Fórmulas, cobertura y comparabilidad |
 | H08 | Planificado; sin explotación implementada | Tareas y visualizaciones analíticas |
 | H09 | Planificado; sin recuperación integral entre capas | Diseño y pruebas integrales |
@@ -65,9 +65,10 @@ plantillas de planificación, no otro registro del estado actual.
 
 ### Protocolo progresivo sintético D45
 
-La secuencia aprobada parte de una calibración de 128 filas eléctricas y una
-ejecución de 10.000 y de 100.000 filas. Si cada escenario requerido termina
-correctamente, siguen tres ejecuciones de 280.704 filas nominales; el escenario
+La secuencia aprobada parte de una calibración de ocho filas eléctricas anchas
+con 16 edificios y 128 posiciones equivalentes, y una
+ejecución de 10.000 y de 100.000 posiciones. Si cada escenario requerido termina
+correctamente, siguen tres ejecuciones de 280.704 posiciones nominales; el escenario
 de un millón es opcional. La anchura Bronze sintética se varía por separado
 entre 16, 128, 512 y 1.600 columnas, sin ejecutar automáticamente todas las
 combinaciones. Las 280.704 posiciones son 16 edificios por 17.544 etiquetas
@@ -76,13 +77,11 @@ nominales, no un recuento real comprobado.
 Las medidas de componentes, la verificación integral de escala y las dos
 puertas D27 —regresión funcional segmentada y resistencia independiente— son
 actividades distintas. La aprobación del protocolo no autoriza por sí sola una
-campaña ni acredita escalabilidad. El supervisor y su verificación permanecen
-pendientes de implementación.
+campaña ni acredita escalabilidad. El supervisor cuenta con verificación
+operativa sintética para las cargas registradas.
 
-La evaluación aislada de umbrales D44 está implementada y se ha probado con
-20 casos de medidas inventadas, incluidos límites y datos inválidos. No recoge
-medidas ni controla procesos: el preflight, la supervisión, la terminación y la
-evidencia durable siguen pendientes. No habilita ejecutar benchmarks.
+La primera implementación D44 evaluaba umbrales de forma aislada. Se probó
+con 20 casos de medidas inventadas, incluidos límites y datos inválidos.
 
 Se han añadido primitivas parciales para comprobar la autorización D39 en el
 proceso actual, rechazar un `basetemp` ajeno o ya existente y reservar una
@@ -122,10 +121,55 @@ plazo. Si sigue activo al vencer el plazo, se registra que aún no se ha recogid
 y se continúa la espera en segundo plano mientras viva el padre. El lanzador
 conserva los expedientes y carece de una vía de señalización.
 
-Las 52 pruebas enfocadas superadas en 3,39 s incluyen sondas reales en una
-campaña D39 y fallos inyectados de identidad, autorización e inicialización.
-El muestreo, la aplicación de umbrales y la política de parada del supervisor
-siguen pendientes. La evidencia tampoco acredita preparación para BDG2 real.
+Las 52 pruebas enfocadas de esta versión se superaron en 3,39 s. Incluyen
+sondas en una campaña D39 y fallos inyectados de identidad, autorización e
+inicialización.
+
+**Muestreo de recursos D44 (27/11/2026).** `launch_workload` y `launch_probe`
+devuelven el resultado de la sonda y el resumen `resources`. Cada ejecución
+conserva `resource-samples.jsonl`, `resource-storage.jsonl` y
+`resource-summary.json` en su carpeta de evidencia. Las cadencias durante la
+ejecución son de 1 s para procesos y memoria y 5 s para almacenamiento.
+Las observaciones iniciales y finales cubren también sondas más cortas. Cada
+pasada de almacenamiento conserva su propia clasificación.
+La duración de la operación va del arranque al resultado recibido. La de
+la campaña se cuenta desde el primer uso del muestreador y se conserva entre
+ejecuciones en el mismo dominio de reloj monotónico.
+
+La suma de RSS y los contadores de CPU se refieren a los procesos verificados
+en la sesión. Los deltas de CPU se calculan solo entre medidas de una misma
+instancia. Se conserva la identidad de cada descendiente observado y, cuando
+está disponible, su `pidfd`. Un cambio de grupo dentro de la sesión queda
+registrado. La pérdida de identidad o la salida de la sesión exige parada y
+excluye esos recursos del cálculo. Un descendiente que abandone la sesión y
+pierda su parentesco observable entre dos muestras puede quedar fuera del
+registro.
+
+La memoria y el intercambio del sistema son medidas compartidas.
+Cada cgroup visible se compara con su propio límite, incluidos sus ancestros.
+La ocupación de la campaña suma los bloques asignados y cuenta los ficheros
+regulares. La de `/tmp` corresponde al sistema de archivos que lo contiene.
+La disponibilidad se obtiene con `statvfs`, sin enumerar `/tmp`.
+
+El conductor consulta el estado del muestreador sin E/S mientras espera el
+resultado. La inicialización y el cierre de los recolectores tienen un
+segundo de espera cada uno. Las operaciones de evidencia tras el arranque
+tienen un segundo por operación. Cada uno de los tres tipos de trabajo
+admite dos hilos por proceso conductor, sin cola de espera. Un hilo que
+permanece bloqueado conserva su plaza y sus descriptores hasta salir.
+
+El evaluador conserva los avisos, las paradas y los máximos observados.
+`resources.supervision_status` distingue el estado del muestreo del resultado
+de la sonda. `deadline_misses` y `unfinished_io` detallan las operaciones
+vencidas o pendientes. Los JSONL conservan las líneas completas anteriores a
+un fallo. Si la llamada devuelve un error de confirmación, los bytes visibles
+de una escritura iniciada pueden corresponder a una persistencia pendiente.
+Si coexisten los dos marcadores de lanzamiento, prevalece `failure.json`
+sobre `completed.json`. `launch_workload` y `launch_probe` conservan el modo
+de observación. El punto de entrada que aplica las paradas D44 es
+`launch_supervised_workload`, con la opción A de D46. La sonda Spark local
+registrada usa el mismo supervisor y los JAR ya disponibles en D39.
+Su alcance y verificación figuran en la [guía de H06](hitos-6.md#integración-de-spark-con-el-supervisor-de-recursos).
 
 ### Espacio sintético aislado D39 — 26/11/2026
 
@@ -294,7 +338,8 @@ AUD-05/AUD-08 —449 pruebas superadas y tres excluidas— se conserva en la
 **Nota posterior:** la guía H04 registra la ratificación conjunta comunicada de
 los 16 identificadores. Las afirmaciones de esta actualización sobre una
 aprobación pendiente reflejan el estado anterior a esa confirmación; H04 sigue
-sin cerrarse y la reproducción y procedencia siguen pendientes.
+sin cerrarse. La selección ya se reprodujo con los CSV locales y quedan
+pendientes el contraste con el libro y la procedencia externa.
 
 **Actualización de integración eléctrica en Silver:** se ha incorporado la composición de las 16 columnas
 aprobadas con las etapas de transformación a formato largo e interpretación numérica y temporal, sin lectura automática de snapshots ni

@@ -37,8 +37,13 @@ def transform_selected_electricity(
     context; this function cannot establish that it describes the given frame.
     The projection preserves each input occurrence and original Bronze values.
     """
+    return _transform_electricity(bronze, APPROVED_BUILDINGS, selection)
+
+
+def _transform_electricity(bronze: DataFrame, buildings, selection: Mapping | None) -> DataFrame:
+    """Apply H05 semantics after the caller binds its publication cohort."""
     identity = _publication_identity(selection) if selection is not None else None
-    result = electricity_to_long(bronze, APPROVED_BUILDINGS)
+    result = electricity_to_long(bronze, buildings)
     if identity is not None:
         run_id, version, path = identity
         result = (result.withColumn("_bronze_source_name", F.lit("electricity"))

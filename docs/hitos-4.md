@@ -1,9 +1,10 @@
 # Hito 4 — Selección del caso de estudio y contratos analíticos
 
-**Estado:** metodología de selección contrastada con las tablas de la memoria y
-selección de 16 edificios aprobada conjuntamente; cierre de H04 pendiente de
-reproducción y verificación de procedencia. La interpretación numérica y temporal ha completado su validación sintética obligatoria. No se ha autorizado la validación con BDG2
-real ni la publicación Silver real en Delta. La publicación Silver e IQR
+**Estado:** selección de 16 edificios reproducida con los CSV locales de
+BDG2. La comparación con el libro de trabajo y la verificación independiente
+del archivo de distribución siguen pendientes. La interpretación numérica y
+temporal ha completado su validación sintética. La publicación Silver real en
+Delta sigue pendiente. La publicación Silver e IQR
 sintética ya está implementada en [H05](hitos-5.md). **Responsabilidad:** Irantzu dirige
 las decisiones analíticas; Carlos verifica su viabilidad técnica. **Objetivos:**
 OE1, OE2, OE4. **Requisito previo:** caracterización aceptada en H03.
@@ -15,6 +16,20 @@ con los contratos de datos de Silver y las reglas de calidad que deberán
 respetarse antes de transformar las mediciones.
 
 ## Evidencia disponible y límites
+
+La inspección en solo lectura de metadatos y electricidad local reprodujo
+el embudo 168 → 107 → 24 → 16 y el orden de la cohorte. La rejilla
+eléctrica contiene 17.544 etiquetas nominales consecutivas y un total
+de 280.704 posiciones para la cohorte. Con los criterios de ausencia
+del estudio se observaron 352 ausencias y 280.352 posiciones no ausentes,
+entre ellas 6.114 ceros.
+
+Las superficies observadas de Dorthy, Wallace y Danielle son
+5.842,9, 5.885,2 y 4.188,6 m², respectivamente. La tabla de la memoria
+recoge 5.824,9, 5.885,3 y 4.188,8 m². Las tres superficies observadas
+cumplen el intervalo inclusivo de 3.500 a 6.000 m². Los 16 edificios
+figuran como `Dormitory` y tienen columna eléctrica. Las zonas
+declaradas y los emplazamientos coinciden con la tabla de la memoria.
 
 La [guía H03](hitos-3.md) distingue las ejecuciones históricas de su aceptación
 académica, todavía pendiente. Las fuentes documentadas son BDG2 v1.0, con
@@ -50,16 +65,10 @@ nuevo verificador. La justificación académica concreta de excluir `Hotel`
 sigue pendiente. No se afirma que sus mediciones fueran inadecuadas ni se
 alteran los resultados históricos de caracterización eléctrica y de metadatos.
 
-Según la confirmación comunicada para H04.14.B0 (referencia histórica de aprobación), ambos autores aprueban los 16
-identificadores enumerados en la tabla 4. Según la confirmación conjunta recibida
-para H04.14.A2 (referencia histórica de aprobación), ambos autores aprueban el uso de
-`sqm` con el intervalo inclusivo `3500 <= sqm <= 6000`, calculado con
-aritmética decimal exacta. `sqm` es el campo
-de metadatos observado en el código y la documentación H03; la expresión resume
-el criterio aprobado, pero su aplicación final no se ha reproducido desde los
-metadatos BDG2 originales. El código H03 consultado conserva los límites de su
-escenario histórico, por lo que no constituye implementación del filtro final
-H04.
+La cohorte comprende los 16 identificadores de la tabla 4. El filtro aplica
+el intervalo inclusivo `3500 <= sqm <= 6000` con aritmética decimal exacta.
+La auditoría reprodujo el filtro con los metadatos locales de BDG2. El código
+de caracterización H03 conserva los límites del escenario de ese análisis.
 
 La tabla 3 muestra 24 conteos de valores no ausentes y usa 17.544 horas nominales
 como denominador. El autor informante confirma la regla estricta
@@ -285,25 +294,13 @@ de consumos. Esta confirmación general no prueba por sí sola la semántica de 
 fechas del libro ni la equivalencia de sus datos. La procedencia y la ejecución
 real siguen pendientes de verificación y autorización específicas.
 
-### Preauditoría — H04
+### Alcance del contraste de la selección
 
-La selección conjunta comprende exactamente los 16 identificadores de la tabla
-4. Las aprobaciones comunicadas no acreditan la equivalencia con los originales
-ni autorizan su lectura. El flujo permanece **no preparado para certificar una
-comparación real reproducible** hasta resolver estos controles:
-
-- Vincular las identidades y hashes esperados a los bytes realmente leídos y
-  verificar su estabilidad. El flujo de procedencia vincula sintéticamente los bytes
-  parseados; la procedencia y estabilidad posteriores siguen sin verificarse.
-- Comprobar por separado la rejilla horaria y los 16 identificadores aprobados;
-  el perfil `bdg2` del núcleo identifica dimensiones, no periodo ni lista. El
-  comparador estricto prueba estos controles; falta aplicarlos a fuentes reales.
-- Obtener y justificar de forma reproducible los conteos R5 suministrados al
-  verificador de selección y contrastar su salida con los 16 aprobados. El
-  módulo de reproducción de selección prueba ese cálculo con fuentes sintéticas.
-- Verificar en una fase autorizada la estructura y procedencia del libro. El
-  rechazo actual de partes binarias y los límites del lector pueden impedir su
-  lectura; esta auditoría no comprueba si el libro contiene esas partes.
+La auditoría local verificó las huellas de los CSV, la rejilla nominal,
+los conteos de ausencias y la selección ordenada de los 16 identificadores.
+Queda pendiente verificar la estructura y procedencia del libro y compararlo
+celda a celda con el CSV. El lector de hojas de cálculo impone límites de
+tamaño y rechaza partes binarias.
 
 La igualdad de etiquetas nominales, las posiciones de consumo comparadas y la
 verificación global son resultados distintos. Los ajustes temporales mantienen
@@ -788,9 +785,8 @@ cuaderno no acredita aprobación de contratos ni de la selección de edificios.
 ## Límites y condición de avance
 
 Los incrementos eléctricos, incluida la publicación Silver/IQR, se implementaron
-y verificaron con sintéticos según [H05](hitos-5.md). Su cierre formal, la
-orquestación y la validación real siguen pendientes. H04 mantiene pendientes
-la reproducción de la selección aprobada
-y la verificación de procedencia necesaria para cualquier ejecución
-real. Esto no autoriza fases posteriores. La integración meteorológica queda para
+y verificaron con sintéticos según [H05](hitos-5.md). Su cierre formal y la
+validación real de Silver e IQR siguen pendientes. En H04 se reprodujo la
+selección con los CSV locales. Quedan pendientes el contraste con el libro
+de trabajo y la verificación de procedencia externa. La integración meteorológica queda para
 [H06](hitos-6.md), con semántica temporal y cardinalidad justificadas.

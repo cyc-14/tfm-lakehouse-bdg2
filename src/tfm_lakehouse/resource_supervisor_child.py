@@ -40,7 +40,16 @@ def _authorize(ticket, evidence, evidence_fd):
     if not isinstance(handler, str) or handler not in supervisor._HANDLERS:
         raise supervisor.SupervisorError('Unknown workload handler')
     parameters = supervisor._HANDLERS[handler][0](**config['parameters'])
-    expected = supervisor._configuration(campaign, basetemp, config['run_id'], handler, parameters)
+    extra = {}
+    if handler == supervisor._REAL_SILVER_HANDLER:
+        from tfm_lakehouse.resource_spark import _dependency_path
+
+        _dependency_path()
+        reservations = config['real_silver']['reservations']
+        if not reservations:
+            raise supervisor.SupervisorError('Electrical Silver requires exclusive reservations')
+        extra['real_reservations'] = reservations
+    expected = supervisor._configuration(campaign, basetemp, config['run_id'], handler, parameters, **extra)
     if (not supervisor._same(config, expected) or
             evidence != campaign.root / 'evidence' / config['run_id'] or
             not os.path.samestat(os.fstat(evidence_fd), evidence.lstat())):
@@ -81,13 +90,27 @@ def main():
         handler = _authorize(ticket, evidence, evidence_fd)
         grant = {'ticket_sha256': supervisor._digest(ticket), 'identity': asdict(identity)}
         supervisor._send(channel, grant)
+        if handler in supervisor._SPARK_HANDLERS:
+            grant['supervision'] = 'D46'
         if (not supervisor._same(supervisor._receive(channel), grant) or
                 not supervisor._same(supervisor._read_record(evidence_fd, 'child-identity.json'), grant)
                 or _parent_identity(channel, identity) != parent):
             raise supervisor.SupervisorError('Child authorization rejected')
         _authorize(ticket, evidence, evidence_fd)
-        supervisor._HANDLERS[handler][1](evidence_fd, ticket['configuration'])
+        token = supervisor._ACTIVE_CHILD_GRANT.set(grant['ticket_sha256'])
+        try:
+            supervisor._HANDLERS[handler][1](evidence_fd, ticket['configuration'])
+        finally:
+            supervisor._ACTIVE_CHILD_GRANT.reset(token)
         supervisor._send(channel, {'status': 'probe_passed'})
+        # Give the sampler a bounded checkpoint. A delayed sampler cannot
+        # invalidate the completed probe or keep its process alive forever.
+        try:
+            trailing = channel.recv(1)
+        except TimeoutError:
+            return
+        if trailing:
+            raise supervisor.SupervisorError('Unexpected data after the workload outcome')
 
 
 if __name__ == '__main__':

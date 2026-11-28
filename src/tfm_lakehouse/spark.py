@@ -130,6 +130,7 @@ def spark_session(
     *,
     protected_roots: Iterable[Path] = (),
     campaign=None,
+    event_log: Path | None = None,
 ) -> Iterator[SparkSession]:
     """Own one local context; reject preexisting resources and unsafe Ivy paths.
 
@@ -142,9 +143,11 @@ def spark_session(
         raise ValueError("Este prototipo admite únicamente Spark local.")
     campaign_root = None
     if campaign is None:
+        if event_log is not None:
+            raise ConfigurationError("Event evidence requires an authorized campaign")
         ivy = validate_ivy_directory(ivy_dir, protected_roots=protected_roots)
     else:
-        from tfm_lakehouse.scalability_workspace import validate_authorized_campaign
+        from tfm_lakehouse.scalability_workspace import CAMPAIGN_JARS, validate_authorized_campaign
         if ivy_dir is not None or tuple(protected_roots):
             raise ConfigurationError("Campaign Spark uses its own isolated Ivy directory")
         if (os.environ.get("SPARK_HOME")
@@ -159,10 +162,13 @@ def spark_session(
                         "JDK_JAVA_OPTIONS", "SPARK_SUBMIT_OPTS"))):
             raise ConfigurationError("External Spark temporary settings are unsupported")
         campaign_root = validate_authorized_campaign(campaign)
+        if event_log is not None and (not isinstance(event_log, Path) or
+                event_log.name != 'spark-events' or event_log.parent.parent != campaign_root / 'evidence'
+                or '..' in event_log.parts or not event_log.is_dir()):
+            raise ConfigurationError("Event evidence is outside the authorized run")
         ivy = campaign_root / "ivy"
         jar_root = ivy / "jars"
-        jars = [jar_root / name for name in ("io.delta_delta-spark_2.12-3.3.3.jar",
-                "io.delta_delta-storage-3.3.3.jar", "org.antlr_antlr4-runtime-4.9.3.jar")]
+        jars = [jar_root / name for name in CAMPAIGN_JARS]
         if any(not jar.is_file() for jar in jars):
             raise ConfigurationError("Campaign requires pre-provisioned local Delta jars; downloads are disabled")
     if campaign_root is None:
@@ -221,6 +227,11 @@ def spark_session(
                 builder = configure_spark_with_delta_pip(builder)
             else:
                 builder = builder.config("spark.jars", ",".join(str(jar) for jar in jars))
+            if event_log is not None:
+                builder = (builder.config('spark.eventLog.enabled', 'true')
+                           .config('spark.eventLog.dir', event_log.as_uri())
+                           .config('spark.eventLog.compress', 'false')
+                           .config('spark.eventLog.rolling.enabled', 'false'))
             _reject_existing_resources()
             environment_changed = True
             os.environ["PYSPARK_PYTHON"] = sys.executable

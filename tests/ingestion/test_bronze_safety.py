@@ -12,7 +12,7 @@ from pyspark.sql.readwriter import DataFrameWriter
 from tfm_lakehouse.config import BronzeConfig, ConfigurationError
 from tfm_lakehouse.ingestion import bronze
 from tfm_lakehouse.ingestion.bronze import IngestionError, run_bronze
-from tfm_lakehouse.ingestion.csv_source import SourceError, inspect_source, read_source
+from tfm_lakehouse.ingestion.csv_source import SourceError, SourceInfo, inspect_source, read_source
 from tfm_lakehouse.ingestion.snapshot import SnapshotError, read_bronze_snapshot
 
 
@@ -171,6 +171,56 @@ def test_multiline_quotes_empty_fields_and_blank_lines(spark, config):
     assert info.rows == 2
     rows = [tuple(row) for row in read_source(spark, info).orderBy("timestamp").collect()]
     assert rows == [("2016", 'a "quoted"\nvalue'), ("2017", None)]
+
+
+@pytest.mark.integration
+def test_distributed_write_preserves_multiline_null_duplicates_and_commit(spark, config, monkeypatch):
+    from tfm_lakehouse.bronze_calibration import _LINEAGE_COLUMNS, _same_rows
+
+    config.electricity.write_text(
+        'timestamp,SYNTHETIC_A\n2016,"a ""quoted""\nvalue"\n'
+        '2017,\n2016,"a ""quoted""\nvalue"\n2018,001\n',
+        encoding='utf-8',
+    )
+    monkeypatch.setattr(bronze, '_TARGET_WRITE_FIELDS', 12)
+    report = run_bronze(spark, config)
+    selected, frames = read_bronze_snapshot(spark, config)
+    assert selected['run_id'] == report['run_id']
+    for item in report['tables']:
+        assert item['delta_version'] == 0 and item['read_back_verified']
+        log = Path(item['table_path']) / '_delta_log'
+        commit, = log.glob('*.json')
+        actions = [json.loads(line) for line in commit.read_text().splitlines()]
+        assert len([a for a in actions if 'add' in a]) == 2
+        metadata, = (a['metaData'] for a in actions if 'metaData' in a)
+        assert metadata['partitionColumns'] == []
+    electricity = frames['electricity']
+    assert electricity.columns == ['timestamp', 'SYNTHETIC_A'] + _LINEAGE_COLUMNS
+    assert electricity.dtypes == [(column, 'string') for column in electricity.columns]
+    source = report['tables'][0]
+    assert source['source_sha256'] == bronze.source_sha256(config.electricity)
+    lineage = [config.electricity.as_uri(), source['source_sha256'], 'synthetic', config.dataset_reference]
+    expected = spark.createDataFrame([
+        (['2016', 'a "quoted"\nvalue'] + lineage,),
+        (['2017', None] + lineage,),
+        (['2016', 'a "quoted"\nvalue'] + lineage,),
+        (['2018', '001'] + lineage,),
+    ], 'row array<string>')
+    assert _same_rows(electricity.select(F.array(*electricity.columns).alias('row')), expected)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(('rows', 'columns', 'size', 'expected'), [
+    (8, 17, 4000, 1),
+    (700, 1024, 1_000_000, 2),
+    (10, 4, 16 * 1024**2 + 1, 3),
+    (1, 4, 80 * 1024**2, 1),
+    (512, 1601, 5_670_000, 2),
+    (17544, 1601, 241910680, 54),
+], ids=['small', 'fields', 'bytes', 'one-oversized-row', 'reduced-wide', 'combined'])
+def test_write_partition_count_uses_bytes_fields_and_row_limit(rows, columns, size, expected):
+    info = SourceInfo(Path('synthetic.csv'), tuple(map(str, range(columns))), 'unused', size, rows)
+    assert bronze._write_partition_count(info) == expected
 
 
 @pytest.mark.integration
@@ -346,6 +396,12 @@ def fake_ingestion(config, monkeypatch, controls=None):
         def withColumn(self, name, value):
             return self
 
+        def repartition(self, partitions):
+            events.append(f"repartition:{partitions}")
+            if controls.get("repartition_error") is not None:
+                raise controls["repartition_error"]
+            return self
+
         @property
         def write(self):
             return self
@@ -427,6 +483,25 @@ def fake_ingestion(config, monkeypatch, controls=None):
 
 def saved_report(directory):
     return json.loads(next(directory.glob("*.json")).read_text())
+
+
+@pytest.mark.unit
+def test_repartition_failure_keeps_primary_and_cleans_materialized_sources(config, monkeypatch):
+    primary = OSError('synthetic exchange failure')
+    secondary = OSError('synthetic unpersist failure')
+    spark, directory, events = fake_ingestion(config, monkeypatch, {
+        'repartition_error': primary, 'cleanup_error': secondary,
+    })
+    monkeypatch.setattr(bronze, '_TARGET_WRITE_FIELDS', 14)
+    with pytest.raises(IngestionError) as caught:
+        bronze._run_locked(spark, config, directory)
+    assert caught.value.__cause__ is primary
+    assert events == ['pruning:false', 'repartition:2', 'unpersist:electricity.csv',
+                      'unpersist:metadata.csv', 'pruning:true']
+    report = saved_report(directory)
+    assert report['status'] == 'failed' and report['error'] == str(primary)
+    assert report['cleanup_errors'][0]['error'] == str(secondary)
+    assert all(item['status'] == 'validated' and 'delta_version' not in item for item in report['tables'])
 
 
 @pytest.mark.unit

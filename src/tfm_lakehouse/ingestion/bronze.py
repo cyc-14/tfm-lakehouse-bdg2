@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 import logging
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -12,9 +13,14 @@ from pyspark import StorageLevel
 from pyspark.sql import SparkSession, functions as F
 
 from tfm_lakehouse.config import BronzeConfig
-from tfm_lakehouse.ingestion.csv_source import SourceError, inspect_source, read_source, source_sha256
+from tfm_lakehouse.ingestion.csv_source import SourceError, SourceInfo, inspect_source, read_source, source_sha256
 
 LOGGER = logging.getLogger(__name__)
+
+# Plan for both local writing tasks sharing the JVM. CSV bytes and the number
+# of fields are proxies for dictionary input, not memory or partition limits.
+_TARGET_WRITE_SOURCE_BYTES = 8 * 1024**2
+_TARGET_WRITE_FIELDS = 512 * 1024
 
 
 class IngestionError(RuntimeError):
@@ -129,15 +135,23 @@ def _finish_report(report: dict, failures: _Failures, completed: bool) -> None:
         }
 
 
-def run_bronze(spark: SparkSession, config: BronzeConfig) -> dict:
+def run_bronze(spark: SparkSession, config: BronzeConfig, *, phase_seconds: dict | None = None) -> dict:
     config.validate()
     reports = config.namespace / "_runs"
     reports.mkdir(parents=True, exist_ok=True)
     with _namespace_lock(config.namespace):
-        return _run_locked(spark, config, reports)
+        return _run_locked(spark, config, reports, phase_seconds)
 
 
-def _run_locked(spark: SparkSession, config: BronzeConfig, reports: Path) -> dict:
+def _write_partition_count(info: SourceInfo) -> int:
+    """Estimate the number of write tasks for a nonempty inspected source."""
+    fields = info.rows * (len(info.columns) + 4)  # Include the lineage fields.
+    by_bytes = (info.size_bytes + _TARGET_WRITE_SOURCE_BYTES - 1) // _TARGET_WRITE_SOURCE_BYTES
+    by_fields = (fields + _TARGET_WRITE_FIELDS - 1) // _TARGET_WRITE_FIELDS
+    return min(info.rows, max(1, by_bytes, by_fields))
+
+
+def _run_locked(spark: SparkSession, config: BronzeConfig, reports: Path, phase_seconds=None) -> dict:
     run_id = uuid4().hex
     report_path = reports / f"{run_id}.json"
     report = {
@@ -157,7 +171,11 @@ def _run_locked(spark: SparkSession, config: BronzeConfig, reports: Path) -> dic
         # Column pruning can hide malformed CSV fields during count(), even with FAILFAST.
         pruning = spark.conf.get("spark.sql.csv.parser.columnPruning.enabled")
         spark.conf.set("spark.sql.csv.parser.columnPruning.enabled", "false")
+        phase_start = time.monotonic_ns()
         sources = [(name, inspect_source(path, name)) for name, path in config.sources.items()]
+        if phase_seconds is not None:
+            phase_seconds["source_inspection"] = (time.monotonic_ns() - phase_start) / 1e9
+        phase_start = time.monotonic_ns()
         for name, info in sources:
             frame = read_source(spark, info).persist(StorageLevel.DISK_ONLY)
             prepared.append((name, info, frame))
@@ -177,11 +195,16 @@ def _run_locked(spark: SparkSession, config: BronzeConfig, reports: Path) -> dic
                 "validated_csv_rows": info.rows, "input_rows": count,
                 "input_schema": frame.schema.jsonValue(), "table_path": str(target),
             })
+        if phase_seconds is not None:
+            phase_seconds["spark_source_materialization"] = (time.monotonic_ns() - phase_start) / 1e9
+        phase_start = time.monotonic_ns()
         # Check again after materialization; all subsequent writes use the cached records.
         for _, info, _ in prepared:
             if source_sha256(info.path) != info.sha256:
                 raise SourceError(f"La fuente cambió durante la lectura: {info.path}")
 
+        if phase_seconds is not None:
+            phase_seconds["source_rehash"] = (time.monotonic_ns() - phase_start) / 1e9
         for (name, info, frame), item in zip(prepared, report["tables"], strict=True):
             enriched = (
                 frame.withColumn("_bronze_source_uri", F.lit(info.path.as_uri()))
@@ -195,8 +218,16 @@ def _run_locked(spark: SparkSession, config: BronzeConfig, reports: Path) -> dic
             }, sort_keys=True)
             target = item["table_path"]
             # Replace the snapshot rather than appending; retain duplicates from the source.
+            phase_start = time.monotonic_ns()
+            partitions = _write_partition_count(info)
+            if partitions > 1:
+                # Explicit round-robin shuffle of complete rows, without Delta partition columns.
+                enriched = enriched.repartition(partitions)
             (enriched.write.format("delta").mode("overwrite")
              .option("overwriteSchema", "true").option("userMetadata", metadata).save(target))
+            if phase_seconds is not None:
+                phase_seconds[f"delta_write_{name}"] = (time.monotonic_ns() - phase_start) / 1e9
+            phase_start = time.monotonic_ns()
             item["status"] = "committed"
             # Identify this commit, not a later version from an unrelated Delta writer.
             versions = (DeltaTable.forPath(spark, target).history()
@@ -214,6 +245,8 @@ def _run_locked(spark: SparkSession, config: BronzeConfig, reports: Path) -> dic
                 != [(f.name, f.dataType) for f in enriched.schema]
             ):
                 raise IngestionError(f"No coincide la lectura posterior de {name}")
+            if phase_seconds is not None:
+                phase_seconds[f"commit_and_readback_{name}"] = (time.monotonic_ns() - phase_start) / 1e9
             item.update(
                 status="verified", output_rows=count,
                 output_schema=recovered.schema.jsonValue(), read_back_verified=True,

@@ -103,6 +103,81 @@ def test_parsed_manifest_identity_mismatch_stops_before_write(config_and_manifes
     assert not (tmp_path / "silver-publications" / "publication1").exists()
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize("operation", ["persist", "count"])
+def test_publication_retains_primary_failure_and_releases_frame(
+    config_and_manifest, tmp_path, monkeypatch, operation,
+):
+    import tfm_lakehouse.silver.silver_synthetic_publication as publication
+
+    cfg, report, report_path = config_and_manifest
+    primary = RuntimeError("synthetic operation failed")
+    cause = OSError("original cause")
+    primary.__cause__ = cause
+    cleanup = OSError("synthetic unpersist failed")
+    calls = []
+
+    class Frame:
+        def persist(self, _level):
+            calls.append("persist")
+            if operation == "persist":
+                raise primary
+            return self
+
+        def count(self):
+            calls.append("count")
+            raise primary
+
+        def unpersist(self):
+            calls.append("unpersist")
+            raise cleanup
+
+    monkeypatch.setattr(publication, "project_protected_roots", lambda: (tmp_path.parent / "stand-in",))
+    monkeypatch.setattr(publication, "transform_published_synthetic_electricity",
+                        lambda *_: (fake_assessment(report_path, report), Frame()))
+    with pytest.raises(RuntimeError) as caught:
+        publish_synthetic_silver(None, cfg, "run1", "publication1", tmp_path)
+    assert caught.value is primary and primary.__cause__ is cause
+    assert primary._h06_cleanup_failures == [cleanup]
+    assert "unpersist" in primary.__notes__[0]
+    assert calls == (["persist", "unpersist"] if operation == "persist"
+                     else ["persist", "count", "unpersist"])
+    assert not (tmp_path / "silver-publications" / "publication1").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("operation_fails", [False, True])
+def test_unlock_and_close_failures_preserve_first_error(tmp_path, monkeypatch, operation_fails):
+    import tfm_lakehouse.silver.silver_synthetic_publication as publication
+
+    primary = RuntimeError("synthetic publication failed")
+    unlock = OSError("synthetic unlock failed")
+    close = OSError("synthetic close failed")
+    calls = []
+
+    class Handle:
+        def close(self):
+            calls.append("close")
+            raise close
+
+    def flock(_handle, operation):
+        if operation == publication.fcntl.LOCK_UN:
+            calls.append("unlock")
+            raise unlock
+        calls.append("lock")
+
+    monkeypatch.setattr(publication, "_open_regular", lambda *_: Handle())
+    monkeypatch.setattr(publication.fcntl, "flock", flock)
+    with pytest.raises(RuntimeError if operation_fails else OSError) as caught:
+        with publication._lock(tmp_path):
+            calls.append("work")
+            if operation_fails:
+                raise primary
+    assert caught.value is (primary if operation_fails else unlock)
+    assert caught.value._h06_cleanup_failures == ([unlock, close] if operation_fails else [close])
+    assert calls == ["lock", "work", "unlock", "close"]
+
+
 def synthetic_silver(spark):
     names = ("timestamp", *APPROVED_BUILDINGS, *_LINEAGE_COLUMNS)
     schema = StructType([StructField(name, StringType(), True) for name in names])

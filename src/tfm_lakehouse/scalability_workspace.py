@@ -18,6 +18,8 @@ class WorkspaceError(RuntimeError):
 
 PROJECT_ROOT = Path(__file__).absolute().parents[2]
 SCALABILITY_ROOT = PROJECT_ROOT / "data/lakehouse/synthetic/scalability"
+CAMPAIGN_JARS = ("io.delta_delta-spark_2.12-3.3.3.jar", "io.delta_delta-storage-3.3.3.jar",
+                 "org.antlr_antlr4-runtime-4.9.3.jar")
 _IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
 _LAYOUT = ("raw", "lakehouse", "silver-publications", "iqr-publications",
            "contextual-publications", "weather-captures", "weather-publications",

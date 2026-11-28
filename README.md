@@ -14,8 +14,9 @@ de caracterización y ejecuciones reales históricas contrastadas. Su evolución
 eléctrica v2 solo se ha probado con datos sintéticos; el cierre académico global
 de H03 sigue pendiente.
 
-[H04](docs/hitos-4.md) documenta los 16 edificios aprobados conjuntamente;
-siguen pendientes la reproducción de la selección y su procedencia.
+[H04](docs/hitos-4.md) documenta una selección de 16 edificios reproducida
+con los CSV locales de BDG2. El contraste con el libro de trabajo y la
+verificación independiente del archivo de distribución siguen pendientes.
 [H05](docs/hitos-5.md) implementa transformación eléctrica, interpretación numérica
 y temporal nominal, vínculo Bronze, publicación Silver, diagnóstico de calidad,
 motor IQR y publicación IQR versionada, con verificación sintética documentada.
@@ -23,13 +24,14 @@ La orquestación Silver → IQR está implementada con verificación sintética
 parcial; el cierre formal de H05 está pendiente.
 [H06](docs/hitos-6.md) incorpora contexto y asociación meteorológica nominal,
 captura, publicación y lectura histórica explícita con verificación sintética. La resistencia
-y regresión segmentada D27 se superaron en su alcance original; las ampliaciones
-meteorológicas disponen de pruebas sintéticas enfocadas. La ratificación conjunta
-y la validación con BDG2 real siguen pendientes. Gold no está implementado.
+y la regresión segmentada se superaron en su alcance original. Las ampliaciones
+meteorológicas disponen de pruebas sintéticas enfocadas. La auditoría de los
+datos locales verificó un snapshot Bronze coherente. La validación real de
+Silver y de las capas posteriores sigue pendiente. Gold no está implementado.
 
 El [registro de hitos](docs/milestones.md) es la referencia del estado actual.
-Las pruebas habituales usan datos sintéticos. No se ha autorizado validar ni
-publicar Silver/IQR con BDG2 real. Los originales y sus salidas permanecen
+Las pruebas habituales usan datos sintéticos. La publicación Silver e IQR
+con BDG2 real sigue pendiente. Los originales y sus salidas permanecen
 locales, fuera de Git; una carga Bronze no demuestra resultados energéticos.
 
 ## Organización del código

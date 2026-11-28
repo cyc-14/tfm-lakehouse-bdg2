@@ -3,10 +3,12 @@ from contextlib import contextmanager
 import fcntl
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import re
 import stat
+from time import monotonic
 
 from delta.tables import DeltaTable
 from pyspark import StorageLevel
@@ -21,6 +23,7 @@ class SilverPublicationError(RuntimeError):
 
 _ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
 _TRANSFORM = "h05.3-v1"
+_LOGGER = logging.getLogger(__name__)
 
 
 def _no_links(path: Path) -> None:
@@ -111,21 +114,56 @@ def _validate_workspace(workspace: Path, config: BronzeConfig) -> Path:
 
 
 @contextmanager
-def _lock(root: Path):
-    namespace = root / "silver-publications"
+def _release_on_exit():
+    """Release owned resources in reverse order without replacing a primary error."""
+    releases = []
+    primary = None
+    try:
+        yield releases
+    except BaseException as exc:
+        primary = exc
+        raise
+    finally:
+        failure = primary
+        for name, release in reversed(releases):
+            try:
+                release()
+            except BaseException as exc:
+                if failure is None:
+                    failure = exc
+                elif exc is not failure:
+                    try:
+                        errors = [*getattr(failure, "_h06_cleanup_failures", ()), exc]
+                        BaseException.__setattr__(failure, "_h06_cleanup_failures", errors)
+                    except BaseException:
+                        pass
+                    try:
+                        BaseException.add_note(failure, f"{name} failed: {exc!r}")
+                    except BaseException:
+                        try:
+                            _LOGGER.error("%s failed", name, exc_info=(type(exc), exc, exc.__traceback__))
+                        except BaseException:
+                            pass
+        if primary is None and failure is not None:
+            raise failure
+
+
+@contextmanager
+def _lock(root: Path, directory: str = "silver-publications"):
+    namespace = root / directory
     _no_links(namespace)
     namespace.mkdir(exist_ok=True)
     lock = namespace / ".publication.lock"
     _no_links(lock)
-    with _open_regular(lock, os.O_RDWR | os.O_CREAT) as handle:
+    with _release_on_exit() as releases:
+        handle = _open_regular(lock, os.O_RDWR | os.O_CREAT)
+        releases.append(("Silver lock close", handle.close))
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             raise SilverPublicationError("Another local publication is active") from exc
-        try:
-            yield namespace
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+        releases.append(("Silver lock unlock", lambda: fcntl.flock(handle, fcntl.LOCK_UN)))
+        yield namespace
 
 
 def _exclusive_json(path: Path, value: dict) -> None:
@@ -177,7 +215,7 @@ def _validate_output(spark, target: Path, expected, intent: dict) -> dict:
     if not DeltaTable.isDeltaTable(spark, str(target)):
         raise SilverPublicationError("Target is incomplete or is not a Delta table")
     table = DeltaTable.forPath(spark, str(target))
-    history = table.history().select("version", "userMetadata").collect()
+    history = table.history().select("version", "userMetadata").limit(2).collect()
     metadata = json.dumps(intent, sort_keys=True, separators=(",", ":"))
     if len(history) != 1 or history[0]["version"] != 0 or history[0]["userMetadata"] != metadata:
         raise SilverPublicationError("Delta history conflicts with the intended publication")
@@ -185,19 +223,30 @@ def _validate_output(spark, target: Path, expected, intent: dict) -> dict:
     if len(details) != 1 or not isinstance(details[0]["id"], str) or not details[0]["id"]:
         raise SilverPublicationError("Delta table identity is unavailable")
     actual = spark.read.format("delta").option("versionAsOf", 0).load(str(target))
-    if not _same_schema(expected.schema, actual.schema):
+    if "profile" in intent:
+        # Delta makes top-level fields nullable on a versioned read.
+        schema = expected.schema.jsonValue()
+        for field in schema["fields"]:
+            field["nullable"] = True
+        same_schema = schema == actual.schema.jsonValue()
+    else:
+        same_schema = _same_schema(expected.schema, actual.schema)
+    if not same_schema:
         raise SilverPublicationError("Committed schema differs from the intended output")
     count = actual.count()
     if count != intent["output_rows"]:
         raise SilverPublicationError("Committed row count differs from the intended output")
     if expected.exceptAll(actual).limit(1).count() or actual.exceptAll(expected).limit(1).count():
         raise SilverPublicationError("Committed rows differ from the intended output")
-    return {"status": "passed", "publication_id": intent["publication_id"],
+    result = {"status": "passed", "publication_id": intent["publication_id"],
             "source_run_id": intent["source_run_id"], "manifest_sha256": intent["manifest_sha256"],
-            "source_tables": intent["source_tables"], "transform_version": _TRANSFORM,
+            "source_tables": intent["source_tables"], "transform_version": intent["transform_version"],
             "input_rows": intent["input_rows"], "output_rows": count,
             "delta_version": 0, "delta_table_id": details[0]["id"], "schema": actual.schema.jsonValue(),
             "table_path": str(target), "source_authenticity": "not_established"}
+    if "profile" in intent:
+        result["profile"] = intent["profile"]
+    return result
 
 
 def publish_synthetic_silver(spark, config: BronzeConfig, run_id: str, publication_id: str,
@@ -216,8 +265,7 @@ def publish_synthetic_silver(spark, config: BronzeConfig, run_id: str, publicati
         raise SilverPublicationError("Unsupported transformation version")
     root = _validate_workspace(workspace, config)
     with _lock(root) as namespace:
-        folder = namespace / publication_id
-        _no_links(folder)
+        _no_links(namespace / publication_id)
         for name in config.sources:
             _check_tree(config.table_path(name))
         report, manifest_hash = _manifest(config, run_id)
@@ -240,40 +288,72 @@ def publish_synthetic_silver(spark, config: BronzeConfig, run_id: str, publicati
                   "manifest_sha256": manifest_hash, "source_tables": source_tables,
                   "transform_version": transform_version, "input_rows": rows,
                   "output_rows": expected_count}
-        for other in namespace.iterdir():
-            if other.name == ".publication.lock" or other == folder:
-                continue
-            _no_links(other)
-            if not other.is_dir():
-                raise SilverPublicationError("Unknown entry in publication namespace")
-            existing = _read_json(other / "intent.json")
-            if existing.get("source_run_id") == run_id and existing.get("transform_version") == transform_version:
-                raise SilverPublicationError("Bronze publication already reserved under another Silver ID")
+        return _publish(spark, namespace, frame, intent)
+
+
+def _publish(spark, namespace, frame, intent, *, expected=None, phases=None, exclusive=False, confirm=None):
+    """Persist a bound transformation and verify one Delta commit under the caller's lock."""
+    folder = namespace / intent["publication_id"]
+    _no_links(folder)
+    if exclusive and os.path.lexists(folder):
+        raise SilverPublicationError("Silver destination is already reserved")
+    for other in namespace.iterdir():
+        if other.name == ".publication.lock" or other == folder:
+            continue
+        _no_links(other)
+        if not other.is_dir():
+            raise SilverPublicationError("Unknown entry in publication namespace")
+        existing = _read_json(other / "intent.json")
+        if (existing.get("source_run_id") == intent["source_run_id"] and
+                existing.get("transform_version") == intent["transform_version"]):
+            raise SilverPublicationError("Bronze publication already reserved under another Silver ID")
+    return _persist_publication(spark, folder, frame, intent, expected=expected,
+                                phases=phases, confirm=confirm)
+
+
+def _persist_publication(spark, folder, frame, intent, *, expected=None, phases=None,
+                         confirm=None, reserved=False):
+    """Write and reconcile one publication using the caller's namespace boundary."""
+    if reserved:
+        _no_links(folder)
+        if not folder.is_dir() or any(folder.iterdir()):
+            raise SilverPublicationError("Reserved publication directory is not empty")
+    with _release_on_exit() as releases:
+        started = monotonic()
+        releases.append(("Silver frame unpersist", frame.unpersist))
         frame = frame.persist(StorageLevel.DISK_ONLY)
-        try:
-            if frame.count() != expected_count:
-                raise SilverPublicationError("Silver row expansion does not match Bronze")
-            if not folder.exists():
+        if frame.count() != intent["output_rows"]:
+            raise SilverPublicationError("Silver row expansion does not match Bronze")
+        if phases is not None:
+            phases["materialization_seconds"] = monotonic() - started
+        if reserved or not folder.exists():
+            if not reserved:
                 folder.mkdir()
-                _exclusive_json(folder / "intent.json", intent)
-            elif not folder.is_dir() or _read_json(folder / "intent.json") != intent:
-                raise SilverPublicationError("Publication ID conflicts with existing evidence")
-            target = folder / "table"
-            completed = folder / "completed.json"
-            _no_links(target)
-            _no_links(completed)
-            if not target.exists():
-                if completed.exists():
-                    raise SilverPublicationError("Evidence exists without a Delta table")
-                metadata = json.dumps(intent, sort_keys=True, separators=(",", ":"))
-                (frame.write.format("delta").mode("errorifexists")
-                 .option("userMetadata", metadata).save(str(target)))
-            result = _validate_output(spark, target, frame, intent)
+            _exclusive_json(folder / "intent.json", intent)
+        elif not folder.is_dir() or _read_json(folder / "intent.json") != intent:
+            raise SilverPublicationError("Publication ID conflicts with existing evidence")
+        target = folder / "table"
+        completed = folder / "completed.json"
+        _no_links(target)
+        _no_links(completed)
+        if not target.exists():
             if completed.exists():
-                if _read_json(completed) != result:
-                    raise SilverPublicationError("Finalized evidence conflicts with Delta")
-            else:
-                _exclusive_json(completed, result)
-            return result
-        finally:
-            frame.unpersist()
+                raise SilverPublicationError("Evidence exists without a Delta table")
+            metadata = json.dumps(intent, sort_keys=True, separators=(",", ":"))
+            started = monotonic()
+            (frame.write.format("delta").mode("errorifexists")
+             .option("userMetadata", metadata).save(str(target)))
+            if phases is not None:
+                phases["delta_write_seconds"] = monotonic() - started
+        started = monotonic()
+        result = _validate_output(spark, target, frame if expected is None else expected, intent)
+        if confirm is not None:
+            confirm()
+        if completed.exists():
+            if _read_json(completed) != result:
+                raise SilverPublicationError("Finalized evidence conflicts with Delta")
+        else:
+            _exclusive_json(completed, result)
+        if phases is not None:
+            phases["reconciliation_and_publication_seconds"] = monotonic() - started
+        return result
